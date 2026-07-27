@@ -235,7 +235,7 @@ export default function ChampionProfile() {
           </div>
         ) : (
           <Button size="sm" variant="outline" onClick={startEdit}>
-            <Save className="h-4 w-4" /> Edit
+            <Save className="h-4 w-4" /> Edit Champion
           </Button>
         )}
       </div>
@@ -376,7 +376,7 @@ export default function ChampionProfile() {
 
       {/* Relationship Summary */}
       <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Relationship Summary</h2>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Upcoming Follow-up</h2>
         <RelationshipSummary activities={activities} />
       </div>
 
@@ -391,6 +391,15 @@ export default function ChampionProfile() {
         onStatusChanged={handleStatusChanged}
         currentUser={currentUser}
       />
+
+      {/* Notes */}
+      <Section icon={StickyNote} title="Notes">
+        {editing ? (
+          <Textarea value={h.notes || ''} onChange={(e) => setField('notes', e.target.value)} rows={4} placeholder="Add notes about this Marriage Champion…" />
+        ) : (
+          <p className="whitespace-pre-wrap text-sm text-foreground">{h.notes || 'No notes recorded yet.'}</p>
+        )}
+      </Section>
     </div>
   );
 }

@@ -9,7 +9,9 @@ import MyChampionsSummary from '@/components/champions/MyChampionsSummary';
 import ChampionStatusBadge from '@/components/champions/ChampionStatusBadge';
 import RelationshipStatusBadge from '@/components/champions/RelationshipStatusBadge';
 import RelationshipStatusSummary from '@/components/champions/RelationshipStatusSummary';
-import { isAssignedTo, householdIndicator, lastActivityDate } from '@/lib/championUtils';
+import {
+  isAssignedTo, householdIndicator, lastActivityDate, nextFollowUpDate, isRecentlyContacted,
+} from '@/lib/championUtils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,20 +22,28 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-const STATUS_STYLES = {
-  New: 'bg-amber-100 text-amber-700',
-  'First Contact': 'bg-blue-100 text-blue-700',
-  'Follow-Up': 'bg-violet-100 text-violet-700',
-  Completed: 'bg-emerald-100 text-emerald-700',
-  Inactive: 'bg-slate-100 text-slate-500',
-};
-
 const PAGE_SIZE = 10;
 
 function householdDisplay(h) {
   if (h.household_name) return h.household_name;
   const ln = (h._members || []).find((m) => m.last_name)?.last_name;
   return ln ? `${ln} Household` : 'Unnamed Household';
+}
+
+function fmtDate(s) {
+  if (!s) return '—';
+  return new Date(s + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function emptyMessageFor(view) {
+  switch (view) {
+    case 'my': return 'No Marriage Champions are assigned to you yet.';
+    case 'follow-up': return "You're all caught up — no follow-ups need attention right now.";
+    case 'first-contact': return 'No Champions are waiting for first contact.';
+    case 'recent': return 'No recent activity to show.';
+    case 'unassigned': return 'All Champions have been assigned a volunteer.';
+    default: return 'No Marriage Champions found.';
+  }
 }
 
 export default function MarriageChampions() {
@@ -96,11 +106,12 @@ export default function MarriageChampions() {
   const counts = useMemo(() => {
     const c = { all: households.length, my: 0, 'first-contact': 0, 'follow-up': 0, recent: 0, unassigned: 0 };
     households.forEach((h) => {
-      const ind = householdIndicator(activitiesByHouse[h.id] || []);
+      const acts = activitiesByHouse[h.id] || [];
+      const ind = householdIndicator(acts);
       if (isAssignedTo(h, currentUser)) c.my++;
       if (h.status === 'New') c['first-contact']++;
       if (ind.key === 'overdue' || ind.key === 'due-today' || h.status === 'Follow-Up') c['follow-up']++;
-      if (ind.key === 'recent') c.recent++;
+      if (isRecentlyContacted(acts)) c.recent++;
       if (!h.assigned_volunteer || !h.assigned_volunteer.trim()) c.unassigned++;
     });
     return c;
@@ -134,14 +145,15 @@ export default function MarriageChampions() {
 
   const filtered = useMemo(() => {
     let result = households.filter((h) => {
+      const acts = activitiesByHouse[h.id] || [];
       switch (activeView) {
         case 'my': return isAssignedTo(h, currentUser);
         case 'first-contact': return h.status === 'New';
         case 'follow-up': {
-          const ind = householdIndicator(activitiesByHouse[h.id] || []);
+          const ind = householdIndicator(acts);
           return ind.key === 'overdue' || ind.key === 'due-today' || h.status === 'Follow-Up';
         }
-        case 'recent': return householdIndicator(activitiesByHouse[h.id] || []).key === 'recent';
+        case 'recent': return isRecentlyContacted(acts);
         case 'unassigned': return !h.assigned_volunteer || !h.assigned_volunteer.trim();
         default: return true;
       }
@@ -185,11 +197,7 @@ export default function MarriageChampions() {
     }
   }
 
-  const emptyMessage = loading
-    ? 'Loading…'
-    : activeView === 'my'
-      ? 'No champions are assigned to you yet.'
-      : 'No households found.';
+  const emptyMessage = loading ? 'Loading…' : emptyMessageFor(activeView);
 
   return (
     <div className="space-y-5">
@@ -197,7 +205,7 @@ export default function MarriageChampions() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Marriage Champions</h1>
           <p className="text-sm text-muted-foreground">
-            {filtered.length} {filtered.length === 1 ? 'household' : 'households'}
+            {filtered.length} {filtered.length === 1 ? 'Champion' : 'Champions'}
           </p>
         </div>
         <Button variant="outline" onClick={() => setImportOpen(true)}>
@@ -279,35 +287,31 @@ export default function MarriageChampions() {
         <table className="w-full text-sm">
           <thead className="border-b bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
-              {[
-                { key: 'household_name', label: 'Household' },
-                { key: 'area', label: 'Area' },
-                { key: 'city', label: 'City' },
-                { key: 'registration_type', label: 'Type' },
-                { key: 'status', label: 'Status' },
-              ].map((col) => (
-                <th key={col.key} className="px-4 py-3">
-                  <button
-                    onClick={() => toggleSort(col.key)}
-                    className="inline-flex items-center gap-1 font-medium hover:text-foreground"
-                  >
-                    {col.label}
-                    <ArrowUpDown className="h-3 w-3" />
-                  </button>
-                </th>
-              ))}
+              <th className="px-4 py-3">
+                <button onClick={() => toggleSort('household_name')} className="inline-flex items-center gap-1 font-medium hover:text-foreground">
+                  Marriage Champion <ArrowUpDown className="h-3 w-3" />
+                </button>
+              </th>
               <th className="px-4 py-3 font-medium">Relationship</th>
+              <th className="px-4 py-3">
+                <button onClick={() => toggleSort('assigned_volunteer')} className="inline-flex items-center gap-1 font-medium hover:text-foreground">
+                  Assigned <ArrowUpDown className="h-3 w-3" />
+                </button>
+              </th>
+              <th className="px-4 py-3 font-medium">Last Contact</th>
+              <th className="px-4 py-3 font-medium">Next Follow-up</th>
               <th className="px-4 py-3 font-medium">Follow-up</th>
             </tr>
           </thead>
           <tbody>
             {pageItems.map((h) => {
+              const acts = activitiesByHouse[h.id] || [];
               const memberNames = (h._members || [])
                 .map((m) => `${m.first_name || ''} ${m.last_name || ''}`.trim())
                 .join(', ');
               return (
-                <tr key={h.id} className="border-b last:border-0 hover:bg-muted/40">
-                  <td className="px-4 py-3">
+                <tr key={h.id} className="border-b last:border-0 transition-colors hover:bg-muted/40">
+                  <td className="px-4 py-3.5">
                     <Link to={`/champions/${h.id}`} className="font-medium hover:underline">
                       {householdDisplay(h)}
                     </Link>
@@ -315,26 +319,22 @@ export default function MarriageChampions() {
                       <p className="text-xs text-muted-foreground">{memberNames}</p>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{h.area || '—'}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{h.city || '—'}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{h.registration_type || '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[h.status] || 'bg-slate-100'}`}>
-                      {h.status || '—'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3.5">
                     <RelationshipStatusBadge status={h.relationship_status} />
                   </td>
-                  <td className="px-4 py-3">
-                    <ChampionStatusBadge activities={activitiesByHouse[h.id] || []} />
+                  <td className="px-4 py-3.5 text-muted-foreground">{h.assigned_volunteer || '—'}</td>
+                  <td className="whitespace-nowrap px-4 py-3.5 text-muted-foreground">{fmtDate(lastActivityDate(acts))}</td>
+                  <td className="whitespace-nowrap px-4 py-3.5 text-muted-foreground">{fmtDate(nextFollowUpDate(acts))}</td>
+                  <td className="px-4 py-3.5">
+                    <ChampionStatusBadge activities={acts} />
                   </td>
                 </tr>
               );
             })}
             {!pageItems.length && (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
+                <td colSpan={6} className="px-4 py-16 text-center text-muted-foreground">
+                  <Users className="mx-auto mb-2 h-8 w-8 opacity-40" />
                   {emptyMessage}
                 </td>
               </tr>
@@ -346,6 +346,7 @@ export default function MarriageChampions() {
       {/* Mobile cards */}
       <div className="space-y-3 md:hidden">
         {pageItems.map((h) => {
+          const acts = activitiesByHouse[h.id] || [];
           const memberNames = (h._members || [])
             .map((m) => `${m.first_name || ''} ${m.last_name || ''}`.trim())
             .join(', ');
@@ -353,30 +354,40 @@ export default function MarriageChampions() {
             <Link
               key={h.id}
               to={`/champions/${h.id}`}
-              className="block rounded-xl border bg-card p-4 shadow-sm active:bg-muted/50"
+              className="block rounded-xl border bg-card p-4 shadow-sm transition-colors active:bg-muted/50"
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">{householdDisplay(h)}</span>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="font-medium">{householdDisplay(h)}</span>
+                  {memberNames && (
+                    <div className="mt-0.5 truncate text-sm text-muted-foreground">{memberNames}</div>
+                  )}
+                </div>
                 <RelationshipStatusBadge status={h.relationship_status} />
               </div>
-              {memberNames && (
-                <div className="mt-1 text-sm text-muted-foreground">{memberNames}</div>
-              )}
-              <div className="mt-1 text-xs text-muted-foreground">
-                {[h.area, h.city, h.registration_type].filter(Boolean).join(' · ') || '—'}
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[h.status] || 'bg-slate-100'}`}>
-                  {h.status || '—'}
-                </span>
-                <ChampionStatusBadge activities={activitiesByHouse[h.id] || []} />
+              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                <div>
+                  <p className="text-muted-foreground">Assigned</p>
+                  <p className="truncate font-medium text-foreground">{h.assigned_volunteer || 'Unassigned'}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Last Contact</p>
+                  <p className="font-medium text-foreground">{fmtDate(lastActivityDate(acts))}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Next Follow-up</p>
+                  <p className="font-medium text-foreground">{fmtDate(nextFollowUpDate(acts))}</p>
+                </div>
+                <div className="flex items-end">
+                  <ChampionStatusBadge activities={acts} />
+                </div>
               </div>
             </Link>
           );
         })}
         {!pageItems.length && (
           <div className="flex flex-col items-center gap-2 rounded-xl border bg-card p-10 text-center text-muted-foreground">
-            <Users className="h-8 w-8" />
+            <Users className="h-8 w-8 opacity-40" />
             {emptyMessage}
           </div>
         )}

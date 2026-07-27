@@ -136,7 +136,7 @@ export default function LogInteractionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{activity ? 'Edit Interaction' : 'Log Interaction'}</DialogTitle>
+          <DialogTitle>{activity ? 'Edit Activity' : 'Log Activity'}</DialogTitle>
         </DialogHeader>
 
         {suggestion ? (
@@ -238,7 +238,7 @@ export default function LogInteractionDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
               <Button onClick={handleSave} disabled={saving}>
                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-                {activity ? 'Save Changes' : 'Save'}
+                {activity ? 'Save Changes' : 'Log Activity'}
               </Button>
             </>
           )}

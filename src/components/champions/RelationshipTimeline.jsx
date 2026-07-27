@@ -133,7 +133,7 @@ export default function RelationshipTimeline({
           <MessageSquare className="h-4 w-4" /> Relationship Timeline
         </div>
         <Button size="sm" onClick={openNew} className="h-9">
-          <Plus className="h-4 w-4" /> Log Interaction
+          <Plus className="h-4 w-4" /> Log Activity
         </Button>
       </div>
 
@@ -165,7 +165,7 @@ export default function RelationshipTimeline({
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-10 text-center text-muted-foreground">
           <MessageSquare className="h-6 w-6" />
-          <p className="text-sm">No timeline entries found.</p>
+          <p className="text-sm">No activities have been logged yet. Log an activity to start building this Champion's story.</p>
         </div>
       ) : (
         <ol className="space-y-3">
