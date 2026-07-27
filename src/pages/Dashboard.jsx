@@ -6,6 +6,7 @@ import WelcomeHeader from '@/components/dashboard/WelcomeHeader';
 import MinistryOverview from '@/components/dashboard/MinistryOverview';
 import QuickActions from '@/components/dashboard/QuickActions';
 import ActivityFeed from '@/components/dashboard/ActivityFeed';
+import ActionCenter from '@/components/dashboard/ActionCenter';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Users } from 'lucide-react';
 
@@ -80,6 +81,14 @@ export default function Dashboard() {
       <WelcomeHeader user={user} />
 
       <MinistryOverview metrics={metrics} />
+
+      <ActionCenter
+        households={households}
+        assignments={assignments}
+        teams={teams}
+        activities={activities}
+        teamMembers={teamMembers}
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1">
