@@ -78,6 +78,10 @@
       ],
       "default": "New"
     },
+    "volunteer_team_id": {
+      "type": "string",
+      "title": "Assigned Volunteer Team"
+    },
     "assigned_volunteer": {
       "type": "string",
       "title": "Assigned Volunteer"

@@ -50,6 +50,7 @@ function emptyMessageFor(view) {
 
 export default function MarriageChampions() {
   const [households, setHouseholds] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [activities, setActivities] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -69,17 +70,19 @@ export default function MarriageChampions() {
       base44.entities.ChampionHousehold.list(),
       base44.entities.HouseholdMember.list(),
       base44.entities.ChampionActivity.list(),
+      base44.entities.VolunteerTeam.list(),
     ])
-      .then(([hhs, members, acts]) => {
+      .then(([hhs, members, acts, ts]) => {
         const byHouse = {};
         members.forEach((m) => {
           if (!byHouse[m.household_id]) byHouse[m.household_id] = [];
           byHouse[m.household_id].push(m);
         });
         setHouseholds(hhs.map((h) => ({ ...h, _members: byHouse[h.id] || [] })));
+        setTeams(ts || []);
         setActivities(acts || []);
       })
-      .catch(() => { setHouseholds([]); setActivities([]); })
+      .catch(() => { setHouseholds([]); setTeams([]); setActivities([]); })
       .finally(() => setLoading(false));
   };
 
@@ -104,6 +107,12 @@ export default function MarriageChampions() {
     });
     return map;
   }, [activities]);
+
+  const teamMap = useMemo(() => {
+    const m = {};
+    (teams || []).forEach((t) => { m[t.id] = t; });
+    return m;
+  }, [teams]);
 
   const counts = useMemo(() => {
     const c = { all: households.length, my: 0, 'first-contact': 0, 'follow-up': 0, recent: 0, unassigned: 0 };
@@ -295,7 +304,7 @@ export default function MarriageChampions() {
               <th className="px-4 py-3 font-medium">Relationship</th>
               <th className="px-4 py-3">
                 <button onClick={() => toggleSort('assigned_volunteer')} className="inline-flex items-center gap-1 font-medium hover:text-foreground">
-                  Assigned <ArrowUpDown className="h-3 w-3" />
+                  Assigned Team <ArrowUpDown className="h-3 w-3" />
                 </button>
               </th>
               <th className="px-4 py-3 font-medium">Last Contact</th>
@@ -322,7 +331,7 @@ export default function MarriageChampions() {
                   <td className="px-4 py-3.5">
                     <RelationshipStatusBadge status={h.relationship_status} />
                   </td>
-                  <td className="px-4 py-3.5 text-muted-foreground">{h.assigned_volunteer || '—'}</td>
+                  <td className="px-4 py-3.5 text-muted-foreground">{teamMap[h.volunteer_team_id]?.team_name || h.assigned_volunteer || '—'}</td>
                   <td className="whitespace-nowrap px-4 py-3.5 text-muted-foreground">{fmtDate(lastActivityDate(acts))}</td>
                   <td className="whitespace-nowrap px-4 py-3.5 text-muted-foreground">{fmtDate(nextFollowUpDate(acts))}</td>
                   <td className="px-4 py-3.5">
@@ -375,7 +384,7 @@ export default function MarriageChampions() {
               <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                 <div>
                   <p className="text-muted-foreground">Assigned</p>
-                  <p className="truncate font-medium text-foreground">{h.assigned_volunteer || 'Unassigned'}</p>
+                  <p className="truncate font-medium text-foreground">{teamMap[h.volunteer_team_id]?.team_name || h.assigned_volunteer || 'Unassigned'}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Last Contact</p>

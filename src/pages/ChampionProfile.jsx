@@ -92,6 +92,7 @@ export default function ChampionProfile() {
   const [deletedIds, setDeletedIds] = useState([]);
   const [saving, setSaving] = useState(false);
   const [activities, setActivities] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [statusChanges, setStatusChanges] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
 
@@ -132,6 +133,7 @@ export default function ChampionProfile() {
     load();
     loadActivities();
     loadStatusChanges();
+    base44.entities.VolunteerTeam.list().then((ts) => setTeams(ts || [])).catch(() => {});
     base44.auth.me().then((u) => setCurrentUser(u)).catch(() => {});
   }, [id]);
 
@@ -216,6 +218,7 @@ export default function ChampionProfile() {
     );
   }
 
+  const teamMap = (teams || []).reduce((m, t) => { m[t.id] = t; return m; }, {});
   const h = editing ? form : household;
   const ms = editing ? membersForm : members;
   const name = householdDisplay(h, ms);
@@ -372,7 +375,20 @@ export default function ChampionProfile() {
         {/* Assignment */}
         <Section icon={UsersIcon} title="Assignment Information">
           <dl className="grid grid-cols-2 gap-4">
-            <FieldRow label="Assigned Volunteer" value={h.assigned_volunteer} editing={editing} onChange={(v) => setField('assigned_volunteer', v)} />
+            <div className="space-y-1">
+              <label className="text-xs uppercase tracking-wide text-muted-foreground">Assigned Volunteer Team</label>
+              {editing ? (
+                <Select value={h.volunteer_team_id || '__none__'} onValueChange={(v) => setField('volunteer_team_id', v === '__none__' ? '' : v)}>
+                  <SelectTrigger><SelectValue placeholder="Select team" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Unassigned</SelectItem>
+                    {teams.map((tm) => <SelectItem key={tm.id} value={tm.id}>{tm.team_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-sm text-foreground">{teamMap[h.volunteer_team_id]?.team_name || h.assigned_volunteer || '—'}</p>
+              )}
+            </div>
             <FieldRow label="Assigned Director" value={h.assigned_director} editing={editing} onChange={(v) => setField('assigned_director', v)} />
           </dl>
         </Section>

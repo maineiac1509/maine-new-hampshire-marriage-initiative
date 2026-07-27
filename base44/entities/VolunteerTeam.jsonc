@@ -1,0 +1,100 @@
+{
+  "name": "VolunteerTeam",
+  "type": "object",
+  "properties": {
+    "team_name": {
+      "type": "string",
+      "title": "Team Name"
+    },
+    "family_name": {
+      "type": "string",
+      "title": "Family Name"
+    },
+    "active": {
+      "type": "boolean",
+      "title": "Active",
+      "default": true
+    },
+    "ministry_notes": {
+      "type": "string",
+      "title": "Ministry Notes"
+    },
+    "address": {
+      "type": "string",
+      "title": "Street Address"
+    },
+    "city": {
+      "type": "string",
+      "title": "City"
+    },
+    "state": {
+      "type": "string",
+      "title": "State"
+    },
+    "zip_code": {
+      "type": "string",
+      "title": "ZIP Code"
+    },
+    "latitude": {
+      "type": "number",
+      "title": "Latitude"
+    },
+    "longitude": {
+      "type": "number",
+      "title": "Longitude"
+    },
+    "travel_radius_miles": {
+      "type": "number",
+      "title": "Preferred Travel Radius (miles)",
+      "default": 25
+    }
+  },
+  "required": [
+    "team_name"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "director"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "director"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "director"
+          }
+        }
+      ]
+    }
+  }
+}

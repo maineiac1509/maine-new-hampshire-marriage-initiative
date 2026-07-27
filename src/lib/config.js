@@ -10,6 +10,7 @@ export const APP_CONFIG = {
 export const NAV_ITEMS = [
   { label: 'Dashboard', path: '/', icon: 'LayoutDashboard' },
   { label: 'Marriage Champions', path: '/champions', icon: 'Users' },
+  { label: 'Volunteer Teams', path: '/volunteer-teams', icon: 'UsersRound' },
   { label: 'Assignments', path: '/assignments', icon: 'UserCheck' },
   { label: 'Contact History', path: '/contact-history', icon: 'MessageSquare' },
   { label: 'Reports', path: '/reports', icon: 'BarChart3' },
