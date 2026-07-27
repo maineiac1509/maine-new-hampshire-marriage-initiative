@@ -1,83 +1,104 @@
-import React from 'react';
-import { CalendarClock, UserPlus, Clock, CheckCircle2, Users, Activity } from 'lucide-react';
-import { APP_CONFIG } from '@/lib/config';
+import React, { useEffect, useMemo, useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import { buildAssignmentMap } from '@/lib/assignmentUtils';
+import { buildActivityFeed } from '@/lib/dashboardActivity';
+import WelcomeHeader from '@/components/dashboard/WelcomeHeader';
+import MinistryOverview from '@/components/dashboard/MinistryOverview';
+import QuickActions from '@/components/dashboard/QuickActions';
+import ActivityFeed from '@/components/dashboard/ActivityFeed';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Users } from 'lucide-react';
 
-function daysUntil(dateStr) {
-  const target = new Date(dateStr + 'T00:00:00');
+function isInCurrentMonth(dateStr) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr.length > 10 ? dateStr : dateStr + 'T00:00:00');
+  if (Number.isNaN(d.getTime())) return false;
   const now = new Date();
-  return Math.ceil((target - now) / (1000 * 60 * 60 * 24));
-}
-
-function WidgetCard({ icon: Icon, title, children, accent }) {
-  return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Icon className={`h-4 w-4 ${accent || ''}`} />
-        <span className="text-xs font-medium uppercase tracking-wide">{title}</span>
-      </div>
-      <div className="mt-3">{children}</div>
-    </div>
-  );
+  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
 }
 
 export default function Dashboard() {
-  const days = daysUntil(APP_CONFIG.weekendDate);
+  const [user, setUser] = useState(null);
+  const [households, setHouseholds] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [assignmentEvents, setAssignmentEvents] = useState([]);
+  const [teamTimeline, setTeamTimeline] = useState([]);
+  const [championTimeline, setChampionTimeline] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => {});
+    Promise.allSettled([
+      base44.entities.ChampionHousehold.list(),
+      base44.entities.Assignment.list(),
+      base44.entities.VolunteerTeam.list(),
+      base44.entities.ChampionActivity.list(),
+      base44.entities.AssignmentEvent.list(),
+      base44.entities.TeamTimelineEvent.list(),
+      base44.entities.ChampionTimelineEvent.list(),
+      base44.entities.TeamMember.list(),
+      base44.entities.User.list(),
+    ]).then((results) => {
+      const v = (i, fallback = []) => (results[i].status === 'fulfilled' ? results[i].value || fallback : fallback);
+      setHouseholds(v(0));
+      setAssignments(v(1));
+      setTeams(v(2));
+      setActivities(v(3));
+      setAssignmentEvents(v(4));
+      setTeamTimeline(v(5));
+      setChampionTimeline(v(6));
+      setTeamMembers(v(7));
+      setUsers(v(8));
+      setLoading(false);
+    });
+  }, []);
+
+  const metrics = useMemo(() => {
+    const assignmentMap = buildAssignmentMap(assignments);
+    return {
+      active: households.filter((h) => h.status !== 'Inactive').length,
+      households: households.length,
+      assignments: assignments.filter((a) => a.assignment_status === 'Active').length,
+      teams: teams.length,
+      awaiting: households.filter((h) => !assignmentMap[h.id]?.active).length,
+      closed: assignments.filter((a) => a.assignment_status === 'Closed' && (isInCurrentMonth(a.end_date) || isInCurrentMonth(a.updated_date))).length,
+    };
+  }, [households, assignments, teams]);
+
+  const feed = useMemo(() => buildActivityFeed({
+    activities, assignmentEvents, teamTimeline, championTimeline, teamMembers, households, teams, users,
+  }), [activities, assignmentEvents, teamTimeline, championTimeline, teamMembers, households, teams, users]);
+
+  const noChampions = !loading && households.length === 0;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          {APP_CONFIG.ministry} · {APP_CONFIG.event}
-        </p>
-      </div>
+      <WelcomeHeader user={user} />
 
-      {/* Hero countdown */}
-      <div className="overflow-hidden rounded-xl border bg-gradient-to-br from-primary to-primary/80 p-6 text-primary-foreground shadow-sm">
-        <div className="flex items-center gap-2 text-primary-foreground/80">
-          <CalendarClock className="h-5 w-5" />
-          <span className="text-sm font-medium uppercase tracking-wide">Countdown to {APP_CONFIG.event}</span>
+      <MinistryOverview metrics={metrics} />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-1">
+          <QuickActions />
         </div>
-        <div className="mt-2 flex items-end gap-3">
-          <span className="text-5xl font-bold tabular-nums">{days}</span>
-          <span className="mb-1 text-lg">days away</span>
+        <div className="lg:col-span-2">
+          <ActivityFeed items={feed} />
         </div>
-        <p className="mt-1 text-sm text-primary-foreground/70">
-          {new Date(APP_CONFIG.weekendDate + 'T00:00:00').toLocaleDateString('en-US', {
-            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-          })}
-        </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <WidgetCard icon={UserPlus} title="Champions Needing First Contact" accent="text-amber-500">
-          <div className="text-3xl font-bold tabular-nums">—</div>
-          <p className="mt-1 text-xs text-muted-foreground">New registrations awaiting outreach</p>
-        </WidgetCard>
-
-        <WidgetCard icon={Clock} title="Champions Awaiting Follow-Up" accent="text-blue-500">
-          <div className="text-3xl font-bold tabular-nums">—</div>
-          <p className="mt-1 text-xs text-muted-foreground">Pending next touchpoint</p>
-        </WidgetCard>
-
-        <WidgetCard icon={CheckCircle2} title="Recently Completed Contacts" accent="text-emerald-500">
-          <div className="text-3xl font-bold tabular-nums">—</div>
-          <p className="mt-1 text-xs text-muted-foreground">Contacts logged this week</p>
-        </WidgetCard>
-
-        <WidgetCard icon={Users} title="My Assigned Champions" accent="text-violet-500">
-          <div className="text-3xl font-bold tabular-nums">—</div>
-          <p className="mt-1 text-xs text-muted-foreground">In your care</p>
-        </WidgetCard>
-
-        <WidgetCard icon={Activity} title="Recent Activity" accent="text-rose-500">
-          <div className="text-sm text-muted-foreground">Activity feed coming soon</div>
-        </WidgetCard>
-
-        <WidgetCard icon={CalendarClock} title="Weekend Progress" accent="text-cyan-500">
-          <div className="text-sm text-muted-foreground">Progress tracking coming soon</div>
-        </WidgetCard>
-      </div>
+      {noChampions && (
+        <EmptyState
+          icon={Users}
+          title="Welcome to Champion Connect"
+          description="Your ministry workspace is ready. Start by adding your Marriage Champions to begin building relationships."
+          actionLabel="Go to Champions"
+          onAction={() => { window.location.href = '/champions'; }}
+        />
+      )}
     </div>
   );
 }
