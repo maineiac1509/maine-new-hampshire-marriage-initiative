@@ -37,7 +37,7 @@ function ActivityRow({ item }) {
     </div>
   );
   if (item.href) {
-    return <Link to={item.href} className="block rounded-lg p-2 transition-colors hover:bg-muted/50">{content}</Link>;
+    return <Link to={item.href} className="block rounded-lg p-2 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{content}</Link>;
   }
   return <div className="p-2">{content}</div>;
 }
@@ -45,16 +45,19 @@ function ActivityRow({ item }) {
 export default function ActivityFeed({ items }) {
   const visible = items.slice(0, LIMIT);
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Recent Ministry Activity</h2>
+    <div className="space-y-4 rounded-xl border bg-card p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Recent Ministry Activity</h2>
+          <p className="text-sm text-muted-foreground">The latest stewardship activity happening across Champion Connect.</p>
+        </div>
         {items.length > 0 && (
-          <Link to="/contact-history" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+          <Link to="/contact-history" className="mt-1 shrink-0 text-xs font-medium text-primary hover:underline">
             View All
           </Link>
         )}
       </div>
-      <div className="mt-3">
+      <div>
         {visible.length === 0 ? (
           <EmptyState
             icon={History}

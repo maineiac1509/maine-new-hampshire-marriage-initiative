@@ -17,14 +17,15 @@ export default function WelcomeHeader({ user }) {
   const firstName = (user?.full_name || user?.email || 'Champion').split(' ')[0];
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-gradient-to-br from-primary to-primary/80 p-6 text-primary-foreground shadow-sm">
+    <div className="overflow-hidden rounded-xl border bg-gradient-to-br from-primary to-primary/80 p-6 text-primary-foreground shadow-sm sm:p-8">
       <div className="flex items-center gap-2 text-primary-foreground/80">
         <Sparkles className="h-5 w-5" />
-        <span className="text-sm font-medium uppercase tracking-wide">Home Workspace</span>
+        <span className="text-sm font-medium uppercase tracking-wide">Ministry Command Center</span>
       </div>
       <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Welcome back, {firstName}</h1>
       <p className="mt-1 text-sm text-primary-foreground/80">{today}</p>
       <p className="mt-3 text-base font-medium text-primary-foreground/90">{message}</p>
+      <p className="mt-1 text-sm text-primary-foreground/70">Here&rsquo;s what&rsquo;s happening across the ministry today.</p>
     </div>
   );
 }
