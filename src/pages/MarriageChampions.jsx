@@ -2,11 +2,13 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, ChevronLeft, ChevronRight, ArrowUpDown, Users, Upload } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
-import { STATUS_OPTIONS, REGISTRATION_TYPE_OPTIONS } from '@/lib/config';
+import { STATUS_OPTIONS, REGISTRATION_TYPE_OPTIONS, RELATIONSHIP_STATUS_OPTIONS } from '@/lib/config';
 import ImportChampionsDialog from '@/components/champions/ImportChampionsDialog';
 import ChampionQuickFilters from '@/components/champions/ChampionQuickFilters';
 import MyChampionsSummary from '@/components/champions/MyChampionsSummary';
 import ChampionStatusBadge from '@/components/champions/ChampionStatusBadge';
+import RelationshipStatusBadge from '@/components/champions/RelationshipStatusBadge';
+import RelationshipStatusSummary from '@/components/champions/RelationshipStatusSummary';
 import { isAssignedTo, householdIndicator, lastActivityDate } from '@/lib/championUtils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -42,6 +44,7 @@ export default function MarriageChampions() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [relStatusFilter, setRelStatusFilter] = useState('all');
   const [sortKey, setSortKey] = useState('household_name');
   const [sortDir, setSortDir] = useState('asc');
   const [page, setPage] = useState(1);
@@ -90,7 +93,6 @@ export default function MarriageChampions() {
     return map;
   }, [activities]);
 
-  // Per-filter counts shown on each quick-filter tab.
   const counts = useMemo(() => {
     const c = { all: households.length, my: 0, 'first-contact': 0, 'follow-up': 0, recent: 0, unassigned: 0 };
     households.forEach((h) => {
@@ -104,7 +106,6 @@ export default function MarriageChampions() {
     return c;
   }, [households, activitiesByHouse, currentUser]);
 
-  // Summary metrics for the "My Champions" card.
   const myStats = useMemo(() => {
     const mine = households.filter((h) => isAssignedTo(h, currentUser));
     let needFirst = 0, dueToday = 0, overdue = 0, lastAct = null;
@@ -119,6 +120,17 @@ export default function MarriageChampions() {
     });
     return { total: mine.length, needFirstContact: needFirst, dueToday, overdue, lastActivity: lastAct };
   }, [households, activitiesByHouse, currentUser]);
+
+  const myRelStatusCounts = useMemo(() => {
+    const c = {};
+    households
+      .filter((h) => isAssignedTo(h, currentUser))
+      .forEach((h) => {
+        const s = h.relationship_status || 'New';
+        c[s] = (c[s] || 0) + 1;
+      });
+    return c;
+  }, [households, currentUser]);
 
   const filtered = useMemo(() => {
     let result = households.filter((h) => {
@@ -147,6 +159,7 @@ export default function MarriageChampions() {
     }
     if (statusFilter !== 'all') result = result.filter((h) => h.status === statusFilter);
     if (typeFilter !== 'all') result = result.filter((h) => h.registration_type === typeFilter);
+    if (relStatusFilter !== 'all') result = result.filter((h) => (h.relationship_status || 'New') === relStatusFilter);
     result = [...result].sort((a, b) => {
       const av = (a[sortKey] || householdDisplay(a)).toString().toLowerCase();
       const bv = (b[sortKey] || householdDisplay(b)).toString().toLowerCase();
@@ -155,10 +168,9 @@ export default function MarriageChampions() {
       return 0;
     });
     return result;
-  }, [households, activeView, currentUser, activitiesByHouse, search, statusFilter, typeFilter, sortKey, sortDir]);
+  }, [households, activeView, currentUser, activitiesByHouse, search, statusFilter, typeFilter, relStatusFilter, sortKey, sortDir]);
 
-  // Reset to first page whenever the view or any filter changes.
-  useEffect(() => { setPage(1); }, [activeView, search, statusFilter, typeFilter]);
+  useEffect(() => { setPage(1); }, [activeView, search, statusFilter, typeFilter, relStatusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, totalPages);
@@ -203,8 +215,8 @@ export default function MarriageChampions() {
       <ChampionQuickFilters active={activeView} onChange={setActiveView} counts={counts} />
 
       {/* Search + attribute filters (respect the active quick filter) */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search within the selected view…"
@@ -213,6 +225,17 @@ export default function MarriageChampions() {
             className="pl-9"
           />
         </div>
+        <Select value={relStatusFilter} onValueChange={setRelStatusFilter}>
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue placeholder="Relationship" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All relationships</SelectItem>
+            {RELATIONSHIP_STATUS_OPTIONS.map((s) => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-full sm:w-44">
             <SelectValue placeholder="Status" />
@@ -237,11 +260,17 @@ export default function MarriageChampions() {
         </Select>
       </div>
 
-      {/* My Champions summary */}
+      {/* My Champions summaries */}
       {activeView === 'my' && (
-        <div>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">My Champions Summary</h2>
-          <MyChampionsSummary stats={myStats} />
+        <div className="space-y-4">
+          <div>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">My Champions Summary</h2>
+            <MyChampionsSummary stats={myStats} />
+          </div>
+          <div>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Relationship Status</h2>
+            <RelationshipStatusSummary counts={myRelStatusCounts} />
+          </div>
         </div>
       )}
 
@@ -267,6 +296,7 @@ export default function MarriageChampions() {
                   </button>
                 </th>
               ))}
+              <th className="px-4 py-3 font-medium">Relationship</th>
               <th className="px-4 py-3 font-medium">Follow-up</th>
             </tr>
           </thead>
@@ -294,6 +324,9 @@ export default function MarriageChampions() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
+                    <RelationshipStatusBadge status={h.relationship_status} />
+                  </td>
+                  <td className="px-4 py-3">
                     <ChampionStatusBadge activities={activitiesByHouse[h.id] || []} />
                   </td>
                 </tr>
@@ -301,7 +334,7 @@ export default function MarriageChampions() {
             })}
             {!pageItems.length && (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
+                <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
                   {emptyMessage}
                 </td>
               </tr>
@@ -324,9 +357,7 @@ export default function MarriageChampions() {
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">{householdDisplay(h)}</span>
-                <span className={`inline-flex shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[h.status] || 'bg-slate-100'}`}>
-                  {h.status || '—'}
-                </span>
+                <RelationshipStatusBadge status={h.relationship_status} />
               </div>
               {memberNames && (
                 <div className="mt-1 text-sm text-muted-foreground">{memberNames}</div>
@@ -334,7 +365,10 @@ export default function MarriageChampions() {
               <div className="mt-1 text-xs text-muted-foreground">
                 {[h.area, h.city, h.registration_type].filter(Boolean).join(' · ') || '—'}
               </div>
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[h.status] || 'bg-slate-100'}`}>
+                  {h.status || '—'}
+                </span>
                 <ChampionStatusBadge activities={activitiesByHouse[h.id] || []} />
               </div>
             </Link>

@@ -1,0 +1,59 @@
+{
+  "name": "RelationshipStatusChange",
+  "type": "object",
+  "properties": {
+    "household_id": {
+      "type": "string",
+      "title": "Household"
+    },
+    "previous_status": {
+      "type": "string",
+      "title": "Previous Status"
+    },
+    "new_status": {
+      "type": "string",
+      "title": "New Status"
+    },
+    "change_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Change Date"
+    }
+  },
+  "required": [
+    "household_id",
+    "new_status",
+    "change_date"
+  ],
+  "rls": {
+    "read": {},
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "director"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "director"
+          }
+        }
+      ]
+    }
+  }
+}

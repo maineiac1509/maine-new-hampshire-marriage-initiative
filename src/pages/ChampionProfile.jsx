@@ -5,7 +5,9 @@ import {
   Save, X, Plus, Trash2, Loader2,
 } from 'lucide-react';
 import RelationshipSummary, { getFollowUpStatus } from '@/components/champions/RelationshipSummary';
+import RelationshipStatusControl from '@/components/champions/RelationshipStatusControl';
 import RelationshipTimeline from '@/components/champions/RelationshipTimeline';
+import { isAssignedTo } from '@/lib/championUtils';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -86,6 +88,7 @@ export default function ChampionProfile() {
   const [deletedIds, setDeletedIds] = useState([]);
   const [saving, setSaving] = useState(false);
   const [activities, setActivities] = useState([]);
+  const [statusChanges, setStatusChanges] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
 
   function load() {
@@ -109,9 +112,22 @@ export default function ChampionProfile() {
       .catch(() => setActivities([]));
   }
 
+  function loadStatusChanges() {
+    base44.entities.RelationshipStatusChange.filter({ household_id: id }, '-change_date')
+      .then((rows) => setStatusChanges(rows || []))
+      .catch(() => setStatusChanges([]));
+  }
+
+  function handleStatusChanged() {
+    load();
+    loadStatusChanges();
+    loadActivities();
+  }
+
   useEffect(() => {
     load();
     loadActivities();
+    loadStatusChanges();
     base44.auth.me().then((u) => setCurrentUser(u)).catch(() => {});
   }, [id]);
 
@@ -246,6 +262,15 @@ export default function ChampionProfile() {
                 </span>
               )}
             </div>
+            {!editing && (
+              <div className="mt-2">
+                <RelationshipStatusControl
+                  household={household}
+                  currentUser={currentUser}
+                  onStatusChanged={handleStatusChanged}
+                />
+              </div>
+            )}
           </div>
         </div>
         {!editing && <span className="text-xs text-muted-foreground">ID: {h.id}</span>}
@@ -359,7 +384,11 @@ export default function ChampionProfile() {
       <RelationshipTimeline
         householdId={id}
         activities={activities}
+        statusChanges={statusChanges}
+        currentStatus={household?.relationship_status || 'New'}
+        canChangeStatus={currentUser?.role === 'admin' || currentUser?.role === 'director' || isAssignedTo(household, currentUser)}
         onRefresh={loadActivities}
+        onStatusChanged={handleStatusChanged}
         currentUser={currentUser}
       />
     </div>

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { ACTIVITY_TYPE_OPTIONS, CONTACT_OUTCOME_OPTIONS } from '@/lib/config';
 import LogInteractionDialog from './LogInteractionDialog';
+import RelationshipStatusBadge from './RelationshipStatusBadge';
 
 const TYPE_STYLES = {
   'Phone Call': 'bg-blue-100 text-blue-700',
@@ -42,7 +43,16 @@ function fmt(dateStr) {
   });
 }
 
-export default function RelationshipTimeline({ householdId, activities, onRefresh, currentUser }) {
+export default function RelationshipTimeline({
+  householdId,
+  activities,
+  statusChanges,
+  currentStatus,
+  canChangeStatus,
+  onRefresh,
+  onStatusChanged,
+  currentUser,
+}) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [keyword, setKeyword] = useState('');
@@ -57,24 +67,44 @@ export default function RelationshipTimeline({ householdId, activities, onRefres
   const canDelete = role === 'admin' || role === 'director';
   const canEdit = (a) => role === 'admin' || role === 'director' || a.created_by_id === currentUser?.id;
 
-  const filtered = useMemo(() => {
-    let r = [...(activities || [])].sort(
-      (a, b) => new Date(b.activity_date || b.created_date) - new Date(a.activity_date || a.created_date)
+  // Merge activities and status changes into one reverse-chronological timeline.
+  const merged = useMemo(() => {
+    const acts = (activities || []).map((a) => ({
+      ...a,
+      _kind: 'activity',
+      _date: a.activity_date || a.created_date,
+    }));
+    const changes = (statusChanges || []).map((c) => ({
+      ...c,
+      _kind: 'status',
+      _date: c.change_date || c.created_date,
+    }));
+    return [...acts, ...changes].sort(
+      (a, b) => new Date(b._date || 0) - new Date(a._date || 0)
     );
+  }, [activities, statusChanges]);
+
+  const filtered = useMemo(() => {
+    let r = [...merged];
     if (keyword.trim()) {
       const q = keyword.toLowerCase();
-      r = r.filter((a) =>
-        [a.summary, a.detailed_notes, a.activity_type, a.outcome]
+      r = r.filter((item) => {
+        if (item._kind === 'status') {
+          return [item.previous_status, item.new_status]
+            .filter(Boolean)
+            .some((v) => v.toLowerCase().includes(q));
+        }
+        return [item.summary, item.detailed_notes, item.activity_type, item.outcome]
           .filter(Boolean)
-          .some((v) => v.toLowerCase().includes(q))
-      );
+          .some((v) => v.toLowerCase().includes(q));
+      });
     }
-    if (typeFilter !== 'all') r = r.filter((a) => a.activity_type === typeFilter);
-    if (outcomeFilter !== 'all') r = r.filter((a) => a.outcome === outcomeFilter);
-    if (fromDate) r = r.filter((a) => a.activity_date && a.activity_date >= fromDate);
-    if (toDate) r = r.filter((a) => a.activity_date && a.activity_date <= toDate);
+    if (typeFilter !== 'all') r = r.filter((item) => item._kind === 'activity' && item.activity_type === typeFilter);
+    if (outcomeFilter !== 'all') r = r.filter((item) => item._kind === 'activity' && item.outcome === outcomeFilter);
+    if (fromDate) r = r.filter((item) => item._date && item._date >= fromDate);
+    if (toDate) r = r.filter((item) => item._date && item._date <= toDate);
     return r;
-  }, [activities, keyword, typeFilter, outcomeFilter, fromDate, toDate]);
+  }, [merged, keyword, typeFilter, outcomeFilter, fromDate, toDate]);
 
   async function handleDelete(a) {
     if (!window.confirm('Delete this activity? This cannot be undone.')) return;
@@ -135,11 +165,30 @@ export default function RelationshipTimeline({ householdId, activities, onRefres
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed py-10 text-center text-muted-foreground">
           <MessageSquare className="h-6 w-6" />
-          <p className="text-sm">No activities found.</p>
+          <p className="text-sm">No timeline entries found.</p>
         </div>
       ) : (
         <ol className="space-y-3">
-          {filtered.map((a) => {
+          {filtered.map((item) => {
+            if (item._kind === 'status') {
+              return (
+                <li key={`status-${item.id}`} className="rounded-lg border border-dashed bg-muted/30 p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-foreground">{fmt(item.change_date) || '—'}</span>
+                    <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-700">
+                      Status Change
+                    </span>
+                    <RelationshipStatusBadge status={item.previous_status} />
+                    <span className="text-muted-foreground">→</span>
+                    <RelationshipStatusBadge status={item.new_status} />
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      Updated by {item.created_by || 'Unknown'}
+                    </span>
+                  </div>
+                </li>
+              );
+            }
+            const a = item;
             const open = !!expanded[a.id];
             const hasFollowUp = a.follow_up_required && a.follow_up_date;
             return (
@@ -207,6 +256,9 @@ export default function RelationshipTimeline({ householdId, activities, onRefres
         householdId={householdId}
         activity={editing}
         onSaved={onRefresh}
+        onStatusChanged={onStatusChanged}
+        currentStatus={currentStatus}
+        canChangeStatus={canChangeStatus}
       />
     </section>
   );

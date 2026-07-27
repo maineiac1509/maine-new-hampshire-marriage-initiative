@@ -61,6 +61,23 @@
       ],
       "default": "New"
     },
+    "relationship_status": {
+      "type": "string",
+      "title": "Relationship Status",
+      "enum": [
+        "New",
+        "Assigned",
+        "First Contact Needed",
+        "Attempted Contact",
+        "Connected",
+        "Following Up",
+        "Registered for Weekend",
+        "Attended Weekend",
+        "Ongoing Champion",
+        "Inactive"
+      ],
+      "default": "New"
+    },
     "assigned_volunteer": {
       "type": "string",
       "title": "Assigned Volunteer"
@@ -73,5 +90,6 @@
       "type": "string",
       "title": "Notes"
     }
-  }
+  },
+  "required": []
 }
