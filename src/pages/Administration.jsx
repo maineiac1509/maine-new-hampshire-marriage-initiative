@@ -1,12 +1,8 @@
 import React from 'react';
-import { Users, Settings, Upload, ListChecks } from 'lucide-react';
+import { Settings, Upload, ListChecks } from 'lucide-react';
+import VolunteerTeamsPanel from '@/components/teams/VolunteerTeamsPanel';
 
 const SECTIONS = [
-  {
-    icon: Users,
-    title: 'Users',
-    description: 'Manage team members, roles, and access levels.',
-  },
   {
     icon: Settings,
     title: 'System Settings',
@@ -32,7 +28,9 @@ export default function Administration() {
         <p className="text-sm text-muted-foreground">System configuration and management</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <VolunteerTeamsPanel />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {SECTIONS.map((s) => (
           <div key={s.title} className="flex items-start gap-4 rounded-xl border bg-card p-5 shadow-sm">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">

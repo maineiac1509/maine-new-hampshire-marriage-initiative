@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Menu, X, Heart, LayoutDashboard, Users, UsersRound, UserCheck, MessageSquare, BarChart3, Settings } from 'lucide-react';
+import { Menu, X, Heart, LayoutDashboard, Users, UserCheck, MessageSquare, BarChart3, Settings } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { NAV_ITEMS, APP_CONFIG } from '@/lib/config';
 import { roleLabel } from '@/lib/permissions';
@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 const ICON_MAP = {
   LayoutDashboard,
   Users,
-  UsersRound,
   UserCheck,
   MessageSquare,
   BarChart3,

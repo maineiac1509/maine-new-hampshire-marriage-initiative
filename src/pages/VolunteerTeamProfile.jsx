@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, Users as UsersIcon, MapPin, StickyNote, Plus, Trash2,
-  Save, X, Loader2, Navigation, Activity as ActivityIcon,
+  Save, X, Loader2, Navigation, Activity as ActivityIcon, UserCheck,
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -70,7 +70,8 @@ export default function VolunteerTeamProfile() {
   const [saving, setSaving] = useState(false);
 
   // member add form
-  const [newMember, setNewMember] = useState({ display_name: '', email: '', team_role: 'Member' });
+  const [users, setUsers] = useState([]);
+  const [newMember, setNewMember] = useState({ user_id: '', display_name: '', email: '', team_role: 'Member', manual: false });
 
   function load() {
     setLoading(true);
@@ -99,6 +100,7 @@ export default function VolunteerTeamProfile() {
 
   useEffect(() => {
     load();
+    base44.entities.User.list().then((us) => setUsers(us || [])).catch(() => {});
     base44.auth.me().then(setCurrentUser).catch(() => {});
   }, [id]);
 
@@ -163,9 +165,15 @@ export default function VolunteerTeamProfile() {
   async function addMember() {
     if (!newMember.display_name.trim()) return;
     try {
-      const created = await base44.entities.TeamMember.create({ ...newMember, team_id: id });
+      const created = await base44.entities.TeamMember.create({
+        team_id: id,
+        display_name: newMember.display_name,
+        email: newMember.email || undefined,
+        user_id: newMember.user_id || undefined,
+        team_role: newMember.team_role,
+      });
       setMembers((ms) => [...ms, created]);
-      setNewMember({ display_name: '', email: '', team_role: 'Member' });
+      setNewMember({ user_id: '', display_name: '', email: '', team_role: 'Member', manual: false });
     } catch (e) {}
   }
 
@@ -273,15 +281,47 @@ export default function VolunteerTeamProfile() {
                 </div>
                 <p className="mt-2 text-sm font-medium text-foreground">{m.display_name}</p>
                 {m.email && <p className="text-xs text-muted-foreground">{m.email}</p>}
+                {m.user_id && (
+                  <p className="mt-1 inline-flex items-center gap-1 text-xs text-emerald-600">
+                    <UserCheck className="h-3 w-3" /> Linked app user
+                  </p>
+                )}
               </div>
             ))}
             {canManage && (
               <div className="rounded-lg border border-dashed p-4">
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Add Member</p>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <Input placeholder="Display name" value={newMember.display_name} onChange={(e) => setNewMember((nm) => ({ ...nm, display_name: e.target.value }))} />
-                  <Input placeholder="Email (optional)" value={newMember.email} onChange={(e) => setNewMember((nm) => ({ ...nm, email: e.target.value }))} />
-                </div>
+                {!newMember.manual ? (
+                  <div className="space-y-2">
+                    <Select
+                      value={newMember.user_id || '__none__'}
+                      onValueChange={(v) => {
+                        if (v === '__manual__') {
+                          setNewMember((nm) => ({ ...nm, manual: true, user_id: '', display_name: '', email: '' }));
+                        } else {
+                          const u = users.find((x) => x.id === v);
+                          setNewMember((nm) => ({ ...nm, user_id: v, display_name: u?.full_name || u?.email || '', email: u?.email || '' }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select an app user…" /></SelectTrigger>
+                      <SelectContent>
+                        {users.map((u) => <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>)}
+                        <SelectItem value="__manual__">Add manually (no account)…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {newMember.user_id && (
+                      <p className="text-xs text-muted-foreground">
+                        Will add <span className="font-medium text-foreground">{newMember.display_name}</span>{newMember.email ? ` · ${newMember.email}` : ''}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <Input placeholder="Display name" value={newMember.display_name} onChange={(e) => setNewMember((nm) => ({ ...nm, display_name: e.target.value }))} />
+                    <Input placeholder="Email (optional)" value={newMember.email} onChange={(e) => setNewMember((nm) => ({ ...nm, email: e.target.value }))} />
+                  </div>
+                )}
                 <div className="mt-2 flex items-center gap-2">
                   <Select value={newMember.team_role} onValueChange={(v) => setNewMember((nm) => ({ ...nm, team_role: v }))}>
                     <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
@@ -292,6 +332,9 @@ export default function VolunteerTeamProfile() {
                   <Button size="sm" onClick={addMember}>
                     <Plus className="h-4 w-4" /> Add
                   </Button>
+                  {newMember.manual && (
+                    <Button size="sm" variant="ghost" onClick={() => setNewMember((nm) => ({ ...nm, manual: false }))}>Select user</Button>
+                  )}
                 </div>
               </div>
             )}
