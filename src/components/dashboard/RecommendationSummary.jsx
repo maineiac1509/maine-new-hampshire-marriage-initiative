@@ -32,9 +32,10 @@ export default function RecommendationSummary({ summary = {}, onDrill }) {
               key={m.key}
               type={handler ? 'button' : undefined}
               onClick={handler}
+              aria-label={handler ? `Filter by ${m.label}` : undefined}
               className={cn(
                 'flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors',
-                handler && 'cursor-pointer hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                handler && 'cursor-pointer hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1'
               )}
             >
               <div className={cn('flex h-8 w-8 items-center justify-center rounded-full', m.tone)}>

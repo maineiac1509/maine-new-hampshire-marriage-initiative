@@ -10,7 +10,7 @@
 //  - Extensible: new rules are added to the RULES registry without touching
 //    existing logic or consumers. This is the foundation for Epic 7 (Ministry
 //    Coach AI), which will consume this structured data — not replace it.
-import { computeStewardshipHealth } from '@/lib/stewardshipHealth';
+import { computeStewardshipHealth, lastStewardshipMs } from '@/lib/stewardshipHealth';
 import { buildAssignmentMap } from '@/lib/assignmentUtils';
 
 const DAY = 86400000;
@@ -59,6 +59,22 @@ function fmtDate(s) {
   return new Date(s.length > 10 ? s : s + 'T00:00:00').toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
   });
+}
+
+// Relative date label for timeline display (Today / Yesterday / N days ago).
+// Falls back to a formatted date for older items. Returns { label, title }.
+export function relativeDate(s) {
+  if (!s) return null;
+  const t = new Date(s.length > 10 ? s : s + 'T00:00:00').getTime();
+  if (Number.isNaN(t)) return null;
+  const title = new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const diff = Date.now() - t;
+  if (diff < 0) return { label: 'just now', title };
+  const days = Math.floor(diff / DAY);
+  if (days <= 0) return { label: 'Today', title };
+  if (days === 1) return { label: 'Yesterday', title };
+  if (days < 30) return { label: `${days} days ago`, title };
+  return { label: title, title };
 }
 
 // --- collection helpers ---
@@ -113,8 +129,10 @@ const RULES = [
           assigned_volunteer: h.assigned_volunteer,
           why: [
             'Stewardship Health changed to Follow-up Recommended',
-            `No stewardship activity recorded in ${health.daysSinceActivity} days`,
-            'Champion has an active assignment',
+            health.daysSinceActivity != null
+              ? `No stewardship activity recorded in the past ${health.daysSinceActivity} days`
+              : 'No stewardship activity has been recorded',
+            'Champion currently has an active assignment',
           ],
           suggested_action: 'Review Champion and reach out.',
           nav_target: `/champions/${h.id}`,
@@ -137,8 +155,10 @@ const RULES = [
           assigned_volunteer: h.assigned_volunteer,
           why: [
             'Stewardship Health changed to Immediate Attention',
-            `No stewardship activity recorded in ${health.daysSinceActivity} days`,
-            'Champion has an active assignment',
+            health.daysSinceActivity != null
+              ? `No stewardship activity recorded in the past ${health.daysSinceActivity} days`
+              : 'No stewardship activity has been recorded',
+            'Champion currently has an active assignment',
           ],
           suggested_action: 'Contact Champion as soon as practical.',
           nav_target: `/champions/${h.id}`,
@@ -161,8 +181,10 @@ const RULES = [
           assigned_volunteer: h.assigned_volunteer,
           why: [
             'Stewardship Health changed to Re-engagement Opportunity',
-            `No stewardship activity recorded in ${health.daysSinceActivity} days`,
-            'Champion has an active assignment',
+            health.daysSinceActivity != null
+              ? `No stewardship activity recorded in the past ${health.daysSinceActivity} days`
+              : 'No stewardship activity has been recorded',
+            'Champion currently has an active assignment',
           ],
           suggested_action: 'Plan a reconnect conversation.',
           nav_target: `/champions/${h.id}`,
@@ -248,7 +270,7 @@ const RULES = [
           assigned_volunteer: h?.assigned_volunteer,
           why: [
             `Assignment is scheduled to end on ${fmtDate(a.planned_end_date)}`,
-            `That is in ${days} day(s)`,
+            days === 0 ? 'That is today' : `That is in ${days} day(s)`,
           ],
           suggested_action: 'Prepare reassignment if necessary.',
           nav_target: `/assignments/${a.id}`,
@@ -278,7 +300,20 @@ export function deriveRecommendations({ households, assignments, teams, activiti
   // Deduplicate by identity — one recommendation per condition.
   const byId = {};
   out.forEach((r) => { if (!byId[r.identity]) byId[r.identity] = r; });
-  return Object.values(byId);
+  const deduped = Object.values(byId);
+  // Attach supporting context for display (only when a Champion exists).
+  deduped.forEach((r) => {
+    if (!r.household_id) return;
+    const h = householdMap[r.household_id];
+    const acts = activitiesByHouse[r.household_id] || [];
+    const lastMs = lastStewardshipMs(acts, h?.registration_date || h?.created_date);
+    r.lastActivityDate = lastMs ? new Date(lastMs).toISOString().slice(0, 10) : null;
+    r.healthLabel = computeStewardshipHealth({
+      activities: acts,
+      fallbackDate: h?.registration_date || h?.created_date,
+    }).level.label;
+  });
+  return deduped;
 }
 
 // Reconcile derived recommendations with persisted records.
@@ -359,6 +394,9 @@ function toSurfaceItem(r, d, householdMap, teamMap) {
     navTarget: d ? d.nav_target : r.nav_target,
     createdDate: r.created_date,
     daysActive: created ? Math.max(0, Math.floor((Date.now() - created) / DAY)) : 0,
+    lastActivityDate: d ? d.lastActivityDate : null,
+    healthLabel: d ? d.healthLabel : null,
+    confidence: 'Deterministic',
     status: r.status,
   };
 }
