@@ -17,7 +17,10 @@ const EMPTY = {
   state: '',
   zip_code: '',
   travel_radius_miles: 25,
+  target_capacity: 12,
   ministry_notes: '',
+  coverage_regions: '',
+  coverage_notes: '',
 };
 
 // Create dialog for a new Volunteer Team.
@@ -95,10 +98,22 @@ export default function TeamFormDialog({ open, onOpenChange, onCreated }) {
               <Label>Travel Radius (miles)</Label>
               <Input type="number" value={form.travel_radius_miles} onChange={(e) => setField('travel_radius_miles', e.target.value)} />
             </div>
+            <div className="space-y-1">
+              <Label>Target Champion Capacity</Label>
+              <Input type="number" value={form.target_capacity} onChange={(e) => setField('target_capacity', e.target.value)} />
+            </div>
           </div>
           <div className="space-y-1">
             <Label>Ministry Notes</Label>
             <Textarea value={form.ministry_notes} onChange={(e) => setField('ministry_notes', e.target.value)} rows={3} />
+          </div>
+          <div className="space-y-1">
+            <Label>Counties / Regions Served</Label>
+            <Input value={form.coverage_regions} onChange={(e) => setField('coverage_regions', e.target.value)} placeholder="e.g. Androscoggin, Cumberland" />
+          </div>
+          <div className="space-y-1">
+            <Label>Coverage Notes</Label>
+            <Textarea value={form.coverage_notes} onChange={(e) => setField('coverage_notes', e.target.value)} rows={2} />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>

@@ -19,6 +19,11 @@
       "type": "string",
       "title": "Ministry Notes"
     },
+    "target_capacity": {
+      "type": "number",
+      "title": "Target Champion Capacity",
+      "default": 12
+    },
     "address": {
       "type": "string",
       "title": "Street Address"
@@ -47,6 +52,14 @@
       "type": "number",
       "title": "Preferred Travel Radius (miles)",
       "default": 25
+    },
+    "coverage_regions": {
+      "type": "string",
+      "title": "Counties / Regions Served"
+    },
+    "coverage_notes": {
+      "type": "string",
+      "title": "Coverage Notes"
     }
   },
   "required": [
