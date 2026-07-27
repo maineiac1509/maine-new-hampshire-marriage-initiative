@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, ChevronRight, X } from 'lucide-react';
@@ -64,9 +64,19 @@ function ActionCard({ item }) {
 export default function ActionCenter({
   households, assignments, teams, activities, teamMembers,
   title = 'Action Center', subtitle = 'Prioritized ministry opportunities that may need your attention.',
+  resetSignal,
 }) {
   const [expanded, setExpanded] = useState(false);
   const [filter, setFilter] = useState(null);
+
+  // External drill-down (e.g. "Open Action Items" summary card) clears any
+  // active priority filter and expands the queue so every item is visible.
+  useEffect(() => {
+    if (resetSignal) {
+      setFilter(null);
+      setExpanded(true);
+    }
+  }, [resetSignal]);
 
   const items = useMemo(
     () => buildActionItems({ households, assignments, teams, activities, teamMembers }),
@@ -82,6 +92,11 @@ export default function ActionCenter({
   const filtered = filter ? items.filter((i) => i.priority === filter) : items;
   const visible = expanded ? filtered : filtered.slice(0, VISIBLE_LIMIT);
   const hasMore = filtered.length > VISIBLE_LIMIT;
+
+  const filterLabel = filter ? `${PRIORITY[filter].label} Priority` : 'Action';
+  const summaryText = hasMore
+    ? `Showing ${visible.length} of ${filtered.length} ${filterLabel} Items`
+    : `Showing ${filtered.length} ${filterLabel} Items`;
 
   return (
     <section className="space-y-4">
@@ -143,6 +158,7 @@ export default function ActionCenter({
         </div>
       ) : (
         <>
+          <p className="text-sm font-medium text-muted-foreground">{summaryText}</p>
           <motion.div layout className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <AnimatePresence mode="popLayout">
               {visible.map((item) => (

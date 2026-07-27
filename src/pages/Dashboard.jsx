@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { buildAssignmentMap } from '@/lib/assignmentUtils';
 import { buildActivityFeed } from '@/lib/dashboardActivity';
@@ -37,6 +38,27 @@ export default function Dashboard() {
   const [teamMembers, setTeamMembers] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const [actionReset, setActionReset] = useState(0);
+  const [flash, setFlash] = useState(null);
+
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(null), 1800);
+    return () => clearTimeout(t);
+  }, [flash]);
+
+  // Smooth-scroll to an in-page section and briefly highlight it so the user
+  // understands where they were taken.
+  const drillTo = (target) => {
+    const id = target === 'actions' ? 'db-action-center' : 'db-team-activity';
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setFlash(target);
+    }, 60);
+  };
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -78,6 +100,13 @@ export default function Dashboard() {
     [scope.myTeamId, teams]
   );
   const scopedTeams = scope.myTeamId ? teams.filter((t) => t.id === scope.myTeamId) : teams;
+
+  const stewardshipDrills = {
+    myChampions: () => navigate('/champions?view=my'),
+    openActions: () => { setActionReset((n) => n + 1); drillTo('actions'); },
+    recentActivity: () => drillTo('activity'),
+    completed: () => navigate(`/assignments?status=Closed&month=current${scope.myTeamId ? `&team=${scope.myTeamId}` : ''}`),
+  };
 
   const stewardshipCounts = useMemo(() => ({
     myChampions: scope.myHouseholds.length,
@@ -122,16 +151,22 @@ export default function Dashboard() {
       {/* Section One: My Stewardship */}
       <section className="space-y-6 rounded-2xl border border-amber-200/60 bg-amber-50/40 p-5 shadow-sm sm:p-6">
         <StewardshipBanner user={user} team={myTeam} isAdmin={isAdmin(user) && !scope.myTeamId} />
-        <StewardshipSummary counts={stewardshipCounts} />
-        <ActionCenter
-          title="My Action Center"
-          subtitle="Prioritized stewardship work that may need your attention."
-          households={scope.myHouseholds}
-          assignments={scope.myAssignments}
-          teams={scopedTeams}
-          activities={scope.myActivities}
-          teamMembers={scope.myTeamMembers}
-        />
+        <StewardshipSummary counts={stewardshipCounts} onDrill={stewardshipDrills} />
+        <div
+          id="db-action-center"
+          className={`scroll-mt-24 rounded-xl transition-all duration-500 ${flash === 'actions' ? 'ring-2 ring-primary ring-offset-4 ring-offset-amber-50/40' : 'ring-0'}`}
+        >
+          <ActionCenter
+            title="My Action Center"
+            subtitle="Prioritized stewardship work that may need your attention."
+            households={scope.myHouseholds}
+            assignments={scope.myAssignments}
+            teams={scopedTeams}
+            activities={scope.myActivities}
+            teamMembers={scope.myTeamMembers}
+            resetSignal={actionReset}
+          />
+        </div>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <MyChampions
             households={scope.myHouseholds}
@@ -143,14 +178,19 @@ export default function Dashboard() {
             households={scope.myHouseholds}
           />
         </div>
-        <ActivityFeed
-          items={myFeed}
-          title="My Team Activity"
-          description="Recent stewardship activity involving your Volunteer Team."
-          limit={10}
-          emptyTitle="No team activity yet"
-          emptyDescription="Activity involving your Volunteer Team will appear here as it happens."
-        />
+        <div
+          id="db-team-activity"
+          className={`scroll-mt-24 rounded-xl transition-all duration-500 ${flash === 'activity' ? 'ring-2 ring-primary ring-offset-4 ring-offset-amber-50/40' : 'ring-0'}`}
+        >
+          <ActivityFeed
+            items={myFeed}
+            title="My Team Activity"
+            description="Recent stewardship activity involving your Volunteer Team."
+            limit={10}
+            emptyTitle="No team activity yet"
+            emptyDescription="Activity involving your Volunteer Team will appear here as it happens."
+          />
+        </div>
       </section>
 
       {/* Section Two: Ministry Overview */}

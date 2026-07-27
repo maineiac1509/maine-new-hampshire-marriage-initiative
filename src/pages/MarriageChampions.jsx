@@ -95,13 +95,14 @@ export default function MarriageChampions() {
   };
 
   useEffect(() => {
+    const viewParam = new URLSearchParams(window.location.search).get('view');
     loadData();
     base44.auth.me()
       .then((u) => {
         setCurrentUser(u);
         if (!defaultedRef.current) {
           defaultedRef.current = true;
-          setActiveView(u?.role === 'volunteer' ? 'my' : 'all');
+          setActiveView(viewParam || (u?.role === 'volunteer' ? 'my' : 'all'));
         }
       })
       .catch(() => {});

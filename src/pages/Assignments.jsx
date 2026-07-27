@@ -16,6 +16,14 @@ import { lastActivityDate } from '@/lib/championUtils';
 
 const STATUS_VARIANT = { Active: 'success', 'On Hold': 'warning', Closed: 'neutral' };
 
+function isInCurrentMonth(dateStr) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr.length > 10 ? dateStr : dateStr + 'T00:00:00');
+  if (Number.isNaN(d.getTime())) return false;
+  const now = new Date();
+  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+}
+
 const COLUMNS = [
   { key: 'champion', label: 'Champion' },
   { key: 'team', label: 'Volunteer Team' },
@@ -50,6 +58,17 @@ export default function Assignments() {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState({ key: 'assigned_date', dir: 'desc' });
   const [statusFilter, setStatusFilter] = useState('all');
+  const [monthFilter, setMonthFilter] = useState(null);
+  const [teamFilter, setTeamFilter] = useState(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const s = params.get('status');
+    if (s) setStatusFilter(s);
+    if (params.get('month') === 'current') setMonthFilter('current');
+    const t = params.get('team');
+    if (t) setTeamFilter(t);
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -103,13 +122,18 @@ export default function Assignments() {
         id: a.id,
         champion: champ ? householdDisplay(champ) : '—',
         team: teamMap[a.volunteer_team_id]?.team_name || '—',
+        teamId: a.volunteer_team_id || '',
         status: a.assignment_status || '',
         assigned_by: a.assigned_by || '',
         assigned_date: a.assigned_date || '',
         lastActivity: lastActivityDate(acts) || '',
+        endDate: a.end_date || '',
+        updated: a.updated_date || '',
       };
     });
     if (statusFilter !== 'all') r = r.filter((row) => row.status === statusFilter);
+    if (teamFilter) r = r.filter((row) => row.teamId === teamFilter);
+    if (monthFilter === 'current') r = r.filter((row) => isInCurrentMonth(row.endDate || row.updated));
     if (search.trim()) {
       const q = search.toLowerCase();
       r = r.filter((row) => [row.champion, row.team, row.assigned_by, row.status].filter(Boolean).some((v) => v.toLowerCase().includes(q)));
@@ -122,7 +146,7 @@ export default function Assignments() {
       return 0;
     });
     return r;
-  }, [assignments, champMap, teamMap, activitiesByHouse, statusFilter, search, sort]);
+  }, [assignments, champMap, teamMap, activitiesByHouse, statusFilter, teamFilter, monthFilter, search, sort]);
 
   function toggleSort(key) {
     setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
@@ -131,6 +155,8 @@ export default function Assignments() {
   function clearFilters() {
     setSearch('');
     setStatusFilter('all');
+    setMonthFilter(null);
+    setTeamFilter(null);
   }
 
   return (
