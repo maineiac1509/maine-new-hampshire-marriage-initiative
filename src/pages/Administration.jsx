@@ -1,6 +1,6 @@
 import React from 'react';
-import { Settings, Upload, ListChecks } from 'lucide-react';
-import VolunteerTeamsPanel from '@/components/teams/VolunteerTeamsPanel';
+import { Link } from 'react-router-dom';
+import { Users, Settings, Upload, ListChecks, UsersRound, ArrowRight } from 'lucide-react';
 
 const SECTIONS = [
   {
@@ -28,9 +28,23 @@ export default function Administration() {
         <p className="text-sm text-muted-foreground">System configuration and management</p>
       </div>
 
-      <VolunteerTeamsPanel />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Link
+          to="/volunteer-teams"
+          className="group flex items-start gap-4 rounded-xl border bg-card p-5 shadow-sm transition-colors hover:bg-muted/40"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+            <UsersRound className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Volunteer Teams</h3>
+              <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Manage volunteer teams, members, and Champion assignments.</p>
+          </div>
+        </Link>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {SECTIONS.map((s) => (
           <div key={s.title} className="flex items-start gap-4 rounded-xl border bg-card p-5 shadow-sm">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
