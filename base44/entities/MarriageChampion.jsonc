@@ -1,0 +1,94 @@
+{
+  "name": "MarriageChampion",
+  "type": "object",
+  "properties": {
+    "first_name": {
+      "type": "string",
+      "title": "First Name"
+    },
+    "last_name": {
+      "type": "string",
+      "title": "Last Name"
+    },
+    "address": {
+      "type": "string",
+      "title": "Address"
+    },
+    "city": {
+      "type": "string",
+      "title": "City"
+    },
+    "state": {
+      "type": "string",
+      "title": "State"
+    },
+    "zip_code": {
+      "type": "string",
+      "title": "Zip Code"
+    },
+    "home_phone": {
+      "type": "string",
+      "title": "Home Phone"
+    },
+    "mobile_phone": {
+      "type": "string",
+      "title": "Mobile Phone"
+    },
+    "email": {
+      "type": "string",
+      "title": "Email",
+      "format": "email"
+    },
+    "registration_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Registration Date"
+    },
+    "registration_type": {
+      "type": "string",
+      "title": "Registration Type",
+      "enum": [
+        "Individual",
+        "Couple",
+        "Group"
+      ],
+      "default": "Individual"
+    },
+    "group_name": {
+      "type": "string",
+      "title": "Group Name"
+    },
+    "area": {
+      "type": "string",
+      "title": "Area"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "New",
+        "First Contact",
+        "Follow-Up",
+        "Completed",
+        "Inactive"
+      ],
+      "default": "New"
+    },
+    "assigned_volunteer": {
+      "type": "string",
+      "title": "Assigned Volunteer"
+    },
+    "assigned_director": {
+      "type": "string",
+      "title": "Assigned Director"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notes"
+    }
+  },
+  "required": [
+    "first_name",
+    "last_name"
+  ]
+}
