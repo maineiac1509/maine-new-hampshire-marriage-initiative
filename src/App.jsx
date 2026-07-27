@@ -12,6 +12,7 @@ import Dashboard from '@/pages/Dashboard';
 import MarriageChampions from '@/pages/MarriageChampions';
 import ChampionProfile from '@/pages/ChampionProfile';
 import Assignments from '@/pages/Assignments';
+import AssignmentDetail from '@/pages/AssignmentDetail';
 import ContactHistory from '@/pages/ContactHistory';
 import Reports from '@/pages/Reports';
 import Administration from '@/pages/Administration';
@@ -59,6 +60,7 @@ const AuthenticatedApp = () => {
           <Route path="/champions" element={<MarriageChampions />} />
           <Route path="/champions/:id" element={<ChampionProfile />} />
           <Route path="/assignments" element={<Assignments />} />
+          <Route path="/assignments/:id" element={<AssignmentDetail />} />
           <Route path="/contact-history" element={<ContactHistory />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/administration" element={<Administration />} />

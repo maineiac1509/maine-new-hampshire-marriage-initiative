@@ -4,11 +4,11 @@
   "properties": {
     "household_id": {
       "type": "string",
-      "title": "Marriage Champion"
+      "title": "Champion"
     },
     "volunteer_team_id": {
       "type": "string",
-      "title": "Assigned Volunteer Team"
+      "title": "Volunteer Team"
     },
     "assigned_by": {
       "type": "string",
@@ -29,19 +29,37 @@
       ],
       "default": "Manual"
     },
-    "assignment_notes": {
-      "type": "string",
-      "title": "Assignment Notes"
-    },
     "assignment_status": {
       "type": "string",
       "title": "Assignment Status",
       "enum": [
         "Active",
-        "Reassigned",
-        "Inactive"
+        "On Hold",
+        "Closed"
       ],
       "default": "Active"
+    },
+    "assignment_reason": {
+      "type": "string",
+      "title": "Assignment Reason"
+    },
+    "assignment_notes": {
+      "type": "string",
+      "title": "Assignment Notes"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date",
+      "title": "End Date"
+    },
+    "previous_assignment_id": {
+      "type": "string",
+      "title": "Previous Assignment"
+    },
+    "reassignment_flag": {
+      "type": "boolean",
+      "title": "Reassignment Flag",
+      "default": false
     }
   },
   "required": [
