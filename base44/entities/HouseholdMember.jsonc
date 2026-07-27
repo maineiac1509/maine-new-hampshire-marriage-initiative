@@ -1,0 +1,42 @@
+{
+  "name": "HouseholdMember",
+  "type": "object",
+  "properties": {
+    "household_id": {
+      "type": "string",
+      "title": "Household ID"
+    },
+    "first_name": {
+      "type": "string",
+      "title": "First Name"
+    },
+    "last_name": {
+      "type": "string",
+      "title": "Last Name"
+    },
+    "email": {
+      "type": "string",
+      "title": "Email",
+      "format": "email"
+    },
+    "mobile_phone": {
+      "type": "string",
+      "title": "Mobile Phone"
+    },
+    "relationship": {
+      "type": "string",
+      "title": "Relationship",
+      "enum": [
+        "Primary",
+        "Spouse",
+        "Member"
+      ],
+      "default": "Primary"
+    }
+  },
+  "required": [
+    "household_id",
+    "first_name",
+    "last_name"
+  ]
+}

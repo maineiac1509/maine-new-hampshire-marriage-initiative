@@ -1,14 +1,10 @@
 {
-  "name": "MarriageChampion",
+  "name": "ChampionHousehold",
   "type": "object",
   "properties": {
-    "first_name": {
+    "household_name": {
       "type": "string",
-      "title": "First Name"
-    },
-    "last_name": {
-      "type": "string",
-      "title": "Last Name"
+      "title": "Household Name"
     },
     "address": {
       "type": "string",
@@ -30,14 +26,9 @@
       "type": "string",
       "title": "Home Phone"
     },
-    "mobile_phone": {
+    "area": {
       "type": "string",
-      "title": "Mobile Phone"
-    },
-    "email": {
-      "type": "string",
-      "title": "Email",
-      "format": "email"
+      "title": "Area"
     },
     "registration_date": {
       "type": "string",
@@ -52,15 +43,11 @@
         "Couple",
         "Group"
       ],
-      "default": "Individual"
+      "default": "Couple"
     },
     "group_name": {
       "type": "string",
       "title": "Group Name"
-    },
-    "area": {
-      "type": "string",
-      "title": "Area"
     },
     "status": {
       "type": "string",
@@ -86,9 +73,5 @@
       "type": "string",
       "title": "Notes"
     }
-  },
-  "required": [
-    "first_name",
-    "last_name"
-  ]
+  }
 }

@@ -24,49 +24,70 @@ const STATUS_STYLES = {
 
 const PAGE_SIZE = 10;
 
+function householdDisplay(h) {
+  if (h.household_name) return h.household_name;
+  const names = (h._members || [])
+    .map((m) => `${m.first_name || ''} ${m.last_name || ''}`.trim())
+    .filter(Boolean);
+  return names.length ? names.join(' & ') : 'Unnamed Household';
+}
+
 export default function MarriageChampions() {
-  const [champions, setChampions] = useState([]);
+  const [households, setHouseholds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
-  const [sortKey, setSortKey] = useState('last_name');
+  const [sortKey, setSortKey] = useState('household_name');
   const [sortDir, setSortDir] = useState('asc');
   const [page, setPage] = useState(1);
   const [importOpen, setImportOpen] = useState(false);
 
-  const loadChampions = () => {
-    base44.entities.MarriageChampion.list()
-      .then(setChampions)
-      .catch(() => setChampions([]))
+  const loadHouseholds = () => {
+    Promise.all([
+      base44.entities.ChampionHousehold.list(),
+      base44.entities.HouseholdMember.list(),
+    ])
+      .then(([hhs, members]) => {
+        const byHouse = {};
+        members.forEach((m) => {
+          if (!byHouse[m.household_id]) byHouse[m.household_id] = [];
+          byHouse[m.household_id].push(m);
+        });
+        setHouseholds(hhs.map((h) => ({ ...h, _members: byHouse[h.id] || [] })));
+      })
+      .catch(() => setHouseholds([]))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    loadChampions();
+    loadHouseholds();
   }, []);
 
   const filtered = useMemo(() => {
-    let result = champions;
+    let result = households;
     if (search.trim()) {
       const q = search.toLowerCase();
-      result = result.filter((c) =>
-        [c.first_name, c.last_name, c.email, c.city, c.group_name, c.area]
+      result = result.filter((h) => {
+        const memberNames = (h._members || [])
+          .map((m) => `${m.first_name || ''} ${m.last_name || ''}`.trim())
+          .join(' ');
+        return [h.household_name, h.city, h.area, h.group_name, memberNames]
           .filter(Boolean)
-          .some((v) => v.toLowerCase().includes(q))
-      );
+          .some((v) => v.toLowerCase().includes(q));
+      });
     }
-    if (statusFilter !== 'all') result = result.filter((c) => c.status === statusFilter);
-    if (typeFilter !== 'all') result = result.filter((c) => c.registration_type === typeFilter);
+    if (statusFilter !== 'all') result = result.filter((h) => h.status === statusFilter);
+    if (typeFilter !== 'all') result = result.filter((h) => h.registration_type === typeFilter);
     result = [...result].sort((a, b) => {
-      const av = (a[sortKey] || '').toString().toLowerCase();
-      const bv = (b[sortKey] || '').toString().toLowerCase();
+      const av = (a[sortKey] || householdDisplay(a)).toString().toLowerCase();
+      const bv = (b[sortKey] || householdDisplay(b)).toString().toLowerCase();
       if (av < bv) return sortDir === 'asc' ? -1 : 1;
       if (av > bv) return sortDir === 'asc' ? 1 : -1;
       return 0;
     });
     return result;
-  }, [champions, search, statusFilter, typeFilter, sortKey, sortDir]);
+  }, [households, search, statusFilter, typeFilter, sortKey, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, totalPages);
@@ -87,7 +108,7 @@ export default function MarriageChampions() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Marriage Champions</h1>
           <p className="text-sm text-muted-foreground">
-            {filtered.length} {filtered.length === 1 ? 'champion' : 'champions'}
+            {filtered.length} {filtered.length === 1 ? 'household' : 'households'}
           </p>
         </div>
         <Button variant="outline" onClick={() => setImportOpen(true)}>
@@ -98,7 +119,7 @@ export default function MarriageChampions() {
       <ImportChampionsDialog
         open={importOpen}
         onOpenChange={setImportOpen}
-        onImported={loadChampions}
+        onImported={loadHouseholds}
       />
 
       {/* Filters */}
@@ -142,7 +163,7 @@ export default function MarriageChampions() {
           <thead className="border-b bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               {[
-                { key: 'last_name', label: 'Name' },
+                { key: 'household_name', label: 'Household' },
                 { key: 'area', label: 'Area' },
                 { key: 'city', label: 'City' },
                 { key: 'registration_type', label: 'Type' },
@@ -161,27 +182,35 @@ export default function MarriageChampions() {
             </tr>
           </thead>
           <tbody>
-            {pageItems.map((c) => (
-              <tr key={c.id} className="border-b last:border-0 hover:bg-muted/40">
-                <td className="px-4 py-3">
-                  <Link to={`/champions/${c.id}`} className="font-medium hover:underline">
-                    {c.last_name}, {c.first_name}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 text-muted-foreground">{c.area || '—'}</td>
-                <td className="px-4 py-3 text-muted-foreground">{c.city || '—'}</td>
-                <td className="px-4 py-3 text-muted-foreground">{c.registration_type || '—'}</td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[c.status] || 'bg-slate-100'}`}>
-                    {c.status || '—'}
-                  </span>
-                </td>
-              </tr>
-            ))}
+            {pageItems.map((h) => {
+              const memberNames = (h._members || [])
+                .map((m) => `${m.first_name || ''} ${m.last_name || ''}`.trim())
+                .join(', ');
+              return (
+                <tr key={h.id} className="border-b last:border-0 hover:bg-muted/40">
+                  <td className="px-4 py-3">
+                    <Link to={`/champions/${h.id}`} className="font-medium hover:underline">
+                      {householdDisplay(h)}
+                    </Link>
+                    {memberNames && (
+                      <p className="text-xs text-muted-foreground">{memberNames}</p>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">{h.area || '—'}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{h.city || '—'}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{h.registration_type || '—'}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[h.status] || 'bg-slate-100'}`}>
+                      {h.status || '—'}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
             {!pageItems.length && (
               <tr>
                 <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
-                  {loading ? 'Loading…' : 'No champions found.'}
+                  {loading ? 'Loading…' : 'No households found.'}
                 </td>
               </tr>
             )}
@@ -191,28 +220,35 @@ export default function MarriageChampions() {
 
       {/* Mobile cards */}
       <div className="space-y-3 md:hidden">
-        {pageItems.map((c) => (
-          <Link
-            key={c.id}
-            to={`/champions/${c.id}`}
-            className="block rounded-xl border bg-card p-4 shadow-sm active:bg-muted/50"
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-medium">{c.first_name} {c.last_name}</span>
-              <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[c.status] || 'bg-slate-100'}`}>
-                {c.status || '—'}
-              </span>
-            </div>
-            <div className="mt-1 text-sm text-muted-foreground">
-              {[c.area, c.city].filter(Boolean).join(' · ') || 'No location'}
-            </div>
-            <div className="mt-1 text-xs text-muted-foreground">{c.registration_type || '—'}</div>
-          </Link>
-        ))}
+        {pageItems.map((h) => {
+          const memberNames = (h._members || [])
+            .map((m) => `${m.first_name || ''} ${m.last_name || ''}`.trim())
+            .join(', ');
+          return (
+            <Link
+              key={h.id}
+              to={`/champions/${h.id}`}
+              className="block rounded-xl border bg-card p-4 shadow-sm active:bg-muted/50"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium">{householdDisplay(h)}</span>
+                <span className={`inline-flex shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[h.status] || 'bg-slate-100'}`}>
+                  {h.status || '—'}
+                </span>
+              </div>
+              {memberNames && (
+                <div className="mt-1 text-sm text-muted-foreground">{memberNames}</div>
+              )}
+              <div className="mt-1 text-xs text-muted-foreground">
+                {[h.area, h.city, h.registration_type].filter(Boolean).join(' · ') || '—'}
+              </div>
+            </Link>
+          );
+        })}
         {!pageItems.length && (
           <div className="flex flex-col items-center gap-2 rounded-xl border bg-card p-10 text-center text-muted-foreground">
             <Users className="h-8 w-8" />
-            {loading ? 'Loading…' : 'No champions found.'}
+            {loading ? 'Loading…' : 'No households found.'}
           </div>
         )}
       </div>
