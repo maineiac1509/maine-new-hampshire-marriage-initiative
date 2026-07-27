@@ -1,46 +1,37 @@
 {
-  "name": "AssignmentEvent",
+  "name": "ChampionTimelineEvent",
   "type": "object",
   "properties": {
-    "assignment_id": {
+    "household_id": {
       "type": "string",
-      "title": "Assignment"
+      "title": "Champion"
     },
     "event_type": {
       "type": "string",
       "title": "Event Type",
       "enum": [
-        "Created",
-        "Updated",
-        "Status Changed",
-        "Closed"
+        "Assignment Created",
+        "Assignment Updated",
+        "Assignment Closed"
       ],
-      "default": "Created"
+      "default": "Assignment Created"
     },
     "event_date": {
       "type": "string",
       "format": "date",
       "title": "Event Date"
     },
-    "actor": {
-      "type": "string",
-      "title": "Performed By"
-    },
-    "previous_value": {
-      "type": "string",
-      "title": "Previous Value"
-    },
-    "new_value": {
-      "type": "string",
-      "title": "New Value"
-    },
     "summary": {
       "type": "string",
       "title": "Summary"
+    },
+    "source_assignment_id": {
+      "type": "string",
+      "title": "Source Assignment"
     }
   },
   "required": [
-    "assignment_id",
+    "household_id",
     "event_type",
     "event_date"
   ],

@@ -9,6 +9,7 @@ import RelationshipSummary, { getFollowUpStatus } from '@/components/champions/R
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import RelationshipStatusControl from '@/components/champions/RelationshipStatusControl';
 import RelationshipTimeline from '@/components/champions/RelationshipTimeline';
+import ChampionAssignmentCard from '@/components/assignments/ChampionAssignmentCard';
 import { isAssignedTo } from '@/lib/championUtils';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -94,6 +95,7 @@ export default function ChampionProfile() {
   const [activities, setActivities] = useState([]);
   const [teams, setTeams] = useState([]);
   const [statusChanges, setStatusChanges] = useState([]);
+  const [milestones, setMilestones] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
 
   function load() {
@@ -123,16 +125,24 @@ export default function ChampionProfile() {
       .catch(() => setStatusChanges([]));
   }
 
+  function loadMilestones() {
+    base44.entities.ChampionTimelineEvent.filter({ household_id: id }, '-event_date')
+      .then((rows) => setMilestones(rows || []))
+      .catch(() => setMilestones([]));
+  }
+
   function handleStatusChanged() {
     load();
     loadStatusChanges();
     loadActivities();
+    loadMilestones();
   }
 
   useEffect(() => {
     load();
     loadActivities();
     loadStatusChanges();
+    loadMilestones();
     base44.entities.VolunteerTeam.list().then((ts) => setTeams(ts || [])).catch(() => {});
     base44.auth.me().then((u) => setCurrentUser(u)).catch(() => {});
   }, [id]);
@@ -374,23 +384,13 @@ export default function ChampionProfile() {
 
         {/* Assignment */}
         <Section icon={UsersIcon} title="Assignment Information">
-          <dl className="grid grid-cols-2 gap-4">
+          <div className="space-y-4">
             <div className="space-y-1">
               <label className="text-xs uppercase tracking-wide text-muted-foreground">Assigned Volunteer Team</label>
-              {editing ? (
-                <Select value={h.volunteer_team_id || '__none__'} onValueChange={(v) => setField('volunteer_team_id', v === '__none__' ? '' : v)}>
-                  <SelectTrigger><SelectValue placeholder="Select team" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Unassigned</SelectItem>
-                    {teams.map((tm) => <SelectItem key={tm.id} value={tm.id}>{tm.team_name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <p className="text-sm text-foreground">{teamMap[h.volunteer_team_id]?.team_name || h.assigned_volunteer || '—'}</p>
-              )}
+              <ChampionAssignmentCard champion={household} currentUser={currentUser} onChanged={loadMilestones} />
             </div>
             <FieldRow label="Assigned Director" value={h.assigned_director} editing={editing} onChange={(v) => setField('assigned_director', v)} />
-          </dl>
+          </div>
         </Section>
       </div>
 
@@ -405,6 +405,7 @@ export default function ChampionProfile() {
         householdId={id}
         activities={activities}
         statusChanges={statusChanges}
+        milestones={milestones}
         currentStatus={household?.relationship_status || 'New'}
         canChangeStatus={currentUser?.role === 'admin' || currentUser?.role === 'director' || isAssignedTo(household, currentUser)}
         onRefresh={loadActivities}

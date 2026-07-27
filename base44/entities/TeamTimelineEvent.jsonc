@@ -1,46 +1,40 @@
 {
-  "name": "AssignmentEvent",
+  "name": "TeamTimelineEvent",
   "type": "object",
   "properties": {
-    "assignment_id": {
+    "team_id": {
       "type": "string",
-      "title": "Assignment"
+      "title": "Volunteer Team"
+    },
+    "household_id": {
+      "type": "string",
+      "title": "Champion"
     },
     "event_type": {
       "type": "string",
       "title": "Event Type",
       "enum": [
-        "Created",
-        "Updated",
-        "Status Changed",
-        "Closed"
+        "Assignment Created",
+        "Assignment Closed"
       ],
-      "default": "Created"
+      "default": "Assignment Created"
     },
     "event_date": {
       "type": "string",
       "format": "date",
       "title": "Event Date"
     },
-    "actor": {
-      "type": "string",
-      "title": "Performed By"
-    },
-    "previous_value": {
-      "type": "string",
-      "title": "Previous Value"
-    },
-    "new_value": {
-      "type": "string",
-      "title": "New Value"
-    },
     "summary": {
       "type": "string",
       "title": "Summary"
+    },
+    "source_assignment_id": {
+      "type": "string",
+      "title": "Source Assignment"
     }
   },
   "required": [
-    "assignment_id",
+    "team_id",
     "event_type",
     "event_date"
   ],

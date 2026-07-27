@@ -194,7 +194,7 @@ export default function VolunteerTeamProfile() {
 
       <AssignedChampionsTable champions={champions} activitiesByHouse={activitiesByHouse} assignments={assignments} />
 
-      <TeamActivityFeed activities={activities} statusChanges={statusChanges} assignments={assignments} champions={champions} />
+      <TeamActivityFeed teamId={id} activities={activities} statusChanges={statusChanges} champions={champions} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <GeographicCoverage team={team} form={form} editing={editing} onField={setField} />

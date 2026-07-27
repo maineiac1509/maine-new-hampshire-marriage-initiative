@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { History, Plus, RefreshCw, ArrowRightCircle } from 'lucide-react';
+import { History, Plus, RefreshCw, ArrowRightCircle, CheckCircle2 } from 'lucide-react';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { fmtDate } from '@/lib/teamUtils';
 import AssignmentSection from './AssignmentSection';
@@ -8,12 +8,12 @@ const TYPE_META = {
   Created: { icon: Plus, variant: 'success' },
   Updated: { icon: RefreshCw, variant: 'info' },
   'Status Changed': { icon: ArrowRightCircle, variant: 'warning' },
+  Closed: { icon: CheckCircle2, variant: 'neutral' },
 };
 
-// Chronological history for the current Assignment only.
-// The "Created" entry is derived from the assigned date so the timeline always
-// shows the assignment's origin. TODO: store a "Created" event from a future
-// create flow and dedupe.
+// Authoritative audit trail for the current Assignment. The leading "Created"
+// entry is derived from the assigned date so the timeline always shows the
+// assignment's origin. Stored events record the acting user (actor).
 export default function AssignmentHistory({ events, assignedDate }) {
   const items = useMemo(() => {
     const stored = (events || []).map((e) => ({
@@ -23,8 +23,9 @@ export default function AssignmentHistory({ events, assignedDate }) {
       summary: e.summary,
       previous: e.previous_value,
       next: e.new_value,
+      actor: e.actor,
     }));
-    const created = { id: '__created__', date: assignedDate, type: 'Created', summary: 'Assignment created' };
+    const created = { id: '__created__', date: assignedDate, type: 'Created', summary: 'Assignment created', actor: '' };
     return [created, ...stored].sort((a, b) => new Date(b.date || '') - new Date(a.date || ''));
   }, [events, assignedDate]);
 
@@ -42,6 +43,7 @@ export default function AssignmentHistory({ events, assignedDate }) {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge variant={meta.variant}>{e.type}</StatusBadge>
+                  {e.actor && <span className="text-xs text-muted-foreground">by {e.actor}</span>}
                   <span className="ml-auto text-xs text-muted-foreground">{fmtDate(e.date, true)}</span>
                 </div>
                 <p className="mt-1 text-sm font-medium text-foreground">{e.summary || e.type}</p>

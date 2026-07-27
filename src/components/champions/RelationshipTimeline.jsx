@@ -43,6 +43,7 @@ export default function RelationshipTimeline({
   householdId,
   activities,
   statusChanges,
+  milestones,
   currentStatus,
   canChangeStatus,
   onRefresh,
@@ -75,10 +76,15 @@ export default function RelationshipTimeline({
       _kind: 'status',
       _date: c.change_date || c.created_date,
     }));
-    return [...acts, ...changes].sort(
+    const miles = (milestones || []).map((m) => ({
+      ...m,
+      _kind: 'milestone',
+      _date: m.event_date || m.created_date,
+    }));
+    return [...acts, ...changes, ...miles].sort(
       (a, b) => new Date(b._date || 0) - new Date(a._date || 0)
     );
-  }, [activities, statusChanges]);
+  }, [activities, statusChanges, milestones]);
 
   const filtered = useMemo(() => {
     let r = [...merged];
@@ -87,6 +93,11 @@ export default function RelationshipTimeline({
       r = r.filter((item) => {
         if (item._kind === 'status') {
           return [item.previous_status, item.new_status]
+            .filter(Boolean)
+            .some((v) => v.toLowerCase().includes(q));
+        }
+        if (item._kind === 'milestone') {
+          return [item.event_type, item.summary]
             .filter(Boolean)
             .some((v) => v.toLowerCase().includes(q));
         }
@@ -189,6 +200,23 @@ export default function RelationshipTimeline({
                         Updated by {item.created_by || 'Unknown'}
                       </span>
                     </div>
+                  </div>
+                </li>
+              );
+            }
+            if (item._kind === 'milestone') {
+              return (
+                <li key={`mile-${item.id}`} className="flex gap-3 rounded-lg border border-dashed bg-emerald-50/40 p-4">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                    <ClipboardList className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-foreground">{fmt(item.event_date) || '—'}</span>
+                      <StatusBadge variant="success">{item.event_type}</StatusBadge>
+                      <span className="ml-auto text-xs text-muted-foreground">Assignment milestone</span>
+                    </div>
+                    {item.summary && <p className="mt-1 text-sm font-medium text-foreground">{item.summary}</p>}
                   </div>
                 </li>
               );

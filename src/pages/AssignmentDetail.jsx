@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, X, Loader2, AlertTriangle } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import AssignmentSummaryCard from '@/components/assignments/AssignmentSummaryCard';
@@ -8,11 +8,9 @@ import AssignmentContextCard from '@/components/assignments/AssignmentContextCar
 import RelatedChampionCard from '@/components/assignments/RelatedChampionCard';
 import TeamSummaryCard from '@/components/assignments/TeamSummaryCard';
 import AssignmentHistory from '@/components/assignments/AssignmentHistory';
+import CloseAssignmentDialog from '@/components/assignments/CloseAssignmentDialog';
 import { householdDisplay, fmtDate } from '@/lib/teamUtils';
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { actorName, recordAssignmentEvent, recordChampionMilestone } from '@/lib/assignmentEvents';
 
 export default function AssignmentDetail() {
   const { id } = useParams();
@@ -29,6 +27,7 @@ export default function AssignmentDetail() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [closeOpen, setCloseOpen] = useState(false);
 
   function load() {
     setLoading(true);
@@ -63,7 +62,6 @@ export default function AssignmentDetail() {
     base44.auth.me().then(setCurrentUser).catch(() => {});
   }, [id]);
 
-  // Load activities for the related Champion.
   useEffect(() => {
     if (!champion) { setActivities([]); return; }
     base44.entities.ChampionActivity.list()
@@ -73,22 +71,10 @@ export default function AssignmentDetail() {
 
   const role = currentUser?.role;
   const canManage = role === 'admin' || role === 'director';
+  const isClosed = assignment?.assignment_status === 'Closed';
 
   function setField(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
-  }
-
-  async function recordEvent(type, prev, next, summary) {
-    try {
-      await base44.entities.AssignmentEvent.create({
-        assignment_id: id,
-        event_type: type,
-        event_date: todayISO(),
-        previous_value: prev || undefined,
-        new_value: next || undefined,
-        summary: summary || undefined,
-      });
-    } catch (e) {}
   }
 
   async function handleSave() {
@@ -97,14 +83,18 @@ export default function AssignmentDetail() {
       const oldStatus = assignment.assignment_status;
       const newStatus = form.assignment_status;
       const statusChanged = oldStatus !== newStatus;
-      const tracked = ['assigned_by', 'assigned_date', 'assignment_method', 'assignment_reason', 'assignment_notes', 'end_date'];
+      const tracked = ['assigned_by', 'assigned_date', 'assignment_method', 'assignment_reason', 'assignment_notes'];
       const otherChanged = tracked.some((k) => (assignment[k] ?? '') !== (form[k] ?? ''));
       await base44.entities.Assignment.update(id, form);
+      const actor = actorName(currentUser);
       if (statusChanged) {
-        await recordEvent('Status Changed', oldStatus, newStatus, `${oldStatus || '—'} → ${newStatus}`);
+        await recordAssignmentEvent({ assignmentId: id, type: 'Status Changed', actor, previousValue: oldStatus, newValue: newStatus, summary: `${oldStatus || '—'} → ${newStatus}` });
       }
       if (otherChanged) {
-        await recordEvent('Updated', undefined, undefined, 'Assignment details updated');
+        await recordAssignmentEvent({ assignmentId: id, type: 'Updated', actor, summary: 'Assignment details updated' });
+      }
+      if (statusChanged || otherChanged) {
+        await recordChampionMilestone({ householdId: assignment.household_id, type: 'Assignment Updated', assignmentId: id, summary: 'Assignment details updated' });
       }
       setEditing(false);
       load();
@@ -133,21 +123,28 @@ export default function AssignmentDetail() {
         <Button variant="ghost" size="sm" asChild>
           <Link to="/assignments"><ArrowLeft className="h-4 w-4" /> Back to Assignments</Link>
         </Button>
-        {canManage && !editing && (
-          <Button size="sm" variant="outline" onClick={() => { setForm({ ...assignment }); setEditing(true); }}>
-            <Save className="h-4 w-4" /> Edit Assignment
-          </Button>
-        )}
-        {canManage && editing && (
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setEditing(false)} disabled={saving}>
-              <X className="h-4 w-4" /> Cancel
+        <div className="flex gap-2">
+          {canManage && !isClosed && !editing && (
+            <Button size="sm" variant="outline" onClick={() => setCloseOpen(true)}>
+              <AlertTriangle className="h-4 w-4 text-amber-500" /> Close Assignment
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
+          )}
+          {canManage && !isClosed && !editing && (
+            <Button size="sm" variant="outline" onClick={() => { setForm({ ...assignment }); setEditing(true); }}>
+              <Save className="h-4 w-4" /> Edit Assignment
             </Button>
-          </div>
-        )}
+          )}
+          {canManage && editing && (
+            <>
+              <Button variant="outline" size="sm" onClick={() => setEditing(false)} disabled={saving}>
+                <X className="h-4 w-4" /> Cancel
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <div>
@@ -173,6 +170,16 @@ export default function AssignmentDetail() {
       </div>
 
       <AssignmentHistory events={events} assignedDate={assignment.assigned_date} />
+
+      <CloseAssignmentDialog
+        open={closeOpen}
+        onOpenChange={setCloseOpen}
+        assignment={assignment}
+        champion={champion}
+        team={team}
+        currentUser={currentUser}
+        onClosed={load}
+      />
     </div>
   );
 }

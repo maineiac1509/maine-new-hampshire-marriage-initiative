@@ -47,6 +47,14 @@
       "type": "string",
       "title": "Assignment Notes"
     },
+    "closing_reason": {
+      "type": "string",
+      "title": "Closing Reason"
+    },
+    "closing_notes": {
+      "type": "string",
+      "title": "Closing Notes"
+    },
     "end_date": {
       "type": "string",
       "format": "date",

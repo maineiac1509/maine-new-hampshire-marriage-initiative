@@ -3,9 +3,11 @@ import { FileText } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import AssignmentSection from './AssignmentSection';
+import { fmtDate } from '@/lib/teamUtils';
 
 export default function AssignmentContextCard({ assignment, form, editing, onField }) {
   const a = editing ? form : assignment;
+  const isClosed = assignment?.assignment_status === 'Closed';
   return (
     <AssignmentSection icon={FileText} title="Ministry Context">
       <div className="space-y-4">
@@ -25,6 +27,23 @@ export default function AssignmentContextCard({ assignment, form, editing, onFie
             <p className="whitespace-pre-wrap text-sm text-foreground">{a?.assignment_notes || '—'}</p>
           )}
         </div>
+        {isClosed && (
+          <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Closing Details</p>
+            <div className="space-y-1">
+              <label className="text-xs uppercase tracking-wide text-muted-foreground">Closing Reason</label>
+              <p className="text-sm text-foreground">{assignment.closing_reason || '—'}</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs uppercase tracking-wide text-muted-foreground">Closing Notes</label>
+              <p className="whitespace-pre-wrap text-sm text-foreground">{assignment.closing_notes || '—'}</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs uppercase tracking-wide text-muted-foreground">Closed Date</label>
+              <p className="text-sm text-foreground">{fmtDate(assignment.end_date)}</p>
+            </div>
+          </div>
+        )}
       </div>
     </AssignmentSection>
   );
