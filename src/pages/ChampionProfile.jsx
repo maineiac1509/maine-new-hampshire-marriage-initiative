@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, Home, MapPin, ClipboardList, Users as UsersIcon, StickyNote, Phone, Mail,
-  Save, X, Plus, Trash2, Loader2,
+  Save, X, Plus, Trash2, Loader2, MessageSquare,
 } from 'lucide-react';
+import CheckInLog from '@/components/champions/CheckInLog';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -333,6 +334,11 @@ export default function ChampionProfile() {
           )}
         </Section>
       </div>
+
+      {/* Check-in Log */}
+      <Section icon={MessageSquare} title="Check-in Log">
+        <CheckInLog householdId={id} />
+      </Section>
     </div>
   );
 }
