@@ -61,7 +61,10 @@ function ActionCard({ item }) {
   );
 }
 
-export default function ActionCenter({ households, assignments, teams, activities, teamMembers }) {
+export default function ActionCenter({
+  households, assignments, teams, activities, teamMembers,
+  title = 'Action Center', subtitle = 'Prioritized ministry opportunities that may need your attention.',
+}) {
   const [expanded, setExpanded] = useState(false);
   const [filter, setFilter] = useState(null);
 
@@ -83,8 +86,8 @@ export default function ActionCenter({ households, assignments, teams, activitie
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Action Center</h2>
-        <p className="text-sm text-muted-foreground">Prioritized ministry opportunities that may need your attention.</p>
+        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+        <p className="text-sm text-muted-foreground">{subtitle}</p>
       </div>
 
       {/* Today's Focus */}

@@ -2,11 +2,17 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { buildAssignmentMap } from '@/lib/assignmentUtils';
 import { buildActivityFeed } from '@/lib/dashboardActivity';
+import { computeStewardship, isAdminRole } from '@/lib/stewardship';
+import { buildActionItems } from '@/lib/actionCenter';
 import WelcomeHeader from '@/components/dashboard/WelcomeHeader';
 import MinistryOverview from '@/components/dashboard/MinistryOverview';
 import QuickActions from '@/components/dashboard/QuickActions';
 import ActivityFeed from '@/components/dashboard/ActivityFeed';
 import ActionCenter from '@/components/dashboard/ActionCenter';
+import StewardshipBanner from '@/components/stewardship/StewardshipBanner';
+import StewardshipSummary from '@/components/stewardship/StewardshipSummary';
+import MyChampions from '@/components/stewardship/MyChampions';
+import MyCurrentAssignments from '@/components/stewardship/MyCurrentAssignments';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Users } from 'lucide-react';
 
@@ -58,6 +64,39 @@ export default function Dashboard() {
     });
   }, []);
 
+  const scope = useMemo(
+    () => computeStewardship({
+      user, teamMembers, assignments, households, activities,
+      assignmentEvents, teamTimeline, championTimeline,
+    }),
+    [user, teamMembers, assignments, households, activities, assignmentEvents, teamTimeline, championTimeline]
+  );
+
+  const myTeam = useMemo(
+    () => (scope.myTeamId ? teams.find((t) => t.id === scope.myTeamId) || null : null),
+    [scope.myTeamId, teams]
+  );
+  const scopedTeams = scope.myTeamId ? teams.filter((t) => t.id === scope.myTeamId) : teams;
+  const isAdmin = isAdminRole(user);
+
+  const stewardshipCounts = useMemo(() => ({
+    myChampions: scope.myHouseholds.length,
+    openActions: buildActionItems({
+      households: scope.myHouseholds, assignments: scope.myAssignments,
+      teams: scopedTeams, activities: scope.myActivities, teamMembers: scope.myTeamMembers,
+    }).length,
+    recentActivity: scope.myActivities.filter((a) => isInCurrentMonth(a.activity_date)).length,
+    completed: scope.myAssignments.filter(
+      (a) => a.assignment_status === 'Closed' && (isInCurrentMonth(a.end_date) || isInCurrentMonth(a.updated_date))
+    ).length,
+  }), [scope, scopedTeams]);
+
+  const myFeed = useMemo(() => buildActivityFeed({
+    activities: scope.myActivities, assignmentEvents: scope.myAssignmentEvents,
+    teamTimeline: scope.myTeamTimeline, championTimeline: scope.myChampionTimeline,
+    teamMembers: scope.myTeamMembers, households: scope.myHouseholds, teams, users,
+  }), [scope, teams, users]);
+
   const metrics = useMemo(() => {
     const assignmentMap = buildAssignmentMap(assignments);
     return {
@@ -80,24 +119,52 @@ export default function Dashboard() {
     <div className="space-y-8">
       <WelcomeHeader user={user} />
 
-      <MinistryOverview metrics={metrics} />
-
-      <ActionCenter
-        households={households}
-        assignments={assignments}
-        teams={teams}
-        activities={activities}
-        teamMembers={teamMembers}
-      />
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-1">
-          <QuickActions />
+      {/* Section One: My Stewardship */}
+      <section className="space-y-6 rounded-2xl border border-amber-200/60 bg-amber-50/40 p-5 shadow-sm sm:p-6">
+        <StewardshipBanner user={user} team={myTeam} isAdmin={isAdmin && !scope.myTeamId} />
+        <StewardshipSummary counts={stewardshipCounts} />
+        <ActionCenter
+          title="My Action Center"
+          subtitle="Prioritized stewardship work that may need your attention."
+          households={scope.myHouseholds}
+          assignments={scope.myAssignments}
+          teams={scopedTeams}
+          activities={scope.myActivities}
+          teamMembers={scope.myTeamMembers}
+        />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <MyChampions
+            households={scope.myHouseholds}
+            assignments={scope.myAssignments}
+            activities={scope.myActivities}
+          />
+          <MyCurrentAssignments
+            assignments={scope.myActiveAssignments}
+            households={scope.myHouseholds}
+          />
         </div>
-        <div className="lg:col-span-2">
-          <ActivityFeed items={feed} />
+        <ActivityFeed
+          items={myFeed}
+          title="My Team Activity"
+          description="Recent stewardship activity involving your Volunteer Team."
+          limit={10}
+          emptyTitle="No team activity yet"
+          emptyDescription="Activity involving your Volunteer Team will appear here as it happens."
+        />
+      </section>
+
+      {/* Section Two: Ministry Overview */}
+      <section className="space-y-6">
+        <MinistryOverview metrics={metrics} />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-1">
+            <QuickActions />
+          </div>
+          <div className="lg:col-span-2">
+            <ActivityFeed items={feed} />
+          </div>
         </div>
-      </div>
+      </section>
 
       {noChampions && (
         <EmptyState
