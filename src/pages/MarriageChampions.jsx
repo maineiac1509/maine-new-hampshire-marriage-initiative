@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, ChevronLeft, ChevronRight, ArrowUpDown, Users } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, ArrowUpDown, Users, Upload } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { STATUS_OPTIONS, REGISTRATION_TYPE_OPTIONS } from '@/lib/config';
+import ImportChampionsDialog from '@/components/champions/ImportChampionsDialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -32,12 +33,17 @@ export default function MarriageChampions() {
   const [sortKey, setSortKey] = useState('last_name');
   const [sortDir, setSortDir] = useState('asc');
   const [page, setPage] = useState(1);
+  const [importOpen, setImportOpen] = useState(false);
 
-  useEffect(() => {
+  const loadChampions = () => {
     base44.entities.MarriageChampion.list()
       .then(setChampions)
       .catch(() => setChampions([]))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadChampions();
   }, []);
 
   const filtered = useMemo(() => {
@@ -77,12 +83,23 @@ export default function MarriageChampions() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight">Marriage Champions</h1>
-        <p className="text-sm text-muted-foreground">
-          {filtered.length} {filtered.length === 1 ? 'champion' : 'champions'}
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Marriage Champions</h1>
+          <p className="text-sm text-muted-foreground">
+            {filtered.length} {filtered.length === 1 ? 'champion' : 'champions'}
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => setImportOpen(true)}>
+          <Upload className="h-4 w-4" /> Import
+        </Button>
       </div>
+
+      <ImportChampionsDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImported={loadChampions}
+      />
 
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
