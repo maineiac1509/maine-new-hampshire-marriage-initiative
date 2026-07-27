@@ -4,6 +4,7 @@ import { Search, ChevronLeft, ChevronRight, ArrowUpDown, Users, Upload, UserPlus
 import { base44 } from '@/api/base44Client';
 import { STATUS_OPTIONS, REGISTRATION_TYPE_OPTIONS, RELATIONSHIP_STATUS_OPTIONS } from '@/lib/config';
 import ImportChampionsDialog from '@/components/champions/ImportChampionsDialog';
+import AddChampionDialog from '@/components/champions/AddChampionDialog';
 import ChampionQuickFilters from '@/components/champions/ChampionQuickFilters';
 import MyChampionsSummary from '@/components/champions/MyChampionsSummary';
 import ChampionStatusBadge from '@/components/champions/ChampionStatusBadge';
@@ -70,6 +71,7 @@ export default function MarriageChampions() {
   const [sortDir, setSortDir] = useState('asc');
   const [page, setPage] = useState(1);
   const [importOpen, setImportOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [activeView, setActiveView] = useState('all');
   const defaultedRef = useRef(false);
 
@@ -243,9 +245,14 @@ export default function MarriageChampions() {
         title="Marriage Champions"
         subtitle={`${filtered.length} ${filtered.length === 1 ? 'Champion' : 'Champions'}`}
         actions={
-          <Button variant="outline" onClick={() => setImportOpen(true)}>
-            <Upload className="h-4 w-4" /> Import
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="h-4 w-4" /> Import
+            </Button>
+            <Button onClick={() => setAddOpen(true)}>
+              <UserPlus className="h-4 w-4" /> Add Champion
+            </Button>
+          </div>
         }
       />
 
@@ -253,6 +260,12 @@ export default function MarriageChampions() {
         open={importOpen}
         onOpenChange={setImportOpen}
         onImported={loadData}
+      />
+
+      <AddChampionDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onCreated={loadData}
       />
 
       {/* Quick filter tabs */}
