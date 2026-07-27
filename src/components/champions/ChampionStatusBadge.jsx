@@ -1,8 +1,8 @@
 import React from 'react';
 import { AlertCircle, Clock, CheckCircle2, CircleDashed } from 'lucide-react';
+import { StatusBadge } from '@/components/ui/StatusBadge';
 import { householdIndicator } from '@/lib/championUtils';
 
-// Consistent icon per follow-up indicator state.
 const INDICATOR_ICONS = {
   overdue: AlertCircle,
   'due-today': Clock,
@@ -10,17 +10,21 @@ const INDICATOR_ICONS = {
   'no-follow-up': CircleDashed,
 };
 
-// Standardized follow-up indicator badge — four states, consistent colors throughout.
+const INDICATOR_VARIANTS = {
+  overdue: 'danger',
+  'due-today': 'warning',
+  'up-to-date': 'success',
+  'no-follow-up': 'neutral',
+};
+
+// Standardized follow-up indicator — four consistent states that share the
+// StatusBadge design language: Overdue, Due Today, Up To Date, No Follow-up.
 export default function ChampionStatusBadge({ activities }) {
   const ind = householdIndicator(activities);
   if (!ind.label) return null;
-  const Icon = INDICATOR_ICONS[ind.key];
   return (
-    <span
-      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${ind.tone}`}
-    >
-      {Icon && <Icon className="h-3 w-3" />}
+    <StatusBadge variant={INDICATOR_VARIANTS[ind.key]} icon={INDICATOR_ICONS[ind.key]}>
       {ind.label}
-    </span>
+    </StatusBadge>
   );
 }

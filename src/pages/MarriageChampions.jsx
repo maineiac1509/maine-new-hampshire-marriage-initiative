@@ -9,6 +9,8 @@ import MyChampionsSummary from '@/components/champions/MyChampionsSummary';
 import ChampionStatusBadge from '@/components/champions/ChampionStatusBadge';
 import RelationshipStatusBadge from '@/components/champions/RelationshipStatusBadge';
 import RelationshipStatusSummary from '@/components/champions/RelationshipStatusSummary';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { EmptyState } from '@/components/ui/EmptyState';
 import {
   isAssignedTo, householdIndicator, lastActivityDate, nextFollowUpDate, isRecentlyContacted,
 } from '@/lib/championUtils';
@@ -201,17 +203,15 @@ export default function MarriageChampions() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Marriage Champions</h1>
-          <p className="text-sm text-muted-foreground">
-            {filtered.length} {filtered.length === 1 ? 'Champion' : 'Champions'}
-          </p>
-        </div>
-        <Button variant="outline" onClick={() => setImportOpen(true)}>
-          <Upload className="h-4 w-4" /> Import
-        </Button>
-      </div>
+      <PageHeader
+        title="Marriage Champions"
+        subtitle={`${filtered.length} ${filtered.length === 1 ? 'Champion' : 'Champions'}`}
+        actions={
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4" /> Import
+          </Button>
+        }
+      />
 
       <ImportChampionsDialog
         open={importOpen}
@@ -333,9 +333,16 @@ export default function MarriageChampions() {
             })}
             {!pageItems.length && (
               <tr>
-                <td colSpan={6} className="px-4 py-16 text-center text-muted-foreground">
-                  <Users className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                  {emptyMessage}
+                <td colSpan={6} className="px-4 py-16">
+                  <div className="flex flex-col items-center gap-2 text-center text-muted-foreground">
+                    <Users className="h-8 w-8 opacity-40" />
+                    <p className="text-sm">{emptyMessage}</p>
+                    {households.length === 0 && (
+                      <Button size="sm" variant="outline" className="mt-1" onClick={() => setImportOpen(true)}>
+                        <Upload className="h-4 w-4" /> Import Champions
+                      </Button>
+                    )}
+                  </div>
                 </td>
               </tr>
             )}
@@ -386,10 +393,13 @@ export default function MarriageChampions() {
           );
         })}
         {!pageItems.length && (
-          <div className="flex flex-col items-center gap-2 rounded-xl border bg-card p-10 text-center text-muted-foreground">
-            <Users className="h-8 w-8 opacity-40" />
-            {emptyMessage}
-          </div>
+          <EmptyState
+            icon={Users}
+            title={emptyMessage}
+            description={households.length === 0 ? 'Import a list of Marriage Champions to get started.' : 'Try adjusting your search or filters.'}
+            actionLabel={households.length === 0 ? 'Import Champions' : undefined}
+            onAction={households.length === 0 ? () => setImportOpen(true) : undefined}
+          />
         )}
       </div>
 

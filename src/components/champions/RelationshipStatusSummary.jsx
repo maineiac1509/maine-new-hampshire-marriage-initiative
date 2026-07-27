@@ -1,5 +1,6 @@
 import React from 'react';
-import { RELATIONSHIP_STATUS_STYLES } from '@/lib/config';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { RELATIONSHIP_STATUS_VARIANTS } from '@/lib/config';
 
 // Counts tracked in the "My Champions" summary view.
 const TRACKED_STATUSES = [
@@ -22,16 +23,14 @@ export default function RelationshipStatusSummary({ counts }) {
     status: s,
     label: SHORT_LABELS[s] || s,
     count: counts[s] || 0,
-    tone: RELATIONSHIP_STATUS_STYLES[s] || 'bg-slate-100 text-slate-600',
+    variant: RELATIONSHIP_STATUS_VARIANTS[s] || 'neutral',
   }));
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
       {items.map((it) => (
         <div key={it.status} className="rounded-lg border bg-card p-3 shadow-sm">
-          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${it.tone}`}>
-            {it.label}
-          </span>
+          <StatusBadge variant={it.variant}>{it.label}</StatusBadge>
           <div className="mt-1.5 text-lg font-semibold text-foreground">{it.count}</div>
         </div>
       ))}

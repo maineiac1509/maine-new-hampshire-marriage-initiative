@@ -3,8 +3,10 @@ import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, Home, MapPin, ClipboardList, Users as UsersIcon, StickyNote, Phone, Mail,
   Save, X, Plus, Trash2, Loader2,
+  AlertCircle, Clock, CheckCircle2, CircleDashed,
 } from 'lucide-react';
 import RelationshipSummary, { getFollowUpStatus } from '@/components/champions/RelationshipSummary';
+import { StatusBadge } from '@/components/ui/StatusBadge';
 import RelationshipStatusControl from '@/components/champions/RelationshipStatusControl';
 import RelationshipTimeline from '@/components/champions/RelationshipTimeline';
 import { isAssignedTo } from '@/lib/championUtils';
@@ -16,6 +18,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { STATUS_OPTIONS, REGISTRATION_TYPE_OPTIONS } from '@/lib/config';
+
+const FU_ICONS = { danger: AlertCircle, warning: Clock, success: CheckCircle2, neutral: CircleDashed };
 
 const RELATIONSHIP_OPTIONS = ['Primary', 'Spouse', 'Member'];
 
@@ -257,9 +261,9 @@ export default function ChampionProfile() {
                 {h.area ? `${h.area} · ` : ''}{h.status || 'New'} · {ms.length} {ms.length === 1 ? 'contact' : 'contacts'}
               </p>
               {followUpStatus && (
-                <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${followUpStatus.tone}`}>
+                <StatusBadge variant={followUpStatus.variant} icon={FU_ICONS[followUpStatus.variant]}>
                   {followUpStatus.label}{followUpStatus.date ? ` · ${fmtDate(followUpStatus.date)}` : ''}
-                </span>
+                </StatusBadge>
               )}
             </div>
             {!editing && (

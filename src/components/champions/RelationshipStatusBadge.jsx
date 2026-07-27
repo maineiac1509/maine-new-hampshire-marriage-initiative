@@ -3,7 +3,8 @@ import {
   Sparkles, UserCheck, PhoneCall, PhoneMissed, Handshake, Repeat,
   CalendarCheck, PartyPopper, Heart, CircleOff,
 } from 'lucide-react';
-import { RELATIONSHIP_STATUS_STYLES } from '@/lib/config';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { RELATIONSHIP_STATUS_VARIANTS } from '@/lib/config';
 
 // Consistent icon per Relationship Status.
 const STATUS_ICONS = {
@@ -19,20 +20,15 @@ const STATUS_ICONS = {
   'Inactive': CircleOff,
 };
 
-// Standardized Relationship Status badge — same color, icon, size, and shape everywhere.
+// Standardized Relationship Status badge — delegates to the shared StatusBadge
+// so color, size, radius, and icon placement stay consistent everywhere.
 export default function RelationshipStatusBadge({ status }) {
   if (!status) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
-  const Icon = STATUS_ICONS[status];
   return (
-    <span
-      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-        RELATIONSHIP_STATUS_STYLES[status] || 'bg-slate-100 text-slate-600'
-      }`}
-    >
-      {Icon && <Icon className="h-3 w-3" />}
+    <StatusBadge variant={RELATIONSHIP_STATUS_VARIANTS[status] || 'neutral'} icon={STATUS_ICONS[status]}>
       {status}
-    </span>
+    </StatusBadge>
   );
 }

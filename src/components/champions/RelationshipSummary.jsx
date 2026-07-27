@@ -1,5 +1,6 @@
 import React from 'react';
 import { CalendarClock, CalendarCheck, User, Flag, ListChecks } from 'lucide-react';
+import { StatusBadge } from '@/components/ui/StatusBadge';
 
 function fmt(dateStr) {
   if (!dateStr) return '—';
@@ -9,22 +10,21 @@ function fmt(dateStr) {
 }
 
 // Derive the most relevant pending follow-up across activities for badge display.
+// Returns one of the four standardized follow-up states.
 export function getFollowUpStatus(activities) {
   const pending = (activities || []).filter((a) => a.follow_up_required && a.follow_up_date);
-  if (!pending.length) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const sorted = pending
+  if (!pending.length) {
+    return { label: 'No Follow-up Scheduled', variant: 'neutral', date: null };
+  }
+  const next = pending
     .map((a) => ({ date: new Date(a.follow_up_date + 'T00:00:00'), str: a.follow_up_date }))
-    .sort((a, b) => a.date - b.date);
-  const next = sorted[0];
+    .sort((a, b) => a.date - b.date)[0];
   const diff = Math.round((next.date - today) / (1000 * 60 * 60 * 24));
-  let label, tone;
-  if (diff < 0) { label = 'Follow-up Overdue'; tone = 'bg-red-100 text-red-700'; }
-  else if (diff === 0) { label = 'Follow-up Due Today'; tone = 'bg-amber-100 text-amber-700'; }
-  else if (diff === 1) { label = 'Follow-up Tomorrow'; tone = 'bg-blue-100 text-blue-700'; }
-  else { label = 'Upcoming Follow-up'; tone = 'bg-violet-100 text-violet-700'; }
-  return { label, tone, date: next.str };
+  if (diff < 0) return { label: 'Follow-up Overdue', variant: 'danger', date: next.str };
+  if (diff === 0) return { label: 'Due Today', variant: 'warning', date: next.str };
+  return { label: 'Up To Date', variant: 'success', date: next.str };
 }
 
 export default function RelationshipSummary({ activities }) {
