@@ -1,76 +1,39 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, ChevronRight, X } from 'lucide-react';
+import { CheckCircle2, X } from 'lucide-react';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { buildActionItems } from '@/lib/actionCenter';
+import RecommendationCard from '@/components/recommendations/RecommendationCard';
 
 const VISIBLE_LIMIT = 10;
 
 const PRIORITY = {
-  critical: { bar: 'bg-red-500', tone: 'bg-red-100 text-red-700', dot: 'bg-red-500', label: 'Critical' },
-  high: { bar: 'bg-orange-500', tone: 'bg-orange-100 text-orange-700', dot: 'bg-orange-500', label: 'High' },
-  medium: { bar: 'bg-blue-500', tone: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500', label: 'Medium' },
-  informational: { bar: 'bg-slate-400', tone: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400', label: 'Info' },
+  critical: { dot: 'bg-red-500', label: 'Critical', tone: 'bg-red-100 text-red-700' },
+  high: { dot: 'bg-orange-500', label: 'High', tone: 'bg-orange-100 text-orange-700' },
+  medium: { dot: 'bg-amber-500', label: 'Medium', tone: 'bg-amber-100 text-amber-700' },
+  low: { dot: 'bg-slate-400', label: 'Low', tone: 'bg-slate-100 text-slate-600' },
 };
-const ORDER = ['critical', 'high', 'medium', 'informational'];
+const ORDER = ['critical', 'high', 'medium', 'low'];
 
-function waitingLabel(ms) {
-  if (!ms) return 'Today';
-  const days = Math.floor((Date.now() - ms) / 86400000);
-  if (days <= 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  return `Waiting ${days} days`;
+function priorityKey(p) {
+  return (p || '').toLowerCase();
 }
 
-function ActionCard({ item }) {
-  const Icon = item.icon;
-  const p = PRIORITY[item.priority] || PRIORITY.informational;
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, height: 0, marginTop: 0, paddingTop: 0, paddingBottom: 0, transition: { duration: 0.2 } }}
-      transition={{ duration: 0.2 }}
-      className="relative flex flex-col overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md sm:flex-row sm:items-center"
-    >
-      <span className={`absolute inset-y-0 left-0 w-1 ${p.bar}`} />
-      <div className="flex items-start gap-3 sm:flex-1">
-        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${p.tone}`}>
-          <Icon className="h-5 w-5" />
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${p.tone}`}>{p.label}</span>
-          </div>
-          <p className="mt-1 text-base font-semibold text-foreground">{item.title}</p>
-          {item.subject && <p className="text-xs font-medium text-muted-foreground">{item.subject}</p>}
-          <p className="mt-0.5 text-sm text-muted-foreground">{item.description}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{waitingLabel(item.detected)}</p>
-        </div>
-      </div>
-      <Link
-        to={item.href}
-        className="mt-3 inline-flex w-full items-center justify-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:mt-0 sm:w-auto"
-      >
-        {item.actionLabel}
-        <ChevronRight className="h-4 w-4" />
-      </Link>
-    </motion.div>
-  );
-}
-
+// Action Center — now driven entirely by the Stewardship Recommendation Engine.
+// Existing UX preserved: priority filter chips, sorting, expand/collapse, empty
+// states, and external drill-down (resetSignal / requestedPriority).
 export default function ActionCenter({
-  households, assignments, teams, activities, teamMembers,
-  title = 'Action Center', subtitle = 'Prioritized ministry opportunities that may need your attention.',
+  recommendations = [],
+  onSelect,
+  onDismiss,
+  title = 'Action Center',
+  subtitle = 'Prioritized stewardship opportunities that may need your attention.',
   resetSignal,
+  requestedPriority,
 }) {
   const [expanded, setExpanded] = useState(false);
   const [filter, setFilter] = useState(null);
 
-  // External drill-down (e.g. "Open Action Items" summary card) clears any
-  // active priority filter and expands the queue so every item is visible.
+  // External drill-down from the dashboard summary: clear filters + expand.
   useEffect(() => {
     if (resetSignal) {
       setFilter(null);
@@ -78,22 +41,27 @@ export default function ActionCenter({
     }
   }, [resetSignal]);
 
-  const items = useMemo(
-    () => buildActionItems({ households, assignments, teams, activities, teamMembers }),
-    [households, assignments, teams, activities, teamMembers]
-  );
+  // External priority drill-down from the Recommendation Summary widget.
+  useEffect(() => {
+    if (requestedPriority) {
+      setFilter(requestedPriority);
+      setExpanded(true);
+    }
+  }, [requestedPriority]);
+
+  const items = recommendations;
 
   const counts = useMemo(() => {
-    const c = { critical: 0, high: 0, medium: 0, informational: 0 };
-    items.forEach((i) => { c[i.priority] = (c[i.priority] || 0) + 1; });
+    const c = { critical: 0, high: 0, medium: 0, low: 0 };
+    items.forEach((i) => { const k = priorityKey(i.priority); if (c[k] != null) c[k]++; });
     return c;
   }, [items]);
 
-  const filtered = filter ? items.filter((i) => i.priority === filter) : items;
+  const filtered = filter ? items.filter((i) => priorityKey(i.priority) === filter) : items;
   const visible = expanded ? filtered : filtered.slice(0, VISIBLE_LIMIT);
   const hasMore = filtered.length > VISIBLE_LIMIT;
 
-  const filterLabel = filter ? `${PRIORITY[filter].label} Priority` : 'Action';
+  const filterLabel = filter ? `${PRIORITY[filter].label} Priority` : 'Recommendation';
   const summaryText = hasMore
     ? `Showing ${visible.length} of ${filtered.length} ${filterLabel} Items`
     : `Showing ${filtered.length} ${filterLabel} Items`;
@@ -105,7 +73,7 @@ export default function ActionCenter({
         <p className="text-sm text-muted-foreground">{subtitle}</p>
       </div>
 
-      {/* Today's Focus */}
+      {/* Today's Focus — priority filters */}
       <div className="rounded-xl border bg-card p-4 shadow-sm">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Today&rsquo;s Focus</p>
         <div className="mt-2 flex flex-wrap gap-2">
@@ -143,16 +111,16 @@ export default function ActionCenter({
           <EmptyState
             icon={CheckCircle2}
             title="Everything looks great!"
-            description="Your ministry is currently operating without any outstanding action items."
+            description="There are no open stewardship recommendations right now."
           />
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-xl border bg-card p-5 shadow-sm">
           <EmptyState
             icon={CheckCircle2}
-            title={`No ${PRIORITY[filter].label} Priority items currently require attention.`}
-            description="Try viewing all actions to see other ministry work."
-            actionLabel="View All Actions"
+            title={`No ${PRIORITY[filter].label} Priority recommendations right now.`}
+            description="Try viewing all recommendations to see other ministry work."
+            actionLabel="View All"
             onAction={() => setFilter(null)}
           />
         </div>
@@ -161,8 +129,8 @@ export default function ActionCenter({
           <p className="text-sm font-medium text-muted-foreground">{summaryText}</p>
           <motion.div layout className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <AnimatePresence mode="popLayout">
-              {visible.map((item) => (
-                <ActionCard key={item.entityKey} item={item} />
+              {visible.map((rec) => (
+                <RecommendationCard key={rec.id} rec={rec} onSelect={onSelect} onDismiss={onDismiss} />
               ))}
             </AnimatePresence>
           </motion.div>
@@ -173,7 +141,7 @@ export default function ActionCenter({
                 onClick={() => setExpanded((e) => !e)}
                 className="inline-flex items-center gap-1 rounded-lg border bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-accent"
               >
-                {expanded ? 'Show Fewer' : `View All Actions (${filtered.length})`}
+                {expanded ? 'Show Fewer' : `View All (${filtered.length})`}
               </button>
             </div>
           )}

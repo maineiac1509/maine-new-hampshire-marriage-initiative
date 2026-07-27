@@ -76,6 +76,11 @@
       "format": "date",
       "title": "End Date"
     },
+    "planned_end_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Planned End Date"
+    },
     "previous_assignment_id": {
       "type": "string",
       "title": "Previous Assignment"

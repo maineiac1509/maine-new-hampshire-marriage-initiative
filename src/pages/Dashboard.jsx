@@ -12,6 +12,9 @@ import QuickActions from '@/components/dashboard/QuickActions';
 import ActivityFeed from '@/components/dashboard/ActivityFeed';
 import ActionCenter from '@/components/dashboard/ActionCenter';
 import StewardshipHealthCard from '@/components/dashboard/StewardshipHealthCard';
+import RecommendationSummary from '@/components/dashboard/RecommendationSummary';
+import RecommendationDetailDialog from '@/components/recommendations/RecommendationDetailDialog';
+import { useRecommendationEngine } from '@/hooks/useRecommendationEngine';
 import StewardshipBanner from '@/components/stewardship/StewardshipBanner';
 import StewardshipSummary from '@/components/stewardship/StewardshipSummary';
 import MyChampions from '@/components/stewardship/MyChampions';
@@ -42,6 +45,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [actionReset, setActionReset] = useState(0);
   const [flash, setFlash] = useState(null);
+  const [detailRec, setDetailRec] = useState(null);
+  const [requestedPriority, setRequestedPriority] = useState(null);
 
   useEffect(() => {
     if (!flash) return;
@@ -102,24 +107,33 @@ export default function Dashboard() {
   );
   const scopedTeams = scope.myTeamId ? teams.filter((t) => t.id === scope.myTeamId) : teams;
 
+  const engine = useRecommendationEngine({ scope, scopedTeams, households, teams, activities, currentUser: user });
+
   const stewardshipDrills = {
     myChampions: () => navigate('/champions?view=my'),
-    openActions: () => { setActionReset((n) => n + 1); drillTo('actions'); },
+    openActions: () => { setActionReset((n) => n + 1); setRequestedPriority(null); drillTo('actions'); },
     recentActivity: () => drillTo('activity'),
     completed: () => navigate(`/assignments?status=Ended&month=current${scope.myTeamId ? `&team=${scope.myTeamId}` : ''}`),
   };
 
-  const stewardshipCounts = useMemo(() => ({
+  const recommendationDrills = {
+    open: () => { setRequestedPriority(null); setActionReset((n) => n + 1); drillTo('actions'); },
+    critical: () => { setRequestedPriority('critical'); drillTo('actions'); },
+    high: () => { setRequestedPriority('high'); drillTo('actions'); },
+    medium: () => { setRequestedPriority('medium'); drillTo('actions'); },
+    low: () => { setRequestedPriority('low'); drillTo('actions'); },
+    dismissedToday: () => navigate('/recommendations?status=dismissed'),
+    completedToday: () => navigate('/recommendations?status=completed'),
+  };
+
+  const stewardshipCounts = {
     myChampions: scope.myHouseholds.length,
-    openActions: buildActionItems({
-      households: scope.myHouseholds, assignments: scope.myAssignments,
-      teams: scopedTeams, activities: scope.myActivities, teamMembers: scope.myTeamMembers,
-    }).length,
+    openActions: engine.summary.open,
     recentActivity: scope.myActivities.filter((a) => isInCurrentMonth(a.activity_date)).length,
     completed: scope.myAssignments.filter(
       (a) => (a.assignment_status === 'Ended' || a.reassignment_flag) && (isInCurrentMonth(a.end_date) || isInCurrentMonth(a.updated_date))
     ).length,
-  }), [scope, scopedTeams]);
+  };
 
   const myFeed = useMemo(() => buildActivityFeed({
     activities: scope.myActivities, assignmentEvents: scope.myAssignmentEvents,
@@ -145,6 +159,12 @@ export default function Dashboard() {
 
   const noChampions = !loading && households.length === 0;
 
+  const detailTimeline = detailRec
+    ? (detailRec.volunteer_team_id && !detailRec.household_id
+        ? scope.myTeamTimeline.filter((e) => e.team_id === detailRec.volunteer_team_id)
+        : scope.myChampionTimeline.filter((e) => e.household_id === detailRec.household_id))
+    : [];
+
   return (
     <div className="space-y-8">
       <WelcomeHeader user={user} />
@@ -153,19 +173,19 @@ export default function Dashboard() {
       <section className="space-y-6 rounded-2xl border border-amber-200/60 bg-amber-50/40 p-5 shadow-sm sm:p-6">
         <StewardshipBanner user={user} team={myTeam} isAdmin={isAdmin(user) && !scope.myTeamId} />
         <StewardshipSummary counts={stewardshipCounts} onDrill={stewardshipDrills} />
+        <RecommendationSummary summary={engine.summary} onDrill={recommendationDrills} />
         <div
           id="db-action-center"
           className={`scroll-mt-24 rounded-xl transition-all duration-500 ${flash === 'actions' ? 'ring-2 ring-primary ring-offset-4 ring-offset-amber-50/40' : 'ring-0'}`}
         >
           <ActionCenter
             title="My Action Center"
-            subtitle="Prioritized stewardship work that may need your attention."
-            households={scope.myHouseholds}
-            assignments={scope.myAssignments}
-            teams={scopedTeams}
-            activities={scope.myActivities}
-            teamMembers={scope.myTeamMembers}
+            subtitle="Prioritized stewardship opportunities that may need your attention."
+            recommendations={engine.recommendations}
+            onSelect={setDetailRec}
+            onDismiss={engine.dismiss}
             resetSignal={actionReset}
+            requestedPriority={requestedPriority}
           />
         </div>
         <StewardshipHealthCard
@@ -221,6 +241,15 @@ export default function Dashboard() {
           onAction={() => { window.location.href = '/champions'; }}
         />
       )}
+
+      <RecommendationDetailDialog
+        rec={detailRec}
+        open={!!detailRec}
+        onOpenChange={(o) => { if (!o) setDetailRec(null); }}
+        onDismiss={engine.dismiss}
+        onComplete={engine.complete}
+        timeline={detailTimeline}
+      />
     </div>
   );
 }

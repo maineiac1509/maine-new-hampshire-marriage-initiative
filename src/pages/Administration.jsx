@@ -1,6 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Users, Settings, Upload, ListChecks, UsersRound, ArrowRight } from 'lucide-react';
+import { Users, Settings, Upload, ListChecks, UsersRound, ArrowRight, SlidersHorizontal } from 'lucide-react';
+import { RECOMMENDATION_CONFIG } from '@/lib/recommendationEngine';
+import { STEWARDSHIP_HEALTH_CONFIG } from '@/lib/stewardshipHealth';
 
 const SECTIONS = [
   {
@@ -18,6 +20,15 @@ const SECTIONS = [
     title: 'Assignment Rules',
     description: 'Define matching rules for the future Assignment Engine.',
   },
+];
+
+const RULE_SETTINGS = [
+  { label: 'Days before Follow-up', value: `${STEWARDSHIP_HEALTH_CONFIG.thresholds.followUp} days`, description: 'Inactivity before Follow-up Recommended.' },
+  { label: 'Days before Re-engagement', value: `${STEWARDSHIP_HEALTH_CONFIG.thresholds.reEngagement} days`, description: 'Inactivity before Re-engagement Opportunity.' },
+  { label: 'Days before Immediate Attention', value: `${STEWARDSHIP_HEALTH_CONFIG.thresholds.immediate} days`, description: 'Inactivity before Immediate Attention.' },
+  { label: 'Capacity Threshold', value: `${RECOMMENDATION_CONFIG.capacityThresholdPct}%`, description: 'Team utilization before Team Near Capacity.' },
+  { label: 'Transfer Monitoring Period', value: `${RECOMMENDATION_CONFIG.transferMonitoringDays} days`, description: 'Window to confirm transferred stewardship.' },
+  { label: 'Upcoming Assignment Window', value: `${RECOMMENDATION_CONFIG.endingSoonDays} days`, description: 'Planned end within this window flags Stewardship Ending Soon.' },
 ];
 
 export default function Administration() {
@@ -74,6 +85,28 @@ export default function Administration() {
           </div>
         ))}
       </div>
+
+      <section className="rounded-xl border bg-card p-5 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+            <SlidersHorizontal className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Recommendation Rules</h2>
+            <p className="text-sm text-muted-foreground">Centralized thresholds that drive the Stewardship Recommendation Engine.</p>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {RULE_SETTINGS.map((r) => (
+            <div key={r.label} className="rounded-lg border p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{r.label}</p>
+              <p className="mt-1 text-lg font-bold tabular-nums text-foreground">{r.value}</p>
+              <p className="text-xs text-muted-foreground">{r.description}</p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">Additional recommendation rules can be added without modifying existing logic. These values are the foundation for future Ministry Coach intelligence.</p>
+      </section>
     </div>
   );
 }

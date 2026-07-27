@@ -1,0 +1,105 @@
+{
+  "name": "Recommendation",
+  "type": "object",
+  "properties": {
+    "identity": {
+      "type": "string",
+      "title": "Identity Key"
+    },
+    "type": {
+      "type": "string",
+      "title": "Recommendation Type",
+      "enum": [
+        "Follow-up Needed",
+        "Immediate Attention",
+        "Re-engagement Opportunity",
+        "New Champion Awaiting Stewardship",
+        "Team Near Capacity",
+        "Recently Transferred Champion",
+        "Stewardship Ending Soon"
+      ]
+    },
+    "priority": {
+      "type": "string",
+      "title": "Priority",
+      "enum": [
+        "Critical",
+        "High",
+        "Medium",
+        "Low"
+      ],
+      "default": "Medium"
+    },
+    "household_id": {
+      "type": "string",
+      "title": "Champion"
+    },
+    "volunteer_team_id": {
+      "type": "string",
+      "title": "Volunteer Team"
+    },
+    "assignment_id": {
+      "type": "string",
+      "title": "Assignment"
+    },
+    "assigned_volunteer": {
+      "type": "string",
+      "title": "Assigned Volunteer"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "Open",
+        "Dismissed",
+        "Completed"
+      ],
+      "default": "Open"
+    },
+    "why": {
+      "type": "string",
+      "title": "Why This Appeared"
+    },
+    "suggested_action": {
+      "type": "string",
+      "title": "Suggested Action"
+    },
+    "nav_target": {
+      "type": "string",
+      "title": "Navigation Target"
+    },
+    "dismissed_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Dismissed Date"
+    },
+    "completed_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Completed Date"
+    }
+  },
+  "required": [
+    "identity",
+    "type",
+    "status"
+  ],
+  "rls": {
+    "read": {},
+    "update": {},
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "director"
+          }
+        }
+      ]
+    }
+  }
+}
