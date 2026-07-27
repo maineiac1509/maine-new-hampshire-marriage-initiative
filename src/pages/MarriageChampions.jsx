@@ -1,9 +1,13 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, ChevronLeft, ChevronRight, ArrowUpDown, Users, Upload } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { STATUS_OPTIONS, REGISTRATION_TYPE_OPTIONS } from '@/lib/config';
 import ImportChampionsDialog from '@/components/champions/ImportChampionsDialog';
+import ChampionQuickFilters from '@/components/champions/ChampionQuickFilters';
+import MyChampionsSummary from '@/components/champions/MyChampionsSummary';
+import ChampionStatusBadge from '@/components/champions/ChampionStatusBadge';
+import { isAssignedTo, householdIndicator, lastActivityDate } from '@/lib/championUtils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -32,6 +36,8 @@ function householdDisplay(h) {
 
 export default function MarriageChampions() {
   const [households, setHouseholds] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -40,30 +46,94 @@ export default function MarriageChampions() {
   const [sortDir, setSortDir] = useState('asc');
   const [page, setPage] = useState(1);
   const [importOpen, setImportOpen] = useState(false);
+  const [activeView, setActiveView] = useState('all');
+  const defaultedRef = useRef(false);
 
-  const loadHouseholds = () => {
+  const loadData = () => {
     Promise.all([
       base44.entities.ChampionHousehold.list(),
       base44.entities.HouseholdMember.list(),
+      base44.entities.ChampionActivity.list(),
     ])
-      .then(([hhs, members]) => {
+      .then(([hhs, members, acts]) => {
         const byHouse = {};
         members.forEach((m) => {
           if (!byHouse[m.household_id]) byHouse[m.household_id] = [];
           byHouse[m.household_id].push(m);
         });
         setHouseholds(hhs.map((h) => ({ ...h, _members: byHouse[h.id] || [] })));
+        setActivities(acts || []);
       })
-      .catch(() => setHouseholds([]))
+      .catch(() => { setHouseholds([]); setActivities([]); })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    loadHouseholds();
+    loadData();
+    base44.auth.me()
+      .then((u) => {
+        setCurrentUser(u);
+        if (!defaultedRef.current) {
+          defaultedRef.current = true;
+          setActiveView(u?.role === 'volunteer' ? 'my' : 'all');
+        }
+      })
+      .catch(() => {});
   }, []);
 
+  const activitiesByHouse = useMemo(() => {
+    const map = {};
+    (activities || []).forEach((a) => {
+      if (!map[a.household_id]) map[a.household_id] = [];
+      map[a.household_id].push(a);
+    });
+    return map;
+  }, [activities]);
+
+  // Per-filter counts shown on each quick-filter tab.
+  const counts = useMemo(() => {
+    const c = { all: households.length, my: 0, 'first-contact': 0, 'follow-up': 0, recent: 0, unassigned: 0 };
+    households.forEach((h) => {
+      const ind = householdIndicator(activitiesByHouse[h.id] || []);
+      if (isAssignedTo(h, currentUser)) c.my++;
+      if (h.status === 'New') c['first-contact']++;
+      if (ind.key === 'overdue' || ind.key === 'due-today' || h.status === 'Follow-Up') c['follow-up']++;
+      if (ind.key === 'recent') c.recent++;
+      if (!h.assigned_volunteer || !h.assigned_volunteer.trim()) c.unassigned++;
+    });
+    return c;
+  }, [households, activitiesByHouse, currentUser]);
+
+  // Summary metrics for the "My Champions" card.
+  const myStats = useMemo(() => {
+    const mine = households.filter((h) => isAssignedTo(h, currentUser));
+    let needFirst = 0, dueToday = 0, overdue = 0, lastAct = null;
+    mine.forEach((h) => {
+      if (h.status === 'New') needFirst++;
+      const acts = activitiesByHouse[h.id] || [];
+      const ind = householdIndicator(acts);
+      if (ind.key === 'due-today') dueToday++;
+      if (ind.key === 'overdue') overdue++;
+      const la = lastActivityDate(acts);
+      if (la && (!lastAct || la > lastAct)) lastAct = la;
+    });
+    return { total: mine.length, needFirstContact: needFirst, dueToday, overdue, lastActivity: lastAct };
+  }, [households, activitiesByHouse, currentUser]);
+
   const filtered = useMemo(() => {
-    let result = households;
+    let result = households.filter((h) => {
+      switch (activeView) {
+        case 'my': return isAssignedTo(h, currentUser);
+        case 'first-contact': return h.status === 'New';
+        case 'follow-up': {
+          const ind = householdIndicator(activitiesByHouse[h.id] || []);
+          return ind.key === 'overdue' || ind.key === 'due-today' || h.status === 'Follow-Up';
+        }
+        case 'recent': return householdIndicator(activitiesByHouse[h.id] || []).key === 'recent';
+        case 'unassigned': return !h.assigned_volunteer || !h.assigned_volunteer.trim();
+        default: return true;
+      }
+    });
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter((h) => {
@@ -85,7 +155,10 @@ export default function MarriageChampions() {
       return 0;
     });
     return result;
-  }, [households, search, statusFilter, typeFilter, sortKey, sortDir]);
+  }, [households, activeView, currentUser, activitiesByHouse, search, statusFilter, typeFilter, sortKey, sortDir]);
+
+  // Reset to first page whenever the view or any filter changes.
+  useEffect(() => { setPage(1); }, [activeView, search, statusFilter, typeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, totalPages);
@@ -99,6 +172,12 @@ export default function MarriageChampions() {
       setSortDir('asc');
     }
   }
+
+  const emptyMessage = loading
+    ? 'Loading…'
+    : activeView === 'my'
+      ? 'No champions are assigned to you yet.'
+      : 'No households found.';
 
   return (
     <div className="space-y-5">
@@ -117,21 +196,24 @@ export default function MarriageChampions() {
       <ImportChampionsDialog
         open={importOpen}
         onOpenChange={setImportOpen}
-        onImported={loadHouseholds}
+        onImported={loadData}
       />
 
-      {/* Filters */}
+      {/* Quick filter tabs */}
+      <ChampionQuickFilters active={activeView} onChange={setActiveView} counts={counts} />
+
+      {/* Search + attribute filters (respect the active quick filter) */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search by name, email, city, group, area…"
+            placeholder="Search within the selected view…"
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
           />
         </div>
-        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-full sm:w-44">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -142,7 +224,7 @@ export default function MarriageChampions() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(1); }}>
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-full sm:w-44">
             <SelectValue placeholder="Type" />
           </SelectTrigger>
@@ -154,6 +236,14 @@ export default function MarriageChampions() {
           </SelectContent>
         </Select>
       </div>
+
+      {/* My Champions summary */}
+      {activeView === 'my' && (
+        <div>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">My Champions Summary</h2>
+          <MyChampionsSummary stats={myStats} />
+        </div>
+      )}
 
       {/* Desktop table */}
       <div className="hidden overflow-hidden rounded-xl border bg-card md:block">
@@ -177,6 +267,7 @@ export default function MarriageChampions() {
                   </button>
                 </th>
               ))}
+              <th className="px-4 py-3 font-medium">Follow-up</th>
             </tr>
           </thead>
           <tbody>
@@ -202,13 +293,16 @@ export default function MarriageChampions() {
                       {h.status || '—'}
                     </span>
                   </td>
+                  <td className="px-4 py-3">
+                    <ChampionStatusBadge activities={activitiesByHouse[h.id] || []} />
+                  </td>
                 </tr>
               );
             })}
             {!pageItems.length && (
               <tr>
-                <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
-                  {loading ? 'Loading…' : 'No households found.'}
+                <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
+                  {emptyMessage}
                 </td>
               </tr>
             )}
@@ -240,13 +334,16 @@ export default function MarriageChampions() {
               <div className="mt-1 text-xs text-muted-foreground">
                 {[h.area, h.city, h.registration_type].filter(Boolean).join(' · ') || '—'}
               </div>
+              <div className="mt-2">
+                <ChampionStatusBadge activities={activitiesByHouse[h.id] || []} />
+              </div>
             </Link>
           );
         })}
         {!pageItems.length && (
           <div className="flex flex-col items-center gap-2 rounded-xl border bg-card p-10 text-center text-muted-foreground">
             <Users className="h-8 w-8" />
-            {loading ? 'Loading…' : 'No households found.'}
+            {emptyMessage}
           </div>
         )}
       </div>
