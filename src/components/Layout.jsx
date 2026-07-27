@@ -65,7 +65,7 @@ export default function Layout() {
             <Heart className="h-5 w-5" />
           </div>
           <div className="leading-tight">
-            <div className="text-sm font-semibold">Team Portal</div>
+            <div className="text-sm font-semibold">{APP_CONFIG.appName}</div>
             <div className="text-xs text-muted-foreground">{APP_CONFIG.ministry}</div>
           </div>
         </div>
@@ -91,7 +91,7 @@ export default function Layout() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Heart className="h-4 w-4" />
           </div>
-          <span className="text-sm font-semibold">Team Portal</span>
+          <span className="text-sm font-semibold">{APP_CONFIG.appName}</span>
         </div>
         <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)}>
           <Menu className="h-5 w-5" />

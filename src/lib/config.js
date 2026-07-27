@@ -1,6 +1,6 @@
 // App-wide configuration values. Avoid hardcoding these across pages.
 export const APP_CONFIG = {
-  appName: 'FamilyLife Team Portal',
+  appName: 'Maine/New Hampshire Marriage Initiative',
   ministry: 'FamilyLife New England',
   event: 'Weekend to Remember',
   // Next Weekend to Remember — update as needed.
