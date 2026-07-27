@@ -8,7 +8,7 @@ const STATUS_VARIANT = { Active: 'success', Ended: 'neutral' };
 // Chronological stewardship journey for a Champion — every Assignment ever
 // recorded, preserved permanently. Communicates how responsibility has moved
 // between Volunteer Teams over time without implying the relationship ended.
-export default function StewardshipTimeline({ assignments, teams }) {
+export default function StewardshipTimeline({ assignments, teams, healthEvents = [] }) {
   const teamMap = (teams || []).reduce((m, t) => { m[t.id] = t; return m; }, {});
   const ordered = [...(assignments || [])].sort(
     (a, b) => new Date(a.assigned_date || 0) - new Date(b.assigned_date || 0)
@@ -53,6 +53,18 @@ export default function StewardshipTimeline({ assignments, teams }) {
             );
           })}
         </ol>
+      )}
+      {healthEvents.length > 0 && (
+        <div className="mt-4 rounded-lg border border-dashed bg-emerald-50/40 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Stewardship Health Milestones</p>
+          <ul className="mt-2 space-y-1">
+            {healthEvents.map((e) => (
+              <li key={e.id} className="text-sm text-foreground">
+                {e.event_date ? fmtDate(e.event_date) : '—'} · {e.summary || 'Health update'}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </section>
   );

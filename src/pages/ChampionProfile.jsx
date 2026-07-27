@@ -11,6 +11,7 @@ import RelationshipStatusControl from '@/components/champions/RelationshipStatus
 import RelationshipTimeline from '@/components/champions/RelationshipTimeline';
 import ChampionAssignmentCard from '@/components/assignments/ChampionAssignmentCard';
 import StewardshipTimeline from '@/components/champions/StewardshipTimeline';
+import StewardshipHealthBadge from '@/components/champions/StewardshipHealthBadge';
 import { isAssignedTo } from '@/lib/championUtils';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -287,6 +288,10 @@ export default function ChampionProfile() {
                   {followUpStatus.label}{followUpStatus.date ? ` · ${fmtDate(followUpStatus.date)}` : ''}
                 </StatusBadge>
               )}
+              <StewardshipHealthBadge
+                activities={activities}
+                fallbackDate={household.registration_date || household.created_date}
+              />
             </div>
             {!editing && (
               <div className="mt-2">

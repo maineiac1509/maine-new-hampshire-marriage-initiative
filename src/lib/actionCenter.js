@@ -4,8 +4,10 @@
 // highest-priority actionable condition.
 import {
   UserPlus, Users, Clock, Users2, Archive, FileWarning, UserCheck,
+  HeartHandshake, AlertCircle,
 } from 'lucide-react';
 import { buildAssignmentMap } from '@/lib/assignmentUtils';
+import { computeStewardshipHealth } from '@/lib/stewardshipHealth';
 
 const DAY = 86400000;
 
@@ -33,6 +35,29 @@ function lastActivityMs(householdId, activitiesByHouse) {
 }
 
 const RANK = { critical: 0, high: 1, medium: 2, informational: 3 };
+
+// Stewardship Health → Action Center mapping. Operational, non-judgmental
+// language that encourages ministry rather than creating pressure.
+const HEALTH_ACTION_META = {
+  'follow-up': {
+    priority: 'medium', icon: Clock,
+    title: 'Follow-up Recommended',
+    description: (d) => `This Champion has not had recorded stewardship activity in ${d != null ? d : 'several'} days.`,
+    actionLabel: 'Log Contact',
+  },
+  're-engagement': {
+    priority: 'high', icon: HeartHandshake,
+    title: 'Re-engagement Opportunity',
+    description: () => 'This Champion has not received recent ministry engagement.',
+    actionLabel: 'View Champion',
+  },
+  'immediate': {
+    priority: 'critical', icon: AlertCircle,
+    title: 'Immediate Attention',
+    description: () => 'Extended inactivity detected. Review this relationship.',
+    actionLabel: 'Open Champion',
+  },
+};
 
 export function buildActionItems({ households, assignments, teams, activities, teamMembers }) {
   const assignmentMap = buildAssignmentMap(assignments);
@@ -78,19 +103,27 @@ export function buildActionItems({ households, assignments, teams, activities, t
     }
   });
 
-  (assignments || []).forEach((a) => {
-    if (a.assignment_status !== 'Active') return;
-    const last = lastActivityMs(a.household_id, activitiesByHouse);
-    const since = last ? Math.floor((now - last) / DAY) : daysSince(a.assigned_date);
-    if (since !== null && since > 60) {
-      raw.push({
-        entityKey: `asg:${a.id}`, priority: 'critical', icon: Clock,
-        title: 'Assignment May Be Overdue', subject: undefined,
-        description: 'No contact activity has been recorded for this assignment in over 60 days.',
-        detected: last || ms(a.assigned_date),
-        actionLabel: 'Open Assignment', href: `/assignments/${a.id}`,
-      });
-    }
+  // --- Stewardship Health (assigned Champions) ---
+  // Surfaces relationships that may benefit from intentional care, using the
+  // centralized health thresholds. Keyed by household so each Champion appears
+  // at most once. Replaces ad-hoc assignment inactivity checks.
+  (households || []).forEach((h) => {
+    if (!assignmentMap[h.id]?.active) return;
+    const acts = activitiesByHouse[h.id] || [];
+    const { key, daysSinceActivity, lastActivityMs: lastMs } = computeStewardshipHealth({
+      activities: acts,
+      fallbackDate: h.registration_date || h.created_date,
+    });
+    if (key === 'healthy') return;
+    const meta = HEALTH_ACTION_META[key];
+    if (!meta) return;
+    raw.push({
+      entityKey: `hh:${h.id}`, priority: meta.priority, icon: meta.icon,
+      title: meta.title, subject: hhName(h),
+      description: meta.description(daysSinceActivity),
+      detected: lastMs || ms(h.created_date),
+      actionLabel: meta.actionLabel, href: `/champions/${h.id}`,
+    });
   });
 
   // --- High ---
@@ -123,20 +156,7 @@ export function buildActionItems({ households, assignments, teams, activities, t
     }
   });
 
-  (assignments || []).forEach((a) => {
-    if (a.assignment_status !== 'Active') return;
-    const last = lastActivityMs(a.household_id, activitiesByHouse);
-    const since = last ? Math.floor((now - last) / DAY) : daysSince(a.assigned_date);
-    if (since !== null && since > 30 && since <= 60) {
-      raw.push({
-        entityKey: `asg:${a.id}`, priority: 'high', icon: Clock,
-        title: 'Follow-up Needed', subject: undefined,
-        description: 'This assigned Champion has had no recorded activity in 30+ days.',
-        detected: last || ms(a.assigned_date),
-        actionLabel: 'Review Champion', href: `/champions/${a.household_id}`,
-      });
-    }
-  });
+  // (Assignment follow-up inactivity is surfaced via Stewardship Health above.)
 
   // --- Medium ---
   (assignments || []).forEach((a) => {

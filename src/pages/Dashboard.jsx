@@ -11,6 +11,7 @@ import MinistryOverview from '@/components/dashboard/MinistryOverview';
 import QuickActions from '@/components/dashboard/QuickActions';
 import ActivityFeed from '@/components/dashboard/ActivityFeed';
 import ActionCenter from '@/components/dashboard/ActionCenter';
+import StewardshipHealthCard from '@/components/dashboard/StewardshipHealthCard';
 import StewardshipBanner from '@/components/stewardship/StewardshipBanner';
 import StewardshipSummary from '@/components/stewardship/StewardshipSummary';
 import MyChampions from '@/components/stewardship/MyChampions';
@@ -167,6 +168,11 @@ export default function Dashboard() {
             resetSignal={actionReset}
           />
         </div>
+        <StewardshipHealthCard
+          households={scope.myHouseholds}
+          activities={scope.myActivities}
+          onSelect={(key) => navigate(`/champions?health=${key}${scope.myTeamId ? '&view=my' : ''}`)}
+        />
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <MyChampions
             households={scope.myHouseholds}

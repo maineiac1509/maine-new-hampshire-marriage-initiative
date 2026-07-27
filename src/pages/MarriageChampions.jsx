@@ -15,6 +15,7 @@ import {
   isAssignedTo, householdIndicator, lastActivityDate, nextFollowUpDate, isRecentlyContacted,
 } from '@/lib/championUtils';
 import { buildAssignmentMap, assignmentStatusFor } from '@/lib/assignmentUtils';
+import { computeStewardshipHealth, STEWARDSHIP_HEALTH_LEVELS } from '@/lib/stewardshipHealth';
 import AssignmentStatusBadge from '@/components/champions/AssignmentStatusBadge';
 import CreateAssignmentDialog from '@/components/assignments/CreateAssignmentDialog';
 import { Input } from '@/components/ui/input';
@@ -59,6 +60,7 @@ export default function MarriageChampions() {
   const [currentUser, setCurrentUser] = useState(null);
   const [assignChampion, setAssignChampion] = useState(null);
   const [assignmentFilter, setAssignmentFilter] = useState('all');
+  const [healthFilter, setHealthFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -95,7 +97,9 @@ export default function MarriageChampions() {
   };
 
   useEffect(() => {
-    const viewParam = new URLSearchParams(window.location.search).get('view');
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get('view');
+    const healthParam = params.get('health');
     loadData();
     base44.auth.me()
       .then((u) => {
@@ -104,6 +108,7 @@ export default function MarriageChampions() {
           defaultedRef.current = true;
           setActiveView(viewParam || (u?.role === 'volunteer' ? 'my' : 'all'));
         }
+        if (healthParam) setHealthFilter(healthParam);
       })
       .catch(() => {});
   }, []);
@@ -196,6 +201,15 @@ export default function MarriageChampions() {
     if (statusFilter !== 'all') result = result.filter((h) => h.status === statusFilter);
     if (typeFilter !== 'all') result = result.filter((h) => h.registration_type === typeFilter);
     if (relStatusFilter !== 'all') result = result.filter((h) => (h.relationship_status || 'New') === relStatusFilter);
+    if (healthFilter !== 'all') {
+      result = result.filter((h) => {
+        const acts = activitiesByHouse[h.id] || [];
+        return computeStewardshipHealth({
+          activities: acts,
+          fallbackDate: h.registration_date || h.created_date,
+        }).key === healthFilter;
+      });
+    }
     result = [...result].sort((a, b) => {
       const av = (a[sortKey] || householdDisplay(a)).toString().toLowerCase();
       const bv = (b[sortKey] || householdDisplay(b)).toString().toLowerCase();
@@ -204,9 +218,9 @@ export default function MarriageChampions() {
       return 0;
     });
     return result;
-  }, [households, activeView, currentUser, activitiesByHouse, assignmentMap, search, statusFilter, typeFilter, relStatusFilter, assignmentFilter, sortKey, sortDir]);
+  }, [households, activeView, currentUser, activitiesByHouse, assignmentMap, search, statusFilter, typeFilter, relStatusFilter, assignmentFilter, healthFilter, sortKey, sortDir]);
 
-  useEffect(() => { setPage(1); }, [activeView, search, statusFilter, typeFilter, relStatusFilter, assignmentFilter]);
+  useEffect(() => { setPage(1); }, [activeView, search, statusFilter, typeFilter, relStatusFilter, assignmentFilter, healthFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, totalPages);
@@ -297,6 +311,17 @@ export default function MarriageChampions() {
             <SelectItem value="assigned">Assigned</SelectItem>
             <SelectItem value="unassigned">Needs Assignment</SelectItem>
             <SelectItem value="ended">Stewardship Ended</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={healthFilter} onValueChange={setHealthFilter}>
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue placeholder="Stewardship Health" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All health levels</SelectItem>
+            {STEWARDSHIP_HEALTH_LEVELS.map((lvl) => (
+              <SelectItem key={lvl.key} value={lvl.key}>{lvl.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
