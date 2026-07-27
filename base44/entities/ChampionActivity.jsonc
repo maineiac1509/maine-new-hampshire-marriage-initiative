@@ -1,0 +1,117 @@
+{
+  "name": "ChampionActivity",
+  "type": "object",
+  "properties": {
+    "household_id": {
+      "type": "string",
+      "title": "Champion"
+    },
+    "activity_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Activity Date"
+    },
+    "activity_type": {
+      "type": "string",
+      "title": "Activity Type",
+      "enum": [
+        "Phone Call",
+        "Voicemail",
+        "Text Message",
+        "Email",
+        "In Person",
+        "Meeting",
+        "Prayer",
+        "Administrative Update",
+        "Other"
+      ],
+      "default": "Phone Call"
+    },
+    "contact_method": {
+      "type": "string",
+      "title": "Contact Method",
+      "enum": [
+        "Phone",
+        "Email",
+        "Text Message",
+        "In Person",
+        "Video Call",
+        "Mail",
+        "Other"
+      ]
+    },
+    "outcome": {
+      "type": "string",
+      "title": "Outcome",
+      "enum": [
+        "No Answer",
+        "Left Voicemail",
+        "Spoke with Champion",
+        "Requested Follow-up",
+        "Interested",
+        "Not Interested",
+        "Serving",
+        "Do Not Contact",
+        "Other"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "title": "Summary"
+    },
+    "detailed_notes": {
+      "type": "string",
+      "title": "Detailed Notes"
+    },
+    "follow_up_required": {
+      "type": "boolean",
+      "title": "Follow-up Required",
+      "default": false
+    },
+    "follow_up_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Follow-up Date"
+    }
+  },
+  "required": [
+    "household_id",
+    "activity_date",
+    "activity_type",
+    "summary"
+  ],
+  "rls": {
+    "read": {},
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "director"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "director"
+          }
+        }
+      ]
+    }
+  }
+}

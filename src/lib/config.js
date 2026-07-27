@@ -18,3 +18,15 @@ export const NAV_ITEMS = [
 
 export const STATUS_OPTIONS = ['New', 'First Contact', 'Follow-Up', 'Completed', 'Inactive'];
 export const REGISTRATION_TYPE_OPTIONS = ['Individual', 'Couple', 'Group'];
+
+export const ACTIVITY_TYPE_OPTIONS = [
+  'Phone Call', 'Voicemail', 'Text Message', 'Email', 'In Person',
+  'Meeting', 'Prayer', 'Administrative Update', 'Other',
+];
+export const CONTACT_METHOD_OPTIONS = [
+  'Phone', 'Email', 'Text Message', 'In Person', 'Video Call', 'Mail', 'Other',
+];
+export const CONTACT_OUTCOME_OPTIONS = [
+  'No Answer', 'Left Voicemail', 'Spoke with Champion', 'Requested Follow-up',
+  'Interested', 'Not Interested', 'Serving', 'Do Not Contact', 'Other',
+];

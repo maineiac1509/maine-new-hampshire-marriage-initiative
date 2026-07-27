@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, Home, MapPin, ClipboardList, Users as UsersIcon, StickyNote, Phone, Mail,
-  Save, X, Plus, Trash2, Loader2, MessageSquare,
+  Save, X, Plus, Trash2, Loader2,
 } from 'lucide-react';
-import CheckInLog from '@/components/champions/CheckInLog';
+import RelationshipSummary, { getFollowUpStatus } from '@/components/champions/RelationshipSummary';
+import RelationshipTimeline from '@/components/champions/RelationshipTimeline';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,6 +69,10 @@ function householdDisplay(h, members) {
   return ln ? `${ln} Household` : 'Unnamed Household';
 }
 
+function fmtDate(s) {
+  return s ? new Date(s + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+}
+
 export default function ChampionProfile() {
   const { id } = useParams();
   const [household, setHousehold] = useState(null);
@@ -80,6 +85,8 @@ export default function ChampionProfile() {
   const [membersForm, setMembersForm] = useState([]);
   const [deletedIds, setDeletedIds] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [activities, setActivities] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
 
   function load() {
     setLoading(true);
@@ -96,8 +103,16 @@ export default function ChampionProfile() {
       .finally(() => setLoading(false));
   }
 
+  function loadActivities() {
+    base44.entities.ChampionActivity.filter({ household_id: id }, '-activity_date')
+      .then((rows) => setActivities(rows || []))
+      .catch(() => setActivities([]));
+  }
+
   useEffect(() => {
     load();
+    loadActivities();
+    base44.auth.me().then((u) => setCurrentUser(u)).catch(() => {});
   }, [id]);
 
   function startEdit() {
@@ -184,6 +199,7 @@ export default function ChampionProfile() {
   const h = editing ? form : household;
   const ms = editing ? membersForm : members;
   const name = householdDisplay(h, ms);
+  const followUpStatus = getFollowUpStatus(activities);
 
   return (
     <div className="space-y-5">
@@ -220,9 +236,16 @@ export default function ChampionProfile() {
                 <Input value={h.household_name || ''} onChange={(e) => setField('household_name', e.target.value)} className="text-2xl font-bold" />
               ) : name}
             </h1>
-            <p className="text-sm text-muted-foreground">
-              {h.area ? `${h.area} · ` : ''}{h.status || 'New'} · {ms.length} {ms.length === 1 ? 'contact' : 'contacts'}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm text-muted-foreground">
+                {h.area ? `${h.area} · ` : ''}{h.status || 'New'} · {ms.length} {ms.length === 1 ? 'contact' : 'contacts'}
+              </p>
+              {followUpStatus && (
+                <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${followUpStatus.tone}`}>
+                  {followUpStatus.label}{followUpStatus.date ? ` · ${fmtDate(followUpStatus.date)}` : ''}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         {!editing && <span className="text-xs text-muted-foreground">ID: {h.id}</span>}
@@ -335,10 +358,19 @@ export default function ChampionProfile() {
         </Section>
       </div>
 
-      {/* Check-in Log */}
-      <Section icon={MessageSquare} title="Check-in Log">
-        <CheckInLog householdId={id} />
-      </Section>
+      {/* Relationship Summary */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Relationship Summary</h2>
+        <RelationshipSummary activities={activities} />
+      </div>
+
+      {/* Relationship Timeline */}
+      <RelationshipTimeline
+        householdId={id}
+        activities={activities}
+        onRefresh={loadActivities}
+        currentUser={currentUser}
+      />
     </div>
   );
 }
