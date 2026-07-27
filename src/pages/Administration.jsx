@@ -30,6 +30,22 @@ export default function Administration() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Link
+          to="/users"
+          className="group flex items-start gap-4 rounded-xl border bg-card p-5 shadow-sm transition-colors hover:bg-muted/40"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+            <Users className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Users & Roles</h3>
+              <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Manage user accounts and assign Administrator or Volunteer roles.</p>
+          </div>
+        </Link>
+
+        <Link
           to="/volunteer-teams"
           className="group flex items-start gap-4 rounded-xl border bg-card p-5 shadow-sm transition-colors hover:bg-muted/40"
         >

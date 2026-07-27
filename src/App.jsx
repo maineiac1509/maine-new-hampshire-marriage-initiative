@@ -18,6 +18,9 @@ import Reports from '@/pages/Reports';
 import Administration from '@/pages/Administration';
 import VolunteerTeams from '@/pages/VolunteerTeams';
 import VolunteerTeamProfile from '@/pages/VolunteerTeamProfile';
+import Users from '@/pages/Users';
+import UserDetail from '@/pages/UserDetail';
+import AdminRoute from '@/components/AdminRoute';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
@@ -63,9 +66,13 @@ const AuthenticatedApp = () => {
           <Route path="/assignments/:id" element={<AssignmentDetail />} />
           <Route path="/contact-history" element={<ContactHistory />} />
           <Route path="/reports" element={<Reports />} />
-          <Route path="/administration" element={<Administration />} />
           <Route path="/volunteer-teams" element={<VolunteerTeams />} />
           <Route path="/volunteer-teams/:id" element={<VolunteerTeamProfile />} />
+          <Route element={<AdminRoute />}>
+            <Route path="/users" element={<Users />} />
+            <Route path="/users/:id" element={<UserDetail />} />
+            <Route path="/administration" element={<Administration />} />
+          </Route>
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />

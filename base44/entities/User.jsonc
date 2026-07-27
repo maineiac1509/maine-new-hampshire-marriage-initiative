@@ -5,9 +5,9 @@
     "role": {
       "type": "string",
       "title": "Role",
+      "description": "Determines what this user can administer within Champion Connect.",
       "enum": [
         "admin",
-        "director",
         "volunteer"
       ],
       "default": "volunteer"

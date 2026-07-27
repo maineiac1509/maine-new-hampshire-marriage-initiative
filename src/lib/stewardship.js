@@ -2,16 +2,13 @@
 // No new storage — volunteers see their Volunteer Team's Champions;
 // administrators (no team) steward the whole ministry.
 import { buildAssignmentMap } from '@/lib/assignmentUtils';
-
-export function isAdminRole(user) {
-  return user?.role === 'admin' || user?.role === 'director';
-}
+import { isAdmin } from '@/lib/permissions';
 
 export function computeStewardship({
   user, teamMembers, assignments, households, activities,
   assignmentEvents, teamTimeline, championTimeline,
 }) {
-  const admin = isAdminRole(user);
+  const admin = isAdmin(user);
   const membership = (teamMembers || []).find((m) => m.user_id && user && m.user_id === user.id);
   const myTeamId = membership?.team_id || null;
 

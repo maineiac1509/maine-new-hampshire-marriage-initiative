@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Menu, X, Heart, LayoutDashboard, Users, UserCheck, MessageSquare, BarChart3, Settings } from 'lucide-react';
+import { Menu, X, Heart, LayoutDashboard, Users, UserCheck, MessageSquare, BarChart3, Settings, UsersRound } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { NAV_ITEMS, APP_CONFIG } from '@/lib/config';
-import { roleLabel } from '@/lib/permissions';
+import { isAdmin } from '@/lib/permissions';
+import RoleBadge from '@/components/RoleBadge';
 import { Button } from '@/components/ui/button';
 
 const ICON_MAP = {
@@ -13,12 +14,13 @@ const ICON_MAP = {
   MessageSquare,
   BarChart3,
   Settings,
+  UsersRound,
 };
 
-function NavLinks({ onNavigate }) {
+function NavLinks({ items, onNavigate }) {
   return (
     <nav className="flex flex-col gap-1 px-3">
-      {NAV_ITEMS.map((item) => {
+      {items.map((item) => {
         const Icon = ICON_MAP[item.icon] || LayoutDashboard;
         return (
           <NavLink
@@ -56,6 +58,8 @@ export default function Layout() {
     ? user.full_name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
     : 'U';
 
+  const navItems = NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin(user));
+
   return (
     <div className="min-h-screen bg-muted/30">
       {/* Desktop sidebar */}
@@ -70,7 +74,7 @@ export default function Layout() {
           </div>
         </div>
         <div className="flex-1 overflow-y-auto py-4">
-          <NavLinks />
+          <NavLinks items={navItems} />
         </div>
         <div className="border-t p-4">
           <div className="flex items-center gap-3">
@@ -79,7 +83,7 @@ export default function Layout() {
             </div>
             <div className="min-w-0 leading-tight">
               <div className="truncate text-sm font-medium">{user?.full_name || 'User'}</div>
-              <div className="text-xs text-muted-foreground">{roleLabel(user?.role)}</div>
+              <RoleBadge role={user?.role} />
             </div>
           </div>
         </div>
@@ -110,7 +114,7 @@ export default function Layout() {
               </Button>
             </div>
             <div className="flex-1 overflow-y-auto py-4">
-              <NavLinks onNavigate={() => setMobileOpen(false)} />
+              <NavLinks items={navItems} onNavigate={() => setMobileOpen(false)} />
             </div>
           </aside>
         </div>

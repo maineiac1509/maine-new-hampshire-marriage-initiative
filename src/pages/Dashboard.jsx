@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { buildAssignmentMap } from '@/lib/assignmentUtils';
 import { buildActivityFeed } from '@/lib/dashboardActivity';
-import { computeStewardship, isAdminRole } from '@/lib/stewardship';
+import { computeStewardship } from '@/lib/stewardship';
+import { isAdmin } from '@/lib/permissions';
 import { buildActionItems } from '@/lib/actionCenter';
 import WelcomeHeader from '@/components/dashboard/WelcomeHeader';
 import MinistryOverview from '@/components/dashboard/MinistryOverview';
@@ -77,7 +78,6 @@ export default function Dashboard() {
     [scope.myTeamId, teams]
   );
   const scopedTeams = scope.myTeamId ? teams.filter((t) => t.id === scope.myTeamId) : teams;
-  const isAdmin = isAdminRole(user);
 
   const stewardshipCounts = useMemo(() => ({
     myChampions: scope.myHouseholds.length,
@@ -121,7 +121,7 @@ export default function Dashboard() {
 
       {/* Section One: My Stewardship */}
       <section className="space-y-6 rounded-2xl border border-amber-200/60 bg-amber-50/40 p-5 shadow-sm sm:p-6">
-        <StewardshipBanner user={user} team={myTeam} isAdmin={isAdmin && !scope.myTeamId} />
+        <StewardshipBanner user={user} team={myTeam} isAdmin={isAdmin(user) && !scope.myTeamId} />
         <StewardshipSummary counts={stewardshipCounts} />
         <ActionCenter
           title="My Action Center"
