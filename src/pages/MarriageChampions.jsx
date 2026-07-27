@@ -26,10 +26,8 @@ const PAGE_SIZE = 10;
 
 function householdDisplay(h) {
   if (h.household_name) return h.household_name;
-  const names = (h._members || [])
-    .map((m) => `${m.first_name || ''} ${m.last_name || ''}`.trim())
-    .filter(Boolean);
-  return names.length ? names.join(' & ') : 'Unnamed Household';
+  const ln = (h._members || []).find((m) => m.last_name)?.last_name;
+  return ln ? `${ln} Household` : 'Unnamed Household';
 }
 
 export default function MarriageChampions() {

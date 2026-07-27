@@ -153,10 +153,8 @@ function buildHouseholds(rows) {
   // Derive household name + relationships.
   groups.forEach((g) => {
     if (!g.household.household_name) {
-      const names = g.members
-        .map((m) => `${m.first_name || ''} ${m.last_name || ''}`.trim())
-        .filter(Boolean);
-      g.household.household_name = names.length ? names.join(' & ') : 'Household';
+      const ln = (g.members.find((m) => m.last_name)?.last_name || '').trim();
+      g.household.household_name = ln ? `${ln} Household` : 'Household';
     }
     g.members.forEach((m, i) => {
       if (!m.relationship) m.relationship = RELATIONSHIP_BY_INDEX[i] || 'Member';
