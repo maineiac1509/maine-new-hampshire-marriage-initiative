@@ -6,15 +6,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import AssignmentSection from './AssignmentSection';
 import { fmtDate } from '@/lib/teamUtils';
 
-// Closed is a terminal state — it is only reachable via the Close Assignment
-// workflow, so the edit-mode status selector offers Active / On Hold only.
-const EDIT_STATUS_OPTIONS = ['Active', 'On Hold'];
-const STATUS_VARIANT = { Active: 'success', 'On Hold': 'warning', Closed: 'neutral' };
+// Ended is a terminal state — it is only reachable via the End Assignment
+// workflow, so the edit-mode status selector offers Active only.
+const EDIT_STATUS_OPTIONS = ['Active'];
+const STATUS_VARIANT = { Active: 'success', Ended: 'neutral' };
 const METHOD_OPTIONS = ['Manual', 'Recommendation', 'Auto Assignment'];
 
 export default function AssignmentSummaryCard({ assignment, form, editing, onField, championName, teamName }) {
   const a = editing ? form : assignment;
-  const isClosed = a?.assignment_status === 'Closed';
+  const isEnded = a?.assignment_status === 'Ended';
   return (
     <AssignmentSection icon={ClipboardList} title="Assignment Summary">
       <dl className="grid grid-cols-2 gap-4">
@@ -36,7 +36,7 @@ export default function AssignmentSummaryCard({ assignment, form, editing, onFie
         </div>
         <div className="space-y-1">
           <label className="text-xs uppercase tracking-wide text-muted-foreground">Current Status</label>
-          {editing && !isClosed ? (
+          {editing && !isEnded ? (
             <Select value={a?.assignment_status || 'Active'} onValueChange={(v) => onField('assignment_status', v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>{EDIT_STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>

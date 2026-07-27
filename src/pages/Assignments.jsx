@@ -14,7 +14,7 @@ import { buildAssignmentMap } from '@/lib/assignmentUtils';
 import { householdDisplay, fmtDate } from '@/lib/teamUtils';
 import { lastActivityDate } from '@/lib/championUtils';
 
-const STATUS_VARIANT = { Active: 'success', 'On Hold': 'warning', Closed: 'neutral' };
+const STATUS_VARIANT = { Active: 'success', 'On Hold': 'warning', Ended: 'neutral' };
 
 function isInCurrentMonth(dateStr) {
   if (!dateStr) return false;
@@ -186,11 +186,11 @@ export default function Assignments() {
         />
         <SummaryCard
           icon={Archive}
-          label="Closed Assignments"
+          label="Ended Assignments"
           value={counts.closed}
           tone="bg-slate-100 text-slate-600"
-          active={statusFilter === 'Closed'}
-          onClick={() => setStatusFilter(statusFilter === 'Closed' ? 'all' : 'Closed')}
+          active={statusFilter === 'Ended'}
+          onClick={() => setStatusFilter(statusFilter === 'Ended' ? 'all' : 'Ended')}
         />
         <SummaryCard
           icon={CheckCircle2}
@@ -225,7 +225,7 @@ export default function Assignments() {
                 <SelectItem value="all">All statuses</SelectItem>
                 <SelectItem value="Active">Active</SelectItem>
                 <SelectItem value="On Hold">On Hold</SelectItem>
-                <SelectItem value="Closed">Closed</SelectItem>
+                <SelectItem value="Ended">Ended</SelectItem>
               </SelectContent>
             </Select>
           </div>

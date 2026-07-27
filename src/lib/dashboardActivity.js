@@ -22,7 +22,7 @@ const ASSIGNMENT_EVENT_ICON = {
   Created: UserCheck,
   Updated: FileEdit,
   'Status Changed': ClipboardList,
-  Closed: Archive,
+  Ended: Archive,
 };
 
 function timestamp(record, dateField) {
@@ -79,7 +79,7 @@ export function buildActivityFeed({
   (championTimeline || []).forEach((e) => {
     items.push({
       id: 'cte-' + e.id,
-      icon: e.event_type === 'Assignment Closed' ? Archive : UserCheck,
+      icon: e.event_type === 'Assignment Ended' ? Archive : UserCheck,
       title: e.summary || e.event_type || 'Assignment updated',
       subtitle: householdName(e.household_id) || undefined,
       timestamp: timestamp(e, e.event_date),
@@ -91,7 +91,7 @@ export function buildActivityFeed({
   (teamTimeline || []).forEach((e) => {
     items.push({
       id: 'tte-' + e.id,
-      icon: e.event_type === 'Assignment Closed' ? Archive : UserCheck,
+      icon: e.event_type === 'Assignment Ended' ? Archive : UserCheck,
       title: e.summary || e.event_type || 'Team update',
       subtitle: teamName(e.team_id) || undefined,
       timestamp: timestamp(e, e.event_date),

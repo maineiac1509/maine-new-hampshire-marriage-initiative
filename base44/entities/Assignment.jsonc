@@ -34,8 +34,7 @@
       "title": "Assignment Status",
       "enum": [
         "Active",
-        "On Hold",
-        "Closed"
+        "Ended"
       ],
       "default": "Active"
     },
@@ -46,6 +45,23 @@
     "assignment_notes": {
       "type": "string",
       "title": "Assignment Notes"
+    },
+    "end_reason": {
+      "type": "string",
+      "title": "End Reason",
+      "enum": [
+        "Reassigned to another Volunteer Team",
+        "Champion Requested Pause",
+        "Champion No Longer Interested",
+        "Do Not Contact",
+        "Champion Moved Away",
+        "Administrative Cleanup",
+        "Other"
+      ]
+    },
+    "end_reason_notes": {
+      "type": "string",
+      "title": "End Reason Explanation"
     },
     "closing_reason": {
       "type": "string",

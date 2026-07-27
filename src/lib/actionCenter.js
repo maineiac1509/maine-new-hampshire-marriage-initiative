@@ -140,13 +140,13 @@ export function buildActionItems({ households, assignments, teams, activities, t
 
   // --- Medium ---
   (assignments || []).forEach((a) => {
-    if (a.assignment_status !== 'Closed') return;
-    const closed = daysSince(a.end_date || a.updated_date);
-    if (closed !== null && closed <= 14) {
+    if (a.assignment_status !== 'Ended') return;
+    const ended = daysSince(a.end_date || a.updated_date);
+    if (ended !== null && ended <= 14) {
       raw.push({
         entityKey: `asg:${a.id}`, priority: 'medium', icon: Archive,
-        title: 'Assignment Review', subject: undefined,
-        description: 'This assignment was recently closed and is ready for review.',
+        title: 'Stewardship Review', subject: undefined,
+        description: 'This stewardship assignment was recently ended and is ready for review.',
         detected: ms(a.end_date || a.updated_date),
         actionLabel: 'Open Assignment', href: `/assignments/${a.id}`,
       });
@@ -180,13 +180,13 @@ export function buildActionItems({ households, assignments, teams, activities, t
   });
 
   (assignments || []).forEach((a) => {
-    if (a.assignment_status !== 'Closed') return;
-    const closed = daysSince(a.end_date || a.updated_date);
-    if (closed === 0) {
+    if (a.assignment_status !== 'Ended') return;
+    const ended = daysSince(a.end_date || a.updated_date);
+    if (ended === 0) {
       raw.push({
         entityKey: `asg:${a.id}`, priority: 'informational', icon: UserCheck,
-        title: 'Assignment Completed', subject: undefined,
-        description: 'An assignment was completed today.',
+        title: 'Stewardship Ended', subject: undefined,
+        description: 'Stewardship for this Champion was ended today.',
         detected: ms(a.end_date || a.updated_date),
         actionLabel: 'Open Assignment', href: `/assignments/${a.id}`,
       });

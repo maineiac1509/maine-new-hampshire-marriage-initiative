@@ -5,7 +5,7 @@ import { UserCheck, UserPlus, Archive } from 'lucide-react';
 const META = {
   assigned: { label: 'Assigned', variant: 'success', icon: UserCheck },
   unassigned: { label: 'Needs Assignment', variant: 'warning', icon: UserPlus },
-  closed: { label: 'Assignment Closed', variant: 'neutral', icon: Archive },
+  ended: { label: 'Stewardship Ended', variant: 'neutral', icon: Archive },
 };
 
 export default function AssignmentStatusBadge({ status }) {

@@ -12,7 +12,7 @@
       "enum": [
         "Assignment Created",
         "Assignment Updated",
-        "Assignment Closed"
+        "Assignment Ended"
       ],
       "default": "Assignment Created"
     },

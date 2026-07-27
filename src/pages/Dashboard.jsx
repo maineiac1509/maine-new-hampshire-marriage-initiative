@@ -105,7 +105,7 @@ export default function Dashboard() {
     myChampions: () => navigate('/champions?view=my'),
     openActions: () => { setActionReset((n) => n + 1); drillTo('actions'); },
     recentActivity: () => drillTo('activity'),
-    completed: () => navigate(`/assignments?status=Closed&month=current${scope.myTeamId ? `&team=${scope.myTeamId}` : ''}`),
+    completed: () => navigate(`/assignments?status=Ended&month=current${scope.myTeamId ? `&team=${scope.myTeamId}` : ''}`),
   };
 
   const stewardshipCounts = useMemo(() => ({
@@ -116,7 +116,7 @@ export default function Dashboard() {
     }).length,
     recentActivity: scope.myActivities.filter((a) => isInCurrentMonth(a.activity_date)).length,
     completed: scope.myAssignments.filter(
-      (a) => a.assignment_status === 'Closed' && (isInCurrentMonth(a.end_date) || isInCurrentMonth(a.updated_date))
+      (a) => (a.assignment_status === 'Ended' || a.reassignment_flag) && (isInCurrentMonth(a.end_date) || isInCurrentMonth(a.updated_date))
     ).length,
   }), [scope, scopedTeams]);
 
@@ -134,7 +134,7 @@ export default function Dashboard() {
       assignments: assignments.filter((a) => a.assignment_status === 'Active').length,
       teams: teams.length,
       awaiting: households.filter((h) => !assignmentMap[h.id]?.active).length,
-      closed: assignments.filter((a) => a.assignment_status === 'Closed' && (isInCurrentMonth(a.end_date) || isInCurrentMonth(a.updated_date))).length,
+      closed: assignments.filter((a) => (a.assignment_status === 'Ended' || a.reassignment_flag) && (isInCurrentMonth(a.end_date) || isInCurrentMonth(a.updated_date))).length,
     };
   }, [households, assignments, teams]);
 

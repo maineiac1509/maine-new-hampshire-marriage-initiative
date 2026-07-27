@@ -296,7 +296,7 @@ export default function MarriageChampions() {
             <SelectItem value="all">All assignments</SelectItem>
             <SelectItem value="assigned">Assigned</SelectItem>
             <SelectItem value="unassigned">Needs Assignment</SelectItem>
-            <SelectItem value="closed">Assignment Closed</SelectItem>
+            <SelectItem value="ended">Stewardship Ended</SelectItem>
           </SelectContent>
         </Select>
       </div>

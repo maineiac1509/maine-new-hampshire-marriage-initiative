@@ -8,7 +8,7 @@ const TYPE_META = {
   Created: { icon: Plus, variant: 'success' },
   Updated: { icon: RefreshCw, variant: 'info' },
   'Status Changed': { icon: ArrowRightCircle, variant: 'warning' },
-  Closed: { icon: CheckCircle2, variant: 'neutral' },
+  Ended: { icon: CheckCircle2, variant: 'neutral' },
 };
 
 // Authoritative audit trail for the current Assignment. The leading "Created"
@@ -30,7 +30,7 @@ export default function AssignmentHistory({ events, assignedDate }) {
   }, [events, assignedDate]);
 
   return (
-    <AssignmentSection icon={History} title="Assignment History">
+    <AssignmentSection icon={History} title="Stewardship History">
       <ol className="space-y-3">
         {items.map((e) => {
           const meta = TYPE_META[e.type] || { icon: History, variant: 'neutral' };

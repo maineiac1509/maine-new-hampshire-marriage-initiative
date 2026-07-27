@@ -71,7 +71,7 @@ export default function AssignmentDetail() {
 
   const role = currentUser?.role;
   const canManage = role === 'admin' || role === 'director';
-  const isClosed = assignment?.assignment_status === 'Closed';
+  const isEnded = assignment?.assignment_status === 'Ended';
 
   function setField(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -124,12 +124,12 @@ export default function AssignmentDetail() {
           <Link to="/assignments"><ArrowLeft className="h-4 w-4" /> Back to Assignments</Link>
         </Button>
         <div className="flex gap-2">
-          {canManage && !isClosed && !editing && (
+          {canManage && !isEnded && !editing && (
             <Button size="sm" variant="outline" onClick={() => setCloseOpen(true)}>
-              <AlertTriangle className="h-4 w-4 text-amber-500" /> Close Assignment
+              <AlertTriangle className="h-4 w-4 text-amber-500" /> End Assignment
             </Button>
           )}
-          {canManage && !isClosed && !editing && (
+          {canManage && !isEnded && !editing && (
             <Button size="sm" variant="outline" onClick={() => { setForm({ ...assignment }); setEditing(true); }}>
               <Save className="h-4 w-4" /> Edit Assignment
             </Button>

@@ -10,6 +10,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import RelationshipStatusControl from '@/components/champions/RelationshipStatusControl';
 import RelationshipTimeline from '@/components/champions/RelationshipTimeline';
 import ChampionAssignmentCard from '@/components/assignments/ChampionAssignmentCard';
+import StewardshipTimeline from '@/components/champions/StewardshipTimeline';
 import { isAssignedTo } from '@/lib/championUtils';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -96,6 +97,7 @@ export default function ChampionProfile() {
   const [teams, setTeams] = useState([]);
   const [statusChanges, setStatusChanges] = useState([]);
   const [milestones, setMilestones] = useState([]);
+  const [assignments, setAssignments] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
 
   function load() {
@@ -131,6 +133,12 @@ export default function ChampionProfile() {
       .catch(() => setMilestones([]));
   }
 
+  function loadAssignments() {
+    base44.entities.Assignment.filter({ household_id: id }, '-assigned_date')
+      .then((rows) => setAssignments(rows || []))
+      .catch(() => setAssignments([]));
+  }
+
   function handleStatusChanged() {
     load();
     loadStatusChanges();
@@ -143,6 +151,7 @@ export default function ChampionProfile() {
     loadActivities();
     loadStatusChanges();
     loadMilestones();
+    loadAssignments();
     base44.entities.VolunteerTeam.list().then((ts) => setTeams(ts || [])).catch(() => {});
     base44.auth.me().then((u) => setCurrentUser(u)).catch(() => {});
   }, [id]);
@@ -393,6 +402,9 @@ export default function ChampionProfile() {
           </div>
         </Section>
       </div>
+
+      {/* Stewardship Timeline */}
+      <StewardshipTimeline assignments={assignments} teams={teams} />
 
       {/* Relationship Summary */}
       <div>

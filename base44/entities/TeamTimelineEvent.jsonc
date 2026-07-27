@@ -15,7 +15,7 @@
       "title": "Event Type",
       "enum": [
         "Assignment Created",
-        "Assignment Closed"
+        "Assignment Ended"
       ],
       "default": "Assignment Created"
     },
