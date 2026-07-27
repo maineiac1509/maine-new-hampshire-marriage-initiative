@@ -347,15 +347,6 @@ export default function ChampionProfile() {
             <FieldRow label="Assigned Director" value={h.assigned_director} editing={editing} onChange={(v) => setField('assigned_director', v)} />
           </dl>
         </Section>
-
-        {/* Notes */}
-        <Section icon={StickyNote} title="Notes">
-          {editing ? (
-            <Textarea value={h.notes || ''} onChange={(e) => setField('notes', e.target.value)} rows={4} />
-          ) : (
-            <p className="whitespace-pre-wrap text-sm">{h.notes || 'No notes recorded.'}</p>
-          )}
-        </Section>
       </div>
 
       {/* Relationship Summary */}
