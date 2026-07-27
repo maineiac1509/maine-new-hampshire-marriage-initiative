@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, ChevronLeft, ChevronRight, ArrowUpDown, Users, Upload } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, ArrowUpDown, Users, Upload, UserPlus } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { STATUS_OPTIONS, REGISTRATION_TYPE_OPTIONS, RELATIONSHIP_STATUS_OPTIONS } from '@/lib/config';
 import ImportChampionsDialog from '@/components/champions/ImportChampionsDialog';
@@ -14,6 +14,9 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import {
   isAssignedTo, householdIndicator, lastActivityDate, nextFollowUpDate, isRecentlyContacted,
 } from '@/lib/championUtils';
+import { buildAssignmentMap, assignmentStatusFor } from '@/lib/assignmentUtils';
+import AssignmentStatusBadge from '@/components/champions/AssignmentStatusBadge';
+import CreateAssignmentDialog from '@/components/assignments/CreateAssignmentDialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,7 +46,7 @@ function emptyMessageFor(view) {
     case 'follow-up': return "You're all caught up — no follow-ups need attention right now.";
     case 'first-contact': return 'No Champions are waiting for first contact.';
     case 'recent': return 'No recent activity to show.';
-    case 'unassigned': return 'All Champions have been assigned a volunteer.';
+    case 'unassigned': return 'Every Champion currently has an active Volunteer Team assignment.';
     default: return 'No Marriage Champions found.';
   }
 }
@@ -52,7 +55,10 @@ export default function MarriageChampions() {
   const [households, setHouseholds] = useState([]);
   const [teams, setTeams] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [assignments, setAssignments] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  const [assignChampion, setAssignChampion] = useState(null);
+  const [assignmentFilter, setAssignmentFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -71,8 +77,9 @@ export default function MarriageChampions() {
       base44.entities.HouseholdMember.list(),
       base44.entities.ChampionActivity.list(),
       base44.entities.VolunteerTeam.list(),
+      base44.entities.Assignment.list(),
     ])
-      .then(([hhs, members, acts, ts]) => {
+      .then(([hhs, members, acts, ts, asgs]) => {
         const byHouse = {};
         members.forEach((m) => {
           if (!byHouse[m.household_id]) byHouse[m.household_id] = [];
@@ -81,8 +88,9 @@ export default function MarriageChampions() {
         setHouseholds(hhs.map((h) => ({ ...h, _members: byHouse[h.id] || [] })));
         setTeams(ts || []);
         setActivities(acts || []);
+        setAssignments(asgs || []);
       })
-      .catch(() => { setHouseholds([]); setTeams([]); setActivities([]); })
+      .catch(() => { setHouseholds([]); setTeams([]); setActivities([]); setAssignments([]); })
       .finally(() => setLoading(false));
   };
 
@@ -114,6 +122,9 @@ export default function MarriageChampions() {
     return m;
   }, [teams]);
 
+  const assignmentMap = useMemo(() => buildAssignmentMap(assignments), [assignments]);
+  const canManage = currentUser?.role === 'admin' || currentUser?.role === 'director';
+
   const counts = useMemo(() => {
     const c = { all: households.length, my: 0, 'first-contact': 0, 'follow-up': 0, recent: 0, unassigned: 0 };
     households.forEach((h) => {
@@ -123,10 +134,10 @@ export default function MarriageChampions() {
       if (h.status === 'New') c['first-contact']++;
       if (ind.key === 'overdue' || ind.key === 'due-today' || h.status === 'Follow-Up') c['follow-up']++;
       if (isRecentlyContacted(acts)) c.recent++;
-      if (!h.assigned_volunteer || !h.assigned_volunteer.trim()) c.unassigned++;
+      if (assignmentStatusFor(h.id, assignmentMap) === 'unassigned') c.unassigned++;
     });
     return c;
-  }, [households, activitiesByHouse, currentUser]);
+  }, [households, activitiesByHouse, currentUser, assignmentMap]);
 
   const myStats = useMemo(() => {
     const mine = households.filter((h) => isAssignedTo(h, currentUser));
@@ -165,10 +176,11 @@ export default function MarriageChampions() {
           return ind.key === 'overdue' || ind.key === 'due-today' || h.status === 'Follow-Up';
         }
         case 'recent': return isRecentlyContacted(acts);
-        case 'unassigned': return !h.assigned_volunteer || !h.assigned_volunteer.trim();
+        case 'unassigned': return assignmentStatusFor(h.id, assignmentMap) === 'unassigned';
         default: return true;
       }
     });
+    if (assignmentFilter !== 'all') result = result.filter((h) => assignmentStatusFor(h.id, assignmentMap) === assignmentFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter((h) => {
@@ -191,9 +203,9 @@ export default function MarriageChampions() {
       return 0;
     });
     return result;
-  }, [households, activeView, currentUser, activitiesByHouse, search, statusFilter, typeFilter, relStatusFilter, sortKey, sortDir]);
+  }, [households, activeView, currentUser, activitiesByHouse, assignmentMap, search, statusFilter, typeFilter, relStatusFilter, assignmentFilter, sortKey, sortDir]);
 
-  useEffect(() => { setPage(1); }, [activeView, search, statusFilter, typeFilter, relStatusFilter]);
+  useEffect(() => { setPage(1); }, [activeView, search, statusFilter, typeFilter, relStatusFilter, assignmentFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, totalPages);
@@ -275,6 +287,17 @@ export default function MarriageChampions() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={assignmentFilter} onValueChange={setAssignmentFilter}>
+          <SelectTrigger className="w-full sm:w-44">
+            <SelectValue placeholder="Assignment" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All assignments</SelectItem>
+            <SelectItem value="assigned">Assigned</SelectItem>
+            <SelectItem value="unassigned">Needs Assignment</SelectItem>
+            <SelectItem value="closed">Assignment Closed</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* My Champions summaries */}
@@ -318,6 +341,10 @@ export default function MarriageChampions() {
               const memberNames = (h._members || [])
                 .map((m) => `${m.first_name || ''} ${m.last_name || ''}`.trim())
                 .join(', ');
+              const aStatus = assignmentStatusFor(h.id, assignmentMap);
+              const activeAsg = assignmentMap[h.id]?.active;
+              const teamId = activeAsg?.volunteer_team_id || h.volunteer_team_id;
+              const teamName = teamMap[teamId]?.team_name || (aStatus === 'closed' ? '' : h.assigned_volunteer);
               return (
                 <tr key={h.id} className="border-b last:border-0 transition-colors hover:bg-muted/40">
                   <td className="px-4 py-3.5">
@@ -331,7 +358,23 @@ export default function MarriageChampions() {
                   <td className="px-4 py-3.5">
                     <RelationshipStatusBadge status={h.relationship_status} />
                   </td>
-                  <td className="px-4 py-3.5 text-muted-foreground">{teamMap[h.volunteer_team_id]?.team_name || h.assigned_volunteer || '—'}</td>
+                  <td className="px-4 py-3.5">
+                    <div className="space-y-1">
+                      {teamName ? (
+                        <Link to={`/volunteer-teams/${teamId}`} className="text-sm text-foreground hover:underline">{teamName}</Link>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
+                      <div className="flex items-center gap-1">
+                        <AssignmentStatusBadge status={aStatus} />
+                        {aStatus === 'unassigned' && canManage && (
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setAssignChampion(h)}>
+                            <UserPlus className="h-3 w-3" /> Assign
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </td>
                   <td className="whitespace-nowrap px-4 py-3.5 text-muted-foreground">{fmtDate(lastActivityDate(acts))}</td>
                   <td className="whitespace-nowrap px-4 py-3.5 text-muted-foreground">{fmtDate(nextFollowUpDate(acts))}</td>
                   <td className="px-4 py-3.5">
@@ -383,8 +426,8 @@ export default function MarriageChampions() {
               </div>
               <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                 <div>
-                  <p className="text-muted-foreground">Assigned</p>
-                  <p className="truncate font-medium text-foreground">{teamMap[h.volunteer_team_id]?.team_name || h.assigned_volunteer || 'Unassigned'}</p>
+                  <p className="text-muted-foreground">Assignment</p>
+                  <div className="mt-0.5"><AssignmentStatusBadge status={assignmentStatusFor(h.id, assignmentMap)} /></div>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Last Contact</p>
@@ -428,6 +471,14 @@ export default function MarriageChampions() {
           </div>
         </div>
       )}
+
+      <CreateAssignmentDialog
+        open={!!assignChampion}
+        onOpenChange={(o) => { if (!o) setAssignChampion(null); }}
+        champion={assignChampion}
+        currentUser={currentUser}
+        onCreated={() => { setAssignChampion(null); loadData(); }}
+      />
     </div>
   );
 }
