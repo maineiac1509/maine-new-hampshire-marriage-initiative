@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Clipboard, Users,
 } from 'lucide-react';
@@ -215,6 +215,27 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
   const [mode, setMode] = useState('upload'); // upload | paste
   const [pasteText, setPasteText] = useState('');
   const inputRef = useRef(null);
+  const [existingData, setExistingData] = useState({ households: [], membersByHouse: {}, loaded: false });
+  const [dedupLoading, setDedupLoading] = useState(false);
+
+  async function loadExistingForDedup() {
+    setDedupLoading(true);
+    try {
+      const [existingHH, existingMembers] = await Promise.all([
+        base44.entities.ChampionHousehold.list(),
+        base44.entities.HouseholdMember.list(),
+      ]);
+      const membersByHouse = {};
+      (existingMembers || []).forEach((m) => {
+        (membersByHouse[m.household_id] = membersByHouse[m.household_id] || []).push(m);
+      });
+      setExistingData({ households: existingHH || [], membersByHouse, loaded: true });
+    } catch {
+      setExistingData({ households: [], membersByHouse: {}, loaded: true });
+    } finally {
+      setDedupLoading(false);
+    }
+  }
 
   function reset() {
     setStep('idle');
@@ -239,6 +260,7 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
     }
     setHouseholds(buildHouseholds(parsed));
     setStep('preview');
+    loadExistingForDedup();
   }
 
   async function handleFile(e) {
@@ -350,6 +372,32 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
 
   const memberCount = households.reduce((n, g) => n + g.members.length, 0);
 
+  const fieldLabel = (f) => f.replace(/_/g, ' ');
+
+  // Compute per-household de-dup status against existing records.
+  const dedup = useMemo(() => {
+    if (!existingData.loaded) return { statuses: [], newCount: 0, updateCount: 0, loaded: false };
+    const MEMBER_FIELDS = ['first_name', 'last_name', 'email', 'mobile_phone', 'relationship'];
+    const statuses = households.map((g) => {
+      const match = findExistingHousehold(g.household, g.members, existingData.households, existingData.membersByHouse);
+      if (!match) return { kind: 'new' };
+      const hhChanges = HOUSEHOLD_FIELDS.filter((f) => g.household[f] && g.household[f] !== (match[f] || ''));
+      const houseMembers = existingData.membersByHouse[match.id] || [];
+      let newMembers = 0, updatedMembers = 0;
+      g.members.forEach((im) => {
+        const em = findExistingMember(im, houseMembers);
+        if (em) {
+          if (MEMBER_FIELDS.some((f) => im[f] && im[f] !== (em[f] || ''))) updatedMembers++;
+        } else {
+          newMembers++;
+        }
+      });
+      return { kind: 'update', hhChanges, newMembers, updatedMembers };
+    });
+    const newCount = statuses.filter((s) => s.kind === 'new').length;
+    return { statuses, newCount, updateCount: statuses.length - newCount, loaded: true };
+  }, [households, existingData]);
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl">
@@ -448,7 +496,7 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
         {/* Preview */}
         {step === 'preview' && (
           <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
               <Users className="h-4 w-4 text-emerald-500" />
               <span>
                 <strong>{households.length}</strong> {households.length === 1 ? 'household' : 'households'}
@@ -456,6 +504,14 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
                 <strong>{memberCount}</strong> {memberCount === 1 ? 'contact' : 'contacts'} from{' '}
                 <span className="text-muted-foreground">{fileName}</span>
               </span>
+              {dedupLoading && <span className="text-xs text-muted-foreground">· checking for duplicates…</span>}
+              {dedup.loaded && (
+                <span className="text-xs text-muted-foreground">
+                  · <strong className="text-blue-600">{dedup.newCount}</strong> new
+                  {' · '}
+                  <strong className="text-amber-600">{dedup.updateCount}</strong> update
+                </span>
+              )}
             </div>
             <div className="max-h-64 overflow-auto rounded-lg border">
               <table className="w-full text-xs">
@@ -475,7 +531,26 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
                         {g.members.map((m) => `${m.first_name} ${m.last_name}`.trim()).join(', ')}
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">{g.household.city || '—'}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{g.household.status || '—'}</td>
+                      <td className="px-3 py-2">
+                        {!dedup.loaded ? (
+                          <span className="text-xs text-muted-foreground">Checking…</span>
+                        ) : (() => {
+                          const st = dedup.statuses[i];
+                          if (!st || st.kind === 'new') {
+                            return <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">New</span>;
+                          }
+                          const parts = [];
+                          if (st.hhChanges.length) parts.push(st.hhChanges.map(fieldLabel).join(', '));
+                          if (st.newMembers) parts.push(`+${st.newMembers} contact${st.newMembers > 1 ? 's' : ''}`);
+                          if (st.updatedMembers) parts.push(`${st.updatedMembers} update${st.updatedMembers > 1 ? 's' : ''}`);
+                          return (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="inline-flex w-fit rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Update existing</span>
+                              <span className="text-[10px] text-muted-foreground">{parts.length ? parts.join(' · ') : 'no changes'}</span>
+                            </div>
+                          );
+                        })()}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -518,8 +593,10 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
           {step === 'preview' && (
             <>
               <Button variant="outline" onClick={() => reset()}>Cancel</Button>
-              <Button onClick={handleImport} disabled={step !== 'preview'}>
-                Import {households.length} {households.length === 1 ? 'household' : 'households'}
+              <Button onClick={handleImport} disabled={step !== 'preview' || dedupLoading}>
+                {dedupLoading ? 'Checking duplicates…' : (
+                  <>Import {dedup.loaded ? `${dedup.newCount} new` : households.length}{dedup.loaded && dedup.updateCount ? ` · ${dedup.updateCount} update` : ''}</>
+                )}
               </Button>
             </>
           )}
