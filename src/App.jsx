@@ -27,6 +27,7 @@ import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import Recommendations from '@/pages/Recommendations';
 import MinistryIntelligence from '@/pages/MinistryIntelligence';
+import MinistrySignalHistory from '@/pages/MinistrySignalHistory';
 // Add page imports here
 
 const AuthenticatedApp = () => {
@@ -70,6 +71,7 @@ const AuthenticatedApp = () => {
           <Route path="/reports" element={<Reports />} />
           <Route path="/recommendations" element={<Recommendations />} />
           <Route path="/intelligence" element={<MinistryIntelligence />} />
+          <Route path="/intelligence/history" element={<MinistrySignalHistory />} />
           <Route path="/volunteer-teams" element={<VolunteerTeams />} />
           <Route path="/volunteer-teams/:id" element={<VolunteerTeamProfile />} />
           <Route element={<AdminRoute />}>

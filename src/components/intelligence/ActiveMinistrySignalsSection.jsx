@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Activity, AlertTriangle, Clock, CircleDot } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Activity, AlertTriangle, Clock, CircleDot, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Section from '@/components/intelligence/Section';
 import MinistrySignalDetailDialog from '@/components/intelligence/MinistrySignalDetailDialog';
@@ -74,9 +75,14 @@ export default function ActiveMinistrySignalsSection({ signals, summary, loading
         {summary?.aged > 0 && (
           <p className="mt-2 inline-flex items-center gap-1 text-xs text-red-600">
             <AlertTriangle className="h-3.5 w-3.5" />
-            {summary.aged} signal(s) open beyond the {14}-day aging threshold.
+            {summary.aged} signal(s) open beyond the {summary.agingWarningDays}-day aging threshold.
           </p>
         )}
+        <div className="mt-3 flex justify-end">
+          <Link to="/intelligence/history" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+            View Signal History <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
       </Section>
       <MinistrySignalDetailDialog signal={selected} onOpenChange={(open) => !open && setSelected(null)} />
     </>
