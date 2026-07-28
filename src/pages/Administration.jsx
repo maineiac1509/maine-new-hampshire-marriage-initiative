@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Users, Settings, Upload, ListChecks, UsersRound, ArrowRight, SlidersHorizontal } from 'lucide-react';
 import { RECOMMENDATION_CONFIG } from '@/lib/recommendationEngine';
 import { STEWARDSHIP_HEALTH_CONFIG } from '@/lib/stewardshipHealth';
+import { SIGNAL_CONFIG } from '@/lib/ministrySignalEngine';
+import { Brain } from 'lucide-react';
 
 const SECTIONS = [
   {
@@ -106,6 +108,66 @@ export default function Administration() {
           ))}
         </div>
         <p className="mt-3 text-xs text-muted-foreground">Additional recommendation rules can be added without modifying existing logic. These values are the foundation for future Ministry Coach intelligence.</p>
+      </section>
+
+      <section className="rounded-xl border bg-card p-5 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+            <Brain className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Ministry Intelligence Engine</h2>
+            <p className="text-sm text-muted-foreground">Centralized thresholds that drive leadership Ministry Signals.</p>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-lg border p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Capacity Risk Team Count</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-foreground">{SIGNAL_CONFIG.capacityRiskTeamCount}</p>
+            <p className="text-xs text-muted-foreground">Teams over threshold to trigger Volunteer Capacity Risk.</p>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Assignment Imbalance Ratio</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-foreground">{Math.round(SIGNAL_CONFIG.assignmentImbalanceRatio * 100)}%</p>
+            <p className="text-xs text-muted-foreground">How much a team must exceed the average to flag imbalance.</p>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Growth Rate Threshold</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-foreground">{SIGNAL_CONFIG.growthRateThreshold}</p>
+            <p className="text-xs text-muted-foreground">New Champions per period to flag Growing Ministry Region.</p>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Recommendation Backlog</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-foreground">{SIGNAL_CONFIG.recommendationBacklogThreshold}</p>
+            <p className="text-xs text-muted-foreground">Open recommendations to trigger Recommendation Backlog.</p>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Critical Backlog</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-foreground">{SIGNAL_CONFIG.criticalRecBacklogThreshold}</p>
+            <p className="text-xs text-muted-foreground">Critical open recommendations to trigger backlog.</p>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Transfer Trend Threshold</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-foreground">{SIGNAL_CONFIG.transferTrendThreshold}</p>
+            <p className="text-xs text-muted-foreground">Transfers per period to flag Stewardship Transfer Trend.</p>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Unassigned Growth</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-foreground">{SIGNAL_CONFIG.unassignedGrowthThreshold}</p>
+            <p className="text-xs text-muted-foreground">Unassigned Champions to flag Unassigned Champion Growth.</p>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Health Decline Threshold</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-foreground">{SIGNAL_CONFIG.healthDeclineThreshold}</p>
+            <p className="text-xs text-muted-foreground">Champions declining in health to flag Declining Stewardship Health.</p>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Signal Aging Warning</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-foreground">{SIGNAL_CONFIG.signalAgingWarningDays} days</p>
+            <p className="text-xs text-muted-foreground">Open signals beyond this age are highlighted.</p>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">New signal rules require only a rule entry and configuration — existing rules and consumers never need to change. The engine is the structured knowledge source for Epic 7 (Ministry Coach).</p>
       </section>
     </div>
   );

@@ -9,6 +9,9 @@ import VolunteerIntelligenceSection from '@/components/intelligence/VolunteerInt
 import MinistryGrowthSection from '@/components/intelligence/MinistryGrowthSection';
 import EmergingRisksSection from '@/components/intelligence/EmergingRisksSection';
 import MinistryOpportunitiesSection from '@/components/intelligence/MinistryOpportunitiesSection';
+import MinistryStory from '@/components/intelligence/MinistryStory';
+import ActiveMinistrySignalsSection from '@/components/intelligence/ActiveMinistrySignalsSection';
+import { useMinistrySignals } from '@/hooks/useMinistrySignals';
 
 // Ministry Intelligence Dashboard — executive command center built entirely
 // from existing stewardship data. Every metric is drillable and every summary
@@ -35,6 +38,10 @@ export default function MinistryIntelligence() {
   }, []);
 
   const intel = useMemo(() => computeMinistryIntelligence({ ...data, preset }), [data, preset]);
+  const signals = useMinistrySignals({
+    intel, recommendations: data.recommendations, teams: data.teams,
+    households: data.households, assignments: data.assignments, enabled: !loading,
+  });
 
   if (loading) {
     return <div className="py-20 text-center text-sm text-muted-foreground">Loading ministry intelligence…</div>;
@@ -47,6 +54,8 @@ export default function MinistryIntelligence() {
         subtitle="Executive command center for stewardship health, momentum, risks, and opportunities."
         actions={<DateRangeControl value={preset} onChange={setPreset} />}
       />
+      <MinistryStory lines={signals.story} />
+      <ActiveMinistrySignalsSection signals={signals.activeSignals} summary={signals.summary} loading={signals.loading} />
       <MinistryHealthSection data={intel.health} />
       <StewardshipPerformanceSection data={intel.performance} />
       <VolunteerIntelligenceSection data={intel.volunteer} />

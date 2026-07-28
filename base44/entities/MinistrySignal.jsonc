@@ -1,0 +1,159 @@
+{
+  "name": "MinistrySignal",
+  "type": "object",
+  "properties": {
+    "identity": {
+      "type": "string",
+      "title": "Identity Key"
+    },
+    "signal_type": {
+      "type": "string",
+      "title": "Signal Type",
+      "enum": [
+        "Volunteer Capacity Risk",
+        "Assignment Imbalance",
+        "Growing Ministry Region",
+        "Declining Stewardship Health",
+        "Recommendation Backlog",
+        "Positive Ministry Momentum",
+        "Stewardship Transfer Trend",
+        "Unassigned Champion Growth"
+      ]
+    },
+    "category": {
+      "type": "string",
+      "title": "Category",
+      "enum": [
+        "Capacity",
+        "Stewardship",
+        "Growth",
+        "Recommendations",
+        "Momentum",
+        "Transfers"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "title": "Severity",
+      "enum": [
+        "Information",
+        "Low",
+        "Medium",
+        "High",
+        "Critical"
+      ],
+      "default": "Medium"
+    },
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "why_generated": {
+      "type": "string",
+      "title": "Why This Signal Was Generated"
+    },
+    "supporting_metrics": {
+      "type": "string",
+      "title": "Supporting Metrics"
+    },
+    "supporting_recommendations": {
+      "type": "string",
+      "title": "Supporting Recommendations"
+    },
+    "related_champions": {
+      "type": "string",
+      "title": "Related Champions"
+    },
+    "related_teams": {
+      "type": "string",
+      "title": "Related Volunteer Teams"
+    },
+    "suggested_action": {
+      "type": "string",
+      "title": "Suggested Leadership Action"
+    },
+    "date_generated": {
+      "type": "string",
+      "format": "date",
+      "title": "Date Generated"
+    },
+    "status": {
+      "type": "string",
+      "title": "Status",
+      "enum": [
+        "Open",
+        "Acknowledged",
+        "Resolved"
+      ],
+      "default": "Open"
+    },
+    "acknowledged_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Acknowledged Date"
+    },
+    "resolved_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Resolved Date"
+    },
+    "resolution_notes": {
+      "type": "string",
+      "title": "Resolution Notes"
+    }
+  },
+  "required": [
+    "identity",
+    "signal_type",
+    "status"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "director"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "director"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "director"
+          }
+        }
+      ]
+    }
+  }
+}
