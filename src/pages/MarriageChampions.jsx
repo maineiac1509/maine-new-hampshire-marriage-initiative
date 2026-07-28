@@ -112,7 +112,7 @@ export default function MarriageChampions() {
         setCurrentUser(u);
         if (!defaultedRef.current) {
           defaultedRef.current = true;
-          setActiveView(viewParam || (u?.role === 'volunteer' ? 'my' : 'all'));
+          setActiveView(viewParam || 'my');
         }
         if (healthParam) setHealthFilter(healthParam);
       })
