@@ -162,8 +162,8 @@ export default function Assignments() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Assignments"
-        subtitle={`${assignments.length} ${assignments.length === 1 ? 'record' : 'records'} · ${counts.unassigned} ${counts.unassigned === 1 ? 'Champion needs' : 'Champions need'} a team`}
+        title="Assignment Management"
+        subtitle={`Administrative stewardship · ${assignments.length} ${assignments.length === 1 ? 'record' : 'records'} · ${counts.unassigned} ${counts.unassigned === 1 ? 'Champion needs' : 'Champions need'} a team`}
       />
 
       {/* Summary cards */}

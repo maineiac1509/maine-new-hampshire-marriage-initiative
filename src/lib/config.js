@@ -10,14 +10,10 @@ export const APP_CONFIG = {
 export const NAV_ITEMS = [
   { label: 'Dashboard', path: '/', icon: 'LayoutDashboard' },
   { label: 'Marriage Champions', path: '/champions', icon: 'Users' },
-  { label: 'Assignments', path: '/assignments', icon: 'UserCheck' },
-  { label: 'Contact History', path: '/contact-history', icon: 'MessageSquare' },
-  { label: 'Reports', path: '/reports', icon: 'BarChart3' },
-  { label: 'Ministry Intelligence', path: '/intelligence', icon: 'Activity' },
-  { label: 'Stewardship Guides', path: '/stewardship-guides', icon: 'BookOpen' },
-  { label: 'Communication Center', path: '/communication', icon: 'MessagesSquare' },
-  { label: 'Resource Library', path: '/resources', icon: 'Library' },
-  { label: 'Users', path: '/users', icon: 'UsersRound', adminOnly: true },
+  { label: 'Teams', path: '/volunteer-teams', icon: 'UsersRound' },
+  { label: 'Intelligence', path: '/intelligence', icon: 'Activity' },
+  { label: 'Resources', path: '/resources', icon: 'Library' },
+  { label: 'Communication', path: '/communication', icon: 'MessagesSquare' },
   { label: 'Administration', path: '/administration', icon: 'Settings', adminOnly: true },
 ];
 

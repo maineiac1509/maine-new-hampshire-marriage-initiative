@@ -74,8 +74,6 @@ const AuthenticatedApp = () => {
           <Route path="/" element={<Dashboard />} />
           <Route path="/champions" element={<MarriageChampions />} />
           <Route path="/champions/:id" element={<ChampionProfile />} />
-          <Route path="/assignments" element={<Assignments />} />
-          <Route path="/assignments/:id" element={<AssignmentDetail />} />
           <Route path="/contact-history" element={<ContactHistory />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/recommendations" element={<Recommendations />} />
@@ -93,6 +91,8 @@ const AuthenticatedApp = () => {
             <Route path="/users" element={<Users />} />
             <Route path="/users/:id" element={<UserDetail />} />
             <Route path="/administration" element={<Administration />} />
+            <Route path="/assignments" element={<Assignments />} />
+            <Route path="/assignments/:id" element={<AssignmentDetail />} />
             <Route path="/stewardship-guides/admin" element={<StewardshipGuideAdmin />} />
             <Route path="/communication/admin" element={<CommunicationAdmin />} />
             <Route path="/resources/admin" element={<ResourceAdmin />} />
