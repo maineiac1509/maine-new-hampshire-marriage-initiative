@@ -37,6 +37,19 @@ export default function TeamProfileHeader({
           ) : (
             <h1 className="text-2xl font-bold tracking-tight">{team.team_name}</h1>
           )}
+          {editing ? (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Family Name</span>
+              <Input
+                value={t?.family_name || ''}
+                onChange={(e) => onField('family_name', e.target.value)}
+                placeholder="Optional"
+                className="h-8 max-w-xs"
+              />
+            </div>
+          ) : (
+            team.family_name && <p className="text-sm text-muted-foreground">Family Name: {team.family_name}</p>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge variant={team.active === false ? 'neutral' : 'success'}>
               {team.active === false ? 'Inactive' : 'Active'}
