@@ -32,18 +32,18 @@ export const CONTACT_METHOD_OPTIONS = [
   'Phone', 'Email', 'Text Message', 'In Person', 'Video Call', 'Mail', 'Other',
 ];
 
-// Maps each Activity Type to the contact methods that make sense for it.
-// Used by the Log Activity dialog to filter the Contact Method dropdown.
-export const ACTIVITY_CONTACT_METHODS = {
-  'Phone Call': ['Phone', 'Video Call'],
-  'Voicemail': ['Phone'],
-  'Text Message': ['Text Message'],
-  'Email': ['Email'],
-  'In Person': ['In Person'],
-  'Meeting': ['In Person', 'Video Call', 'Phone'],
-  'Prayer': ['In Person', 'Video Call', 'Phone', 'Text Message', 'Email'],
+// Maps each Activity Type to the outcomes that make sense for it.
+// Used by the Log Activity dialog to filter the Outcome dropdown.
+export const ACTIVITY_OUTCOMES = {
+  'Phone Call': ['No Answer', 'Left Voicemail', 'Spoke with Champion', 'Requested Follow-up', 'Interested', 'Not Interested', 'Do Not Contact', 'Other'],
+  'Voicemail': ['Left Voicemail', 'Other'],
+  'Text Message': ['Spoke with Champion', 'Requested Follow-up', 'Interested', 'Not Interested', 'Do Not Contact', 'Other'],
+  'Email': ['Spoke with Champion', 'Requested Follow-up', 'Interested', 'Not Interested', 'Do Not Contact', 'Other'],
+  'In Person': ['Spoke with Champion', 'Requested Follow-up', 'Interested', 'Not Interested', 'Serving', 'Do Not Contact', 'Other'],
+  'Meeting': ['Spoke with Champion', 'Requested Follow-up', 'Interested', 'Not Interested', 'Serving', 'Other'],
+  'Prayer': ['Spoke with Champion', 'Requested Follow-up', 'Other'],
   'Administrative Update': ['Other'],
-  'Other': CONTACT_METHOD_OPTIONS,
+  'Other': CONTACT_OUTCOME_OPTIONS,
 };
 export const CONTACT_OUTCOME_OPTIONS = [
   'No Answer', 'Left Voicemail', 'Spoke with Champion', 'Requested Follow-up',

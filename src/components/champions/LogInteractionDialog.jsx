@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { ACTIVITY_TYPE_OPTIONS, CONTACT_METHOD_OPTIONS, ACTIVITY_CONTACT_METHODS, CONTACT_OUTCOME_OPTIONS, OUTCOME_STATUS_SUGGESTIONS } from '@/lib/config';
+import { ACTIVITY_TYPE_OPTIONS, ACTIVITY_OUTCOMES, CONTACT_OUTCOME_OPTIONS, OUTCOME_STATUS_SUGGESTIONS } from '@/lib/config';
 import { Loader2, Sparkles } from 'lucide-react';
 import RelationshipStatusBadge from './RelationshipStatusBadge';
 
@@ -22,7 +22,6 @@ function todayStr() {
 const EMPTY = {
   activity_date: todayStr(),
   activity_type: 'Phone Call',
-  contact_method: '',
   outcome: '',
   summary: '',
   detailed_notes: '',
@@ -58,17 +57,17 @@ export default function LogInteractionDialog({
     setForm((f) => ({ ...f, [field]: value }));
   }
 
-  // When activity type changes, clear contact_method if it's no longer valid.
+  // When activity type changes, clear outcome if it's no longer valid.
   function setActivityType(value) {
-    const validMethods = ACTIVITY_CONTACT_METHODS[value] || CONTACT_METHOD_OPTIONS;
+    const validOutcomes = ACTIVITY_OUTCOMES[value] || CONTACT_OUTCOME_OPTIONS;
     setForm((f) => ({
       ...f,
       activity_type: value,
-      contact_method: validMethods.includes(f.contact_method) ? f.contact_method : '',
+      outcome: validOutcomes.includes(f.outcome) ? f.outcome : '',
     }));
   }
 
-  const availableContactMethods = ACTIVITY_CONTACT_METHODS[form.activity_type] || CONTACT_METHOD_OPTIONS;
+  const availableOutcomes = ACTIVITY_OUTCOMES[form.activity_type] || CONTACT_OUTCOME_OPTIONS;
 
   async function handleSave() {
     setError('');
@@ -82,7 +81,6 @@ export default function LogInteractionDialog({
         household_id: householdId,
         activity_date: form.activity_date,
         activity_type: form.activity_type,
-        contact_method: form.contact_method || '',
         outcome: form.outcome || '',
         summary: form.summary.trim(),
         detailed_notes: form.detailed_notes || '',
@@ -187,20 +185,11 @@ export default function LogInteractionDialog({
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Contact Method</Label>
-                <Select value={form.contact_method || ''} onValueChange={(v) => set('contact_method', v)}>
-                  <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
-                  <SelectContent>
-                    {availableContactMethods.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
                 <Label>Outcome</Label>
                 <Select value={form.outcome || ''} onValueChange={(v) => set('outcome', v)}>
                   <SelectTrigger><SelectValue placeholder="Select outcome" /></SelectTrigger>
                   <SelectContent>
-                    {CONTACT_OUTCOME_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                    {availableOutcomes.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
