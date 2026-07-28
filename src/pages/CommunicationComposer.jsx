@@ -18,6 +18,24 @@ import {
 import RelatedResourcesPanel from '@/components/resources/RelatedResourcesPanel';
 import { useToast } from '@/components/ui/use-toast';
 
+const ACTIVITY_TYPE_MAP = {
+  'Text Message': 'Text Message',
+  'Email': 'Email',
+  'Phone Call': 'Phone Call',
+  'Prayer': 'Prayer',
+  'Coffee Invitation': 'Meeting',
+  'Other': 'Other',
+};
+
+const CONTACT_METHOD_MAP = {
+  'Text Message': 'Text Message',
+  'Email': 'Email',
+  'Phone Call': 'Phone',
+  'Coffee Invitation': 'In Person',
+  'Prayer': 'In Person',
+  'Other': 'Other',
+};
+
 export default function CommunicationComposer() {
   const { toast } = useToast();
   const [params, setParams] = useSearchParams();
@@ -148,20 +166,39 @@ export default function CommunicationComposer() {
     }
     setLogging(true);
     try {
+      const today = new Date().toISOString().slice(0, 10);
+      const summary = logForm.subject || template?.title || `${logForm.communication_type} via Communication Center`;
+      const notes = logForm.notes || workingBody;
+
       await base44.entities.CommunicationLog.create({
         household_id: selectedChampionId,
         communication_type: logForm.communication_type,
         template_id: template?.id,
         template_title: template?.title,
         volunteer_name: user?.full_name || '',
-        date: new Date().toISOString().slice(0, 10),
+        date: today,
         subject: logForm.subject,
-        notes: logForm.notes || workingBody,
+        notes,
         follow_up_date: logForm.follow_up_date || undefined,
         outcome: logForm.outcome,
         related_guide: logForm.related_guide,
       });
-      toast({ title: 'Communication logged', description: 'Saved to this Champion\'s history.' });
+
+      await base44.entities.ChampionActivity.create({
+        household_id: selectedChampionId,
+        activity_date: today,
+        activity_type: ACTIVITY_TYPE_MAP[logForm.communication_type] || 'Other',
+        contact_method: CONTACT_METHOD_MAP[logForm.communication_type],
+        summary,
+        detailed_notes: notes,
+        follow_up_required: !!logForm.follow_up_date,
+        follow_up_date: logForm.follow_up_date || undefined,
+        logged_by_user_id: user?.id || '',
+        logged_by_name: user?.full_name || '',
+        logged_at: new Date().toISOString(),
+      });
+
+      toast({ title: 'Communication logged', description: 'Saved to this Champion\'s timeline and history.' });
       setLogOpen(false);
       setLogForm({ communication_type: logForm.communication_type, subject: '', notes: '', follow_up_date: '', outcome: '', related_guide: '' });
     } catch (err) {
