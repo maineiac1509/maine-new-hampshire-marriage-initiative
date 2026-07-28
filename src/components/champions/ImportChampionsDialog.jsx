@@ -16,6 +16,10 @@ const HOUSEHOLD_FIELDS = [
   'church_name', 'church_city', 'church_state', 'church_zip_code',
   'church_priority', 'marriage_conference_priority',
   'do_not_call', 'do_not_text', 'email_opt_out',
+  'cumulative_registrations', 'free_couple_registrations_used',
+  'free_couple_registrations_available',
+  'registrations_toward_next_free_registration',
+  'registrations_needed_for_next_free_registration',
   'assigned_volunteer', 'assigned_director', 'notes',
 ];
 
@@ -28,6 +32,10 @@ const COLUMNS = [
   'champion_status', 'church_name', 'church_city', 'church_state', 'church_zip_code',
   'church_priority', 'marriage_conference_priority',
   'do_not_call', 'do_not_text', 'email_opt_out',
+  'cumulative_registrations', 'free_couple_registrations_used',
+  'free_couple_registrations_available',
+  'registrations_toward_next_free_registration',
+  'registrations_needed_for_next_free_registration',
   'registration_date', 'registration_type', 'group_name',
   'assigned_volunteer', 'assigned_director', 'notes',
 ];
@@ -64,6 +72,11 @@ const CHAMPION_SCHEMA = {
     do_not_call: { type: 'string' },
     do_not_text: { type: 'string' },
     email_opt_out: { type: 'string' },
+    cumulative_registrations: { type: 'string' },
+    free_couple_registrations_used: { type: 'string' },
+    free_couple_registrations_available: { type: 'string' },
+    registrations_toward_next_free_registration: { type: 'string' },
+    registrations_needed_for_next_free_registration: { type: 'string' },
     registration_date: { type: 'string' },
     registration_type: { type: 'string' },
     group_name: { type: 'string' },
@@ -101,6 +114,11 @@ const HEADER_MAP = {
   do_not_call: ['do not call', 'dnc', 'do not call?', "don't call", 'no call'],
   do_not_text: ['do not text', 'dnt', 'do not text?', "don't text", 'no text'],
   email_opt_out: ['email opt out', 'email opt-out', 'opt out', 'opt-out', 'unsubscribe', 'email unsubscribe'],
+  cumulative_registrations: ['cumulative registrations', 'cumulative', 'total registrations', 'registrations cumulative'],
+  free_couple_registrations_used: ['free couple registrations used', 'free registrations used', 'free couple used', 'comp used'],
+  free_couple_registrations_available: ['free couple registrations available', 'free registrations available', 'free couple available', 'comp available'],
+  registrations_toward_next_free_registration: ['registrations toward next free registration', 'toward next free', 'toward next', 'registrations toward'],
+  registrations_needed_for_next_free_registration: ['registrations needed for next free registration', 'needed for next free', 'needed for next', 'registrations needed'],
   registration_date: ['registration date', 'reg date', 'registration', 'date registered', 'registered'],
   registration_type: ['registration type', 'reg type', 'type'],
   group_name: ['group', 'group name', 'groupname', 'small group'],
@@ -137,6 +155,13 @@ function normalizePriority(v) {
   return null;
 }
 
+function parseNumber(v) {
+  const s = (v ?? '').toString().replace(/[^0-9.-]/g, '');
+  if (s === '' || s === '-' || s === '.') return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
 function normalizeChampionStatus(v) {
   const s = (v ?? '').toString().trim().toLowerCase();
   if (['active', 'a', 'current'].includes(s)) return 'Active';
@@ -154,6 +179,11 @@ const NORMALIZERS = {
   do_not_call: { fn: parseBoolean, label: 'Do Not Call' },
   do_not_text: { fn: parseBoolean, label: 'Do Not Text' },
   email_opt_out: { fn: parseBoolean, label: 'Email Opt Out' },
+  cumulative_registrations: { fn: parseNumber, label: 'Cumulative Registrations' },
+  free_couple_registrations_used: { fn: parseNumber, label: 'Free Couple Registrations Used' },
+  free_couple_registrations_available: { fn: parseNumber, label: 'Free Couple Registrations Available' },
+  registrations_toward_next_free_registration: { fn: parseNumber, label: 'Registrations Toward Next Free Registration' },
+  registrations_needed_for_next_free_registration: { fn: parseNumber, label: 'Registrations Needed For Next Free Registration' },
 };
 
 function mapHeader(header) {
