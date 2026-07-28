@@ -19,7 +19,7 @@ const RELATIONSHIP_OPTIONS = ['Primary', 'Spouse', 'Member'];
 const EMPTY_MEMBER = { first_name: '', last_name: '', email: '', mobile_phone: '', relationship: 'Primary' };
 
 const EMPTY_HOUSEHOLD = {
-  household_name: '', address: '', city: '', state: '', zip_code: '', home_phone: '',
+  household_name: '', address: '', city: '', state: '', zip_code: '', home_phone: '', email: '',
   area: '', registration_date: '', registration_type: 'Couple', status: 'New',
   relationship_status: 'New', group_name: '', assigned_volunteer: '',
   assigned_director: '', notes: '',
@@ -141,6 +141,10 @@ export default function AddChampionDialog({ open, onOpenChange, onCreated }) {
               <div className="space-y-1">
                 <Label htmlFor="hh-home-phone">Home Phone</Label>
                 <Input id="hh-home-phone" value={household.home_phone} onChange={(e) => updateHousehold('home_phone', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="hh-email">Email</Label>
+                <Input id="hh-email" type="email" value={household.email} onChange={(e) => updateHousehold('email', e.target.value)} />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="hh-reg-date">Registration Date</Label>

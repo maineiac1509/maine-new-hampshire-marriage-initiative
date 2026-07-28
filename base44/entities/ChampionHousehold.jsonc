@@ -26,6 +26,11 @@
       "type": "string",
       "title": "Home Phone"
     },
+    "email": {
+      "type": "string",
+      "title": "Email",
+      "format": "email"
+    },
     "area": {
       "type": "string",
       "title": "Area"

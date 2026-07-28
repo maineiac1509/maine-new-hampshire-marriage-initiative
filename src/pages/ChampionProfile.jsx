@@ -375,12 +375,20 @@ export default function ChampionProfile() {
             <FieldRow label="State" value={h.state} editing={editing} onChange={(v) => setField('state', v)} />
             <FieldRow label="Zip Code" value={h.zip_code} editing={editing} onChange={(v) => setField('zip_code', v)} />
             <FieldRow label="Home Phone" value={h.home_phone} editing={editing} onChange={(v) => setField('home_phone', v)} />
+            <FieldRow label="Email" value={h.email} editing={editing} type="email" onChange={(v) => setField('email', v)} />
           </dl>
-          {!editing && h.home_phone && (
-            <div className="mt-4">
-              <Button size="sm" variant="outline" asChild>
-                <a href={`tel:${h.home_phone}`}><Phone className="h-4 w-4" /> Call Home</a>
-              </Button>
+          {!editing && (h.home_phone || h.email) && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {h.home_phone && (
+                <Button size="sm" variant="outline" asChild>
+                  <a href={`tel:${h.home_phone}`}><Phone className="h-4 w-4" /> Call Home</a>
+                </Button>
+              )}
+              {h.email && (
+                <Button size="sm" variant="outline" asChild>
+                  <a href={`mailto:${h.email}`}><Mail className="h-4 w-4" /> Email</a>
+                </Button>
+              )}
             </div>
           )}
         </Section>
