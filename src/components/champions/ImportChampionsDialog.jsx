@@ -8,6 +8,32 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 
+// Full set of household-level fields the importer understands.
+const HOUSEHOLD_FIELDS = [
+  'household_name', 'address', 'address_line_2', 'city', 'state', 'zip_code',
+  'home_phone', 'email', 'area', 'registration_date', 'registration_type',
+  'group_name', 'status', 'champion_status',
+  'church_name', 'church_city', 'church_state', 'church_zip_code',
+  'church_priority', 'marriage_conference_priority',
+  'do_not_call', 'do_not_text', 'email_opt_out',
+  'assigned_volunteer', 'assigned_director', 'notes',
+];
+
+const MEMBER_FIELDS = ['first_name', 'last_name', 'email', 'mobile_phone', 'work_phone', 'relationship'];
+
+const COLUMNS = [
+  'household_name', 'first_name', 'last_name', 'account_salutation', 'email',
+  'mobile_phone', 'home_phone', 'work_phone', 'relationship',
+  'address', 'address_line_2', 'city', 'state', 'zip_code', 'area', 'status',
+  'champion_status', 'church_name', 'church_city', 'church_state', 'church_zip_code',
+  'church_priority', 'marriage_conference_priority',
+  'do_not_call', 'do_not_text', 'email_opt_out',
+  'registration_date', 'registration_type', 'group_name',
+  'assigned_volunteer', 'assigned_director', 'notes',
+];
+
+const RELATIONSHIP_BY_INDEX = ['Primary', 'Spouse', 'Member'];
+
 // Schema for the extractor — one row per person, carrying household fields too.
 const CHAMPION_SCHEMA = {
   type: 'object',
@@ -15,12 +41,12 @@ const CHAMPION_SCHEMA = {
     household_name: { type: 'string' },
     first_name: { type: 'string' },
     last_name: { type: 'string' },
+    account_salutation: { type: 'string' },
     email: { type: 'string' },
     mobile_phone: { type: 'string' },
-    relationship: { type: 'string' },
     home_phone: { type: 'string' },
     work_phone: { type: 'string' },
-    account_salutation: { type: 'string' },
+    relationship: { type: 'string' },
     address: { type: 'string' },
     address_line_2: { type: 'string' },
     city: { type: 'string' },
@@ -28,6 +54,16 @@ const CHAMPION_SCHEMA = {
     zip_code: { type: 'string' },
     area: { type: 'string' },
     status: { type: 'string' },
+    champion_status: { type: 'string' },
+    church_name: { type: 'string' },
+    church_city: { type: 'string' },
+    church_state: { type: 'string' },
+    church_zip_code: { type: 'string' },
+    church_priority: { type: 'string' },
+    marriage_conference_priority: { type: 'string' },
+    do_not_call: { type: 'string' },
+    do_not_text: { type: 'string' },
+    email_opt_out: { type: 'string' },
     registration_date: { type: 'string' },
     registration_type: { type: 'string' },
     group_name: { type: 'string' },
@@ -38,22 +74,6 @@ const CHAMPION_SCHEMA = {
   required: ['first_name', 'last_name'],
 };
 
-const HOUSEHOLD_FIELDS = [
-  'household_name', 'address', 'address_line_2', 'city', 'state', 'zip_code', 'home_phone', 'area',
-  'registration_date', 'registration_type', 'group_name', 'status',
-  'assigned_volunteer', 'assigned_director', 'notes',
-];
-
-const COLUMNS = [
-  'household_name', 'first_name', 'last_name', 'account_salutation', 'email', 'mobile_phone', 'home_phone', 'work_phone',
-  'relationship', 'address', 'address_line_2', 'city', 'state', 'zip_code', 'area', 'status',
-  'registration_date', 'registration_type', 'group_name',
-  'assigned_volunteer', 'assigned_director', 'notes',
-];
-
-const RELATIONSHIP_BY_INDEX = ['Primary', 'Spouse', 'Member'];
-
-// Maps common spreadsheet column headers to entity field keys.
 const HEADER_MAP = {
   household_name: ['household', 'household name', 'family', 'family name'],
   account_salutation: ['account salutation', 'salutation'],
@@ -71,6 +91,16 @@ const HEADER_MAP = {
   zip_code: ['zip', 'zip code', 'zip/postal', 'postal', 'postal code', 'postcode'],
   area: ['area', 'region', 'territory'],
   status: ['status'],
+  champion_status: ['champion status', 'champion'],
+  church_name: ['church name', 'church', 'home church', 'church attended'],
+  church_city: ['church city'],
+  church_state: ['church state'],
+  church_zip_code: ['church zip', 'church zip code', 'church postal', 'church postal code'],
+  church_priority: ['church priority', 'church prioritization', 'church prio'],
+  marriage_conference_priority: ['marriage conference priority', 'conference priority', 'weekend priority', 'marriage priority'],
+  do_not_call: ['do not call', 'dnc', 'do not call?', "don't call", 'no call'],
+  do_not_text: ['do not text', 'dnt', 'do not text?', "don't text", 'no text'],
+  email_opt_out: ['email opt out', 'email opt-out', 'opt out', 'opt-out', 'unsubscribe', 'email unsubscribe'],
   registration_date: ['registration date', 'reg date', 'registration', 'date registered', 'registered'],
   registration_type: ['registration type', 'reg type', 'type'],
   group_name: ['group', 'group name', 'groupname', 'small group'],
@@ -85,6 +115,46 @@ const POSITIONAL_FALLBACK = [
   'registration_date', 'registration_type', 'group_name',
   'assigned_volunteer', 'assigned_director', 'notes',
 ];
+
+// --- value normalization for enum / boolean fields ---
+const TRUTHY = new Set([
+  'yes', 'y', 'true', '1', 'x', '✓', 'checked',
+  'opt out', 'opt-out', 'unsubscribe', 'email opt out', 'email opt-out',
+  'do not call', 'do not text', 'no call', 'no text', "don't call", "don't text",
+]);
+
+function parseBoolean(v) {
+  const s = (v ?? '').toString().trim().toLowerCase();
+  if (!s) return false;
+  return TRUTHY.has(s);
+}
+
+function normalizePriority(v) {
+  const s = (v ?? '').toString().trim().toLowerCase();
+  if (['high', 'h', 'urgent'].includes(s)) return 'High';
+  if (['medium', 'med', 'm', 'normal', 'mid'].includes(s)) return 'Medium';
+  if (['low', 'l'].includes(s)) return 'Low';
+  return null;
+}
+
+function normalizeChampionStatus(v) {
+  const s = (v ?? '').toString().trim().toLowerCase();
+  if (['active', 'a', 'current'].includes(s)) return 'Active';
+  if (['inactive', 'i', 'former'].includes(s)) return 'Inactive';
+  if (['prospect', 'p', 'potential', 'lead'].includes(s)) return 'Prospect';
+  if (['alumni', 'alumnus', 'alum', 'past'].includes(s)) return 'Alumni';
+  return null;
+}
+
+// Fields that need their values normalized before being written.
+const NORMALIZERS = {
+  church_priority: { fn: normalizePriority, label: 'Church Priority' },
+  marriage_conference_priority: { fn: normalizePriority, label: 'Marriage Conference Priority' },
+  champion_status: { fn: normalizeChampionStatus, label: 'Champion Status' },
+  do_not_call: { fn: parseBoolean, label: 'Do Not Call' },
+  do_not_text: { fn: parseBoolean, label: 'Do Not Text' },
+  email_opt_out: { fn: parseBoolean, label: 'Email Opt Out' },
+};
 
 function mapHeader(header) {
   const h = (header || '').trim().toLowerCase();
@@ -130,9 +200,23 @@ function parsePastedData(text) {
 }
 
 // Groups flat person-rows into households with their member contacts.
+// Also collects diagnostics: which fields imported, which were skipped, and
+// any values that failed enum/boolean normalization.
 function buildHouseholds(rows) {
   const groups = [];
   const keyMap = new Map();
+  const fieldsImported = {};
+  const validationErrors = [];
+
+  // Track every non-blank value we see, so we can report coverage.
+  rows.forEach((row) => {
+    Object.entries(row).forEach(([f, v]) => {
+      if (v != null && v.toString().trim() !== '') {
+        fieldsImported[f] = (fieldsImported[f] || 0) + 1;
+      }
+    });
+  });
+
   rows.forEach((row) => {
     const name = (row.household_name || '').trim().toLowerCase();
     const ln = (row.last_name || '').trim().toLowerCase();
@@ -146,7 +230,25 @@ function buildHouseholds(rows) {
     }
     // Merge household-level fields (first non-empty value wins).
     HOUSEHOLD_FIELDS.forEach((f) => {
-      if (!g.household[f] && row[f]) g.household[f] = row[f];
+      if (!g.household[f] && row[f] != null && row[f].toString().trim() !== '') {
+        let val = row[f];
+        // Normalize enum / boolean fields, capturing validation errors.
+        if (NORMALIZERS[f]) {
+          const resolved = NORMALIZERS[f].fn(val);
+          if (resolved === null) {
+            validationErrors.push({
+              household: name || `${ln} household`,
+              field: f,
+              label: NORMALIZERS[f].label,
+              value: val,
+              message: `Unrecognized "${NORMALIZERS[f].label}" value — skipped.`,
+            });
+            return; // skip invalid value
+          }
+          val = resolved;
+        }
+        g.household[f] = val;
+      }
     });
     g.members.push({
       first_name: row.account_salutation || row.first_name,
@@ -157,6 +259,7 @@ function buildHouseholds(rows) {
       relationship: row.relationship,
     });
   });
+
   // Derive household name + relationships.
   groups.forEach((g) => {
     if (!g.household.household_name) {
@@ -167,7 +270,14 @@ function buildHouseholds(rows) {
       if (!m.relationship) m.relationship = RELATIONSHIP_BY_INDEX[i] || 'Member';
     });
   });
-  return groups;
+
+  // Fields in the expected set that never appeared with a value are "skipped".
+  const fieldsSkipped = {};
+  [...HOUSEHOLD_FIELDS, ...MEMBER_FIELDS, 'account_salutation'].forEach((f) => {
+    if (!fieldsImported[f]) fieldsSkipped[f] = 'no values found in source';
+  });
+
+  return { groups, diagnostics: { fieldsImported, fieldsSkipped, validationErrors } };
 }
 
 function norm(s) { return (s || '').toString().trim().toLowerCase(); }
@@ -213,9 +323,26 @@ function findExistingMember(incoming, houseMembers) {
   return null;
 }
 
+function SummaryStat({ label, value, tone = 'muted' }) {
+  const tones = {
+    emerald: 'bg-emerald-50 text-emerald-700',
+    amber: 'bg-amber-50 text-amber-700',
+    blue: 'bg-blue-50 text-blue-700',
+    red: 'bg-red-50 text-red-700',
+    muted: 'bg-muted text-muted-foreground',
+  };
+  return (
+    <div className={`rounded-lg p-2 text-center ${tones[tone] || tones.muted}`}>
+      <div className="text-lg font-semibold leading-tight">{value}</div>
+      <div className="text-[10px] leading-tight">{label}</div>
+    </div>
+  );
+}
+
 export default function ImportChampionsDialog({ open, onOpenChange, onImported }) {
-  const [step, setStep] = useState('idle'); // idle | uploading | preview | importing | done | error
+  const [step, setStep] = useState('idle'); // idle | uploading | extracting | preview | importing | done | error
   const [households, setHouseholds] = useState([]);
+  const [diagnostics, setDiagnostics] = useState(null);
   const [fileName, setFileName] = useState('');
   const [result, setResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
@@ -247,6 +374,7 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
   function reset() {
     setStep('idle');
     setHouseholds([]);
+    setDiagnostics(null);
     setFileName('');
     setResult(null);
     setErrorMsg('');
@@ -265,7 +393,9 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
     if (!parsed.length) {
       throw new Error('No records found. Include a header row and one person per line.');
     }
-    setHouseholds(buildHouseholds(parsed));
+    const { groups, diagnostics: diag } = buildHouseholds(parsed);
+    setHouseholds(groups);
+    setDiagnostics(diag);
     setStep('preview');
     loadExistingForDedup();
   }
@@ -317,8 +447,16 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
         (membersByHouse[m.household_id] = membersByHouse[m.household_id] || []).push(m);
       });
 
-      const stats = { created: 0, updated: 0, membersAdded: 0, membersUpdated: 0 };
-      const MEMBER_FIELDS = ['first_name', 'last_name', 'email', 'mobile_phone', 'work_phone', 'relationship'];
+      const summary = {
+        householdsCreated: 0,
+        householdsUpdated: 0,
+        contactsCreated: 0,
+        contactsUpdated: 0,
+        contactsLinked: 0,
+        fieldsImported: { ...(diagnostics?.fieldsImported || {}) },
+        fieldsSkipped: { ...(diagnostics?.fieldsSkipped || {}) },
+        validationErrors: [...(diagnostics?.validationErrors || [])],
+      };
 
       for (const g of households) {
         const incomingHH = g.household;
@@ -328,11 +466,15 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
           // Update household fields that differ — import wins on mismatch.
           const hhUpdates = {};
           HOUSEHOLD_FIELDS.forEach((f) => {
-            if (incomingHH[f] && incomingHH[f] !== (match[f] || '')) hhUpdates[f] = incomingHH[f];
+            if (incomingHH[f] != null && incomingHH[f] !== '' && incomingHH[f] !== (match[f] ?? '')) {
+              hhUpdates[f] = incomingHH[f];
+            }
           });
           if (Object.keys(hhUpdates).length) {
             await base44.entities.ChampionHousehold.update(match.id, hhUpdates);
-            stats.updated++;
+            summary.householdsUpdated++;
+          } else {
+            summary.contactsLinked++;
           }
 
           // Sync members: update matches, add new ones.
@@ -342,33 +484,32 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
             if (em) {
               const mUpdates = {};
               MEMBER_FIELDS.forEach((f) => {
-                if (im[f] && im[f] !== (em[f] || '')) mUpdates[f] = im[f];
+                if (im[f] && im[f] !== (em[f] ?? '')) mUpdates[f] = im[f];
               });
               if (Object.keys(mUpdates).length) {
                 await base44.entities.HouseholdMember.update(em.id, mUpdates);
-                stats.membersUpdated++;
+                summary.contactsUpdated++;
+              } else {
+                summary.contactsLinked++;
               }
             } else {
               await base44.entities.HouseholdMember.create({ ...im, household_id: match.id });
-              stats.membersAdded++;
+              summary.contactsCreated++;
             }
           }
         } else {
           // No match — create a new household and its members.
           const created = await base44.entities.ChampionHousehold.create(incomingHH);
-          stats.created++;
+          summary.householdsCreated++;
           const memberRecords = g.members.map((m) => ({ ...m, household_id: created.id }));
-          if (memberRecords.length) await base44.entities.HouseholdMember.bulkCreate(memberRecords);
-          stats.membersAdded += memberRecords.length;
+          if (memberRecords.length) {
+            await base44.entities.HouseholdMember.bulkCreate(memberRecords);
+            summary.contactsCreated += memberRecords.length;
+          }
         }
       }
 
-      setResult({
-        households: stats.created + stats.updated,
-        members: stats.membersAdded + stats.membersUpdated,
-        created: stats.created,
-        updated: stats.updated,
-      });
+      setResult(summary);
       setStep('done');
       onImported?.();
     } catch (err) {
@@ -384,17 +525,16 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
   // Compute per-household de-dup status against existing records.
   const dedup = useMemo(() => {
     if (!existingData.loaded) return { statuses: [], newCount: 0, updateCount: 0, loaded: false };
-    const MEMBER_FIELDS = ['first_name', 'last_name', 'email', 'mobile_phone', 'relationship'];
     const statuses = households.map((g) => {
       const match = findExistingHousehold(g.household, g.members, existingData.households, existingData.membersByHouse);
       if (!match) return { kind: 'new' };
-      const hhChanges = HOUSEHOLD_FIELDS.filter((f) => g.household[f] && g.household[f] !== (match[f] || ''));
+      const hhChanges = HOUSEHOLD_FIELDS.filter((f) => g.household[f] != null && g.household[f] !== '' && g.household[f] !== (match[f] ?? ''));
       const houseMembers = existingData.membersByHouse[match.id] || [];
       let newMembers = 0, updatedMembers = 0;
       g.members.forEach((im) => {
         const em = findExistingMember(im, houseMembers);
         if (em) {
-          if (MEMBER_FIELDS.some((f) => im[f] && im[f] !== (em[f] || ''))) updatedMembers++;
+          if (MEMBER_FIELDS.some((f) => im[f] && im[f] !== (em[f] ?? ''))) updatedMembers++;
         } else {
           newMembers++;
         }
@@ -404,6 +544,9 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
     const newCount = statuses.filter((s) => s.kind === 'new').length;
     return { statuses, newCount, updateCount: statuses.length - newCount, loaded: true };
   }, [households, existingData]);
+
+  const importedFieldCount = result ? Object.keys(result.fieldsImported).length : 0;
+  const skippedFieldCount = result ? Object.keys(result.fieldsSkipped).length : 0;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -520,6 +663,23 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
                 </span>
               )}
             </div>
+
+            {diagnostics?.validationErrors?.length > 0 && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+                <p className="font-medium">
+                  {diagnostics.validationErrors.length} value(s) couldn't be normalized and will be skipped
+                </p>
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-amber-700">View details</summary>
+                  <ul className="mt-1 space-y-0.5">
+                    {diagnostics.validationErrors.map((e, i) => (
+                      <li key={i}>{e.household} · {e.label}: "{e.value}"</li>
+                    ))}
+                  </ul>
+                </details>
+              </div>
+            )}
+
             <div className="max-h-64 overflow-auto rounded-lg border">
               <table className="w-full text-xs">
                 <thead className="sticky top-0 bg-muted/60 text-left text-muted-foreground">
@@ -571,17 +731,68 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
           </div>
         )}
 
-        {/* Done */}
-        {step === 'done' && (
-          <div className="flex flex-col items-center gap-3 py-8 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
-              <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+        {/* Done — Import Summary */}
+        {step === 'done' && result && (
+          <div className="space-y-4">
+            <div className="flex flex-col items-center gap-2 py-2 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
+                <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+              </div>
+              <p className="text-sm font-medium">Import complete</p>
             </div>
-            <p className="text-sm font-medium">
-              {result?.created} {result?.created === 1 ? 'household' : 'households'} created
-              {result?.updated ? `, ${result?.updated} updated` : ''}
-              {' '}({result?.members} contacts synced)
-            </p>
+
+            <div className="grid grid-cols-3 gap-2">
+              <SummaryStat label="Households created" value={result.householdsCreated} tone="emerald" />
+              <SummaryStat label="Households updated" value={result.householdsUpdated} tone="amber" />
+              <SummaryStat label="Contacts linked" value={result.contactsLinked} tone="blue" />
+              <SummaryStat label="Contacts created" value={result.contactsCreated} tone="emerald" />
+              <SummaryStat label="Contacts updated" value={result.contactsUpdated} tone="amber" />
+              <SummaryStat label="Validation issues" value={result.validationErrors.length} tone={result.validationErrors.length ? 'red' : 'muted'} />
+            </div>
+
+            {importedFieldCount > 0 && (
+              <details className="rounded-lg border bg-muted/30 p-3 text-xs">
+                <summary className="cursor-pointer font-medium">Fields imported ({importedFieldCount})</summary>
+                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
+                  {Object.entries(result.fieldsImported)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([f, c]) => (
+                      <div key={f} className="flex justify-between gap-2">
+                        <span className="text-muted-foreground">{fieldLabel(f)}</span>
+                        <span className="font-medium">{c}</span>
+                      </div>
+                    ))}
+                </div>
+              </details>
+            )}
+
+            {skippedFieldCount > 0 && (
+              <details className="rounded-lg border bg-muted/30 p-3 text-xs">
+                <summary className="cursor-pointer font-medium">Fields skipped ({skippedFieldCount})</summary>
+                <div className="mt-2 space-y-1">
+                  {Object.entries(result.fieldsSkipped).map(([f, reason]) => (
+                    <div key={f} className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">{fieldLabel(f)}</span>
+                      <span className="text-amber-600">{reason}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+
+            {result.validationErrors.length > 0 && (
+              <details className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs">
+                <summary className="cursor-pointer font-medium text-destructive">Validation errors ({result.validationErrors.length})</summary>
+                <div className="mt-2 space-y-1">
+                  {result.validationErrors.map((e, i) => (
+                    <div key={i} className="flex flex-col">
+                      <span className="text-muted-foreground">{e.household} · {e.label}</span>
+                      <span className="text-red-600">&ldquo;{e.value}&rdquo; — {e.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
           </div>
         )}
 
