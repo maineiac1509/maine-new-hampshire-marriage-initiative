@@ -355,7 +355,7 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
           }
         } else {
           // No match — create a new household and its members.
-          const [created] = await base44.entities.ChampionHousehold.create(incomingHH);
+          const created = await base44.entities.ChampionHousehold.create(incomingHH);
           stats.created++;
           const memberRecords = g.members.map((m) => ({ ...m, household_id: created.id }));
           if (memberRecords.length) await base44.entities.HouseholdMember.bulkCreate(memberRecords);
