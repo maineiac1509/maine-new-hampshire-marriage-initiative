@@ -9,13 +9,21 @@ import { situationLabel } from '@/lib/stewardshipGuideMatcher';
 export default function StewardshipGuideDetail() {
   const { id } = useParams();
   const [guide, setGuide] = useState(null);
+  const [allGuides, setAllGuides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     setLoading(true);
-    base44.entities.StewardshipGuide.get(id)
-      .then((g) => { setGuide(g); setNotFound(!g); })
+    Promise.all([
+      base44.entities.StewardshipGuide.get(id),
+      base44.entities.StewardshipGuide.filter({ archived: false }),
+    ])
+      .then(([g, gs]) => {
+        setGuide(g);
+        setAllGuides(gs || []);
+        setNotFound(!g);
+      })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [id]);
@@ -58,7 +66,7 @@ export default function StewardshipGuideDetail() {
         )}
       </div>
 
-      <GuideViewer guide={guide} />
+      <GuideViewer guide={guide} allGuides={allGuides} />
     </div>
   );
 }

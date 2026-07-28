@@ -10,23 +10,27 @@
       "type": "string",
       "title": "Category",
       "enum": [
-        "First Contact",
-        "Re-engagement",
-        "Coffee Meeting",
-        "Follow-up",
-        "Volunteer Encouragement",
-        "Prayer & Spiritual Care",
-        "Marriage Crisis",
+        "Relationship Building",
+        "Volunteer Care",
+        "Church Partnerships",
+        "Events",
+        "Spiritual Care",
         "Leadership Development",
-        "Celebrating Milestones",
-        "Church Partnership",
-        "General"
+        "Prayer",
+        "Marriage Support"
       ],
-      "default": "General"
+      "default": "Relationship Building"
     },
     "situations": {
       "type": "array",
       "title": "Champion Situations",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "title": "Tags",
       "items": {
         "type": "string"
       }
@@ -52,20 +56,69 @@
           "why_effective": {
             "type": "string",
             "title": "Why This Approach May Be Effective"
+          },
+          "when_it_works": {
+            "type": "string",
+            "title": "When It Works Well"
+          },
+          "when_to_consider_alternative": {
+            "type": "string",
+            "title": "When Another Approach Might Be Better"
           }
         }
       }
     },
     "conversation_ideas": {
       "type": "array",
-      "title": "Conversation Ideas",
+      "title": "Conversation Starters",
       "items": {
         "type": "string"
       }
     },
-    "scripture_encouragement": {
-      "type": "string",
-      "title": "Scripture & Encouragement"
+    "prayer_prompts": {
+      "type": "array",
+      "title": "Prayer Prompts",
+      "items": {
+        "type": "string"
+      }
+    },
+    "scriptures": {
+      "type": "array",
+      "title": "Scripture & Encouragement",
+      "items": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "type": "string",
+            "title": "Topic"
+          },
+          "reference": {
+            "type": "string",
+            "title": "Reference"
+          },
+          "encouragement": {
+            "type": "string",
+            "title": "Short Encouragement"
+          }
+        }
+      }
+    },
+    "wisdom_callouts": {
+      "type": "array",
+      "title": "Ministry Wisdom Callouts",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Callout Label"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        }
+      }
     },
     "helpful_resources": {
       "type": "array",
@@ -80,6 +133,19 @@
           "description": {
             "type": "string",
             "title": "Description"
+          },
+          "category": {
+            "type": "string",
+            "title": "Resource Category",
+            "enum": [
+              "Books",
+              "Articles",
+              "Videos",
+              "Podcasts",
+              "Downloadable Resources",
+              "FamilyLife Materials"
+            ],
+            "default": "FamilyLife Materials"
           }
         }
       }
@@ -87,6 +153,20 @@
     "things_to_remember": {
       "type": "array",
       "title": "Things to Remember",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reflection_questions": {
+      "type": "array",
+      "title": "Reflection Questions",
+      "items": {
+        "type": "string"
+      }
+    },
+    "related_guides": {
+      "type": "array",
+      "title": "Related Guides (titles)",
       "items": {
         "type": "string"
       }

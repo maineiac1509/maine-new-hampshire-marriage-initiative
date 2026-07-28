@@ -23,17 +23,20 @@ export default function StewardshipGuides() {
   }, []);
 
   const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
     return guides.filter((g) => {
       if (g.enabled === false) return false;
       if (category !== 'All' && g.category !== category) return false;
-      if (query.trim()) {
-        const q = query.toLowerCase();
-        return (
-          g.title?.toLowerCase().includes(q) ||
-          g.overview?.toLowerCase().includes(q)
-        );
-      }
-      return true;
+      if (!q) return true;
+      const haystack = [
+        g.title, g.overview, g.category,
+        ...(g.tags || []),
+        ...(g.situations || []),
+        ...(g.conversation_ideas || []),
+        ...(g.suggested_approaches || []).map((a) => a?.title),
+        ...(g.scriptures || []).map((s) => `${s?.topic || ''} ${s?.reference || ''}`),
+      ].filter(Boolean).join(' ').toLowerCase();
+      return haystack.includes(q);
     });
   }, [guides, query, category]);
 

@@ -18,17 +18,23 @@ export const CHAMPION_SITUATIONS = [
 ];
 
 export const GUIDE_CATEGORIES = [
-  'First Contact',
-  'Re-engagement',
-  'Coffee Meeting',
-  'Follow-up',
-  'Volunteer Encouragement',
-  'Prayer & Spiritual Care',
-  'Marriage Crisis',
+  'Relationship Building',
+  'Volunteer Care',
+  'Church Partnerships',
+  'Events',
+  'Spiritual Care',
   'Leadership Development',
-  'Celebrating Milestones',
-  'Church Partnership',
-  'General',
+  'Prayer',
+  'Marriage Support',
+];
+
+export const RESOURCE_CATEGORIES = [
+  'Books',
+  'Articles',
+  'Videos',
+  'Podcasts',
+  'Downloadable Resources',
+  'FamilyLife Materials',
 ];
 
 export function situationLabel(key) {
