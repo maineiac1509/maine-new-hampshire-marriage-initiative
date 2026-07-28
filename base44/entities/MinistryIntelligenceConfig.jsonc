@@ -1,0 +1,124 @@
+{
+  "name": "MinistryIntelligenceConfig",
+  "type": "object",
+  "properties": {
+    "capacity_warning_threshold": {
+      "type": "number",
+      "title": "Capacity Warning Threshold",
+      "default": 80
+    },
+    "capacity_critical_threshold": {
+      "type": "number",
+      "title": "Capacity Critical Threshold",
+      "default": 95
+    },
+    "capacity_risk_team_count": {
+      "type": "number",
+      "title": "Capacity Risk Team Count",
+      "default": 2
+    },
+    "max_open_recommendations": {
+      "type": "number",
+      "title": "Maximum Open Recommendations",
+      "default": 10
+    },
+    "max_critical_recommendations": {
+      "type": "number",
+      "title": "Maximum Critical Recommendations",
+      "default": 2
+    },
+    "recommendation_age_threshold": {
+      "type": "number",
+      "title": "Recommendation Age Threshold",
+      "default": 14
+    },
+    "health_decline_window": {
+      "type": "number",
+      "title": "Health Decline Window",
+      "default": 3
+    },
+    "health_improvement_window": {
+      "type": "number",
+      "title": "Health Improvement Window",
+      "default": 3
+    },
+    "champion_growth_threshold": {
+      "type": "number",
+      "title": "Champion Growth Threshold",
+      "default": 3
+    },
+    "household_growth_threshold": {
+      "type": "number",
+      "title": "Household Growth Threshold",
+      "default": 3
+    },
+    "assignment_imbalance_percentage": {
+      "type": "number",
+      "title": "Assignment Imbalance Percentage",
+      "default": 50
+    },
+    "max_unassigned_champions": {
+      "type": "number",
+      "title": "Maximum Allowed Unassigned Champions",
+      "default": 5
+    },
+    "signal_aging_warning_days": {
+      "type": "number",
+      "title": "Signal Aging Warning",
+      "default": 14
+    },
+    "signal_aging_critical_days": {
+      "type": "number",
+      "title": "Signal Aging Critical",
+      "default": 30
+    },
+    "transfer_trend_threshold": {
+      "type": "number",
+      "title": "Transfer Trend Threshold",
+      "default": 3
+    },
+    "min_recommendation_completion_rate": {
+      "type": "number",
+      "title": "Minimum Recommendation Completion Rate",
+      "default": 50
+    },
+    "min_health_improvement_percentage": {
+      "type": "number",
+      "title": "Minimum Health Improvement Percentage",
+      "default": 5
+    },
+    "volunteer_capacity_requirement": {
+      "type": "number",
+      "title": "Volunteer Capacity Requirement",
+      "default": 0
+    },
+    "updated_by": {
+      "type": "string",
+      "title": "Last Updated By"
+    },
+    "last_updated": {
+      "type": "string",
+      "format": "date",
+      "title": "Last Updated"
+    }
+  },
+  "required": [],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

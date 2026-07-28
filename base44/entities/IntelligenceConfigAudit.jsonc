@@ -1,0 +1,65 @@
+{
+  "name": "IntelligenceConfigAudit",
+  "type": "object",
+  "properties": {
+    "field_name": {
+      "type": "string",
+      "title": "Field Name"
+    },
+    "field_label": {
+      "type": "string",
+      "title": "Field Label"
+    },
+    "previous_value": {
+      "type": "string",
+      "title": "Previous Value"
+    },
+    "new_value": {
+      "type": "string",
+      "title": "New Value"
+    },
+    "changed_by": {
+      "type": "string",
+      "title": "Changed By"
+    },
+    "change_date": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Change Date"
+    },
+    "action": {
+      "type": "string",
+      "title": "Action",
+      "enum": [
+        "Updated",
+        "Reset to Defaults"
+      ],
+      "default": "Updated"
+    }
+  },
+  "required": [
+    "field_name",
+    "new_value",
+    "changed_by",
+    "change_date",
+    "action"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

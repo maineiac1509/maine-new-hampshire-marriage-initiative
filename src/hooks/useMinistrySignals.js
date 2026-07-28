@@ -1,17 +1,20 @@
 // React hook that drives the Ministry Intelligence Engine.
 // On intelligence change (and page load) it:
-//   1. Derives current Ministry Signals from existing intelligence (transparent rules).
-//   2. Persists new Open signals.
-//   3. Auto-resolves signals whose underlying condition has improved.
-//   4. Exposes the active surface + Ministry Story + acknowledge/resolve actions.
+//   1. Loads the persisted MinistryIntelligenceConfig (admin-editable) and
+//      resolves it to engine thresholds — defaults apply when none is stored.
+//   2. Derives current Ministry Signals from existing intelligence (transparent rules).
+//   3. Persists new Open signals.
+//   4. Auto-resolves signals whose underlying condition has improved.
+//   5. Exposes the active surface + Ministry Story + acknowledge/resolve actions.
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import {
-  deriveSignals, syncSignals, buildSignalSurface, ministryStory,
+  deriveSignals, syncSignals, buildSignalSurface, ministryStory, resolveConfig,
 } from '@/lib/ministrySignalEngine';
 
 export function useMinistrySignals({ intel, recommendations, teams, households, assignments, enabled }) {
   const [signals, setSignals] = useState([]);
+  const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -22,7 +25,16 @@ export function useMinistrySignals({ intel, recommendations, teams, households, 
   useEffect(() => {
     let cancelled = false;
     async function go() {
-      const derived = deriveSignals({ intel, recommendations, teams, assignments });
+      // Load admin-configured thresholds (read-only here; editing is in Administration).
+      let configRecord = null;
+      try {
+        const recs = await base44.entities.MinistryIntelligenceConfig.list();
+        configRecord = (recs && recs[0]) || null;
+      } catch (e) {}
+      const cfg = resolveConfig(configRecord);
+      if (!cancelled) setConfig(cfg);
+
+      const derived = deriveSignals({ intel, recommendations, teams, assignments, config: cfg });
       let existing = [];
       try { existing = await base44.entities.MinistrySignal.list('-created_date', 200); } catch (e) {}
       const { toCreate, toResolve } = syncSignals({ derived, existing });
@@ -68,12 +80,12 @@ export function useMinistrySignals({ intel, recommendations, teams, households, 
   }, []);
 
   const derived = useMemo(
-    () => deriveSignals({ intel, recommendations, teams, assignments }),
-    [intel, recommendations, teams, assignments]
+    () => deriveSignals({ intel, recommendations, teams, assignments, config }),
+    [intel, recommendations, teams, assignments, config]
   );
   const surface = useMemo(
-    () => buildSignalSurface(signals, derived, teams, households),
-    [signals, derived, teams, households]
+    () => buildSignalSurface(signals, derived, teams, households, config),
+    [signals, derived, teams, households, config]
   );
   const story = useMemo(() => ministryStory(surface, intel), [surface, intel]);
 
@@ -84,7 +96,8 @@ export function useMinistrySignals({ intel, recommendations, teams, households, 
     open: surface.filter((s) => s.status === 'Open').length,
     acknowledged: surface.filter((s) => s.status === 'Acknowledged').length,
     aged: surface.filter((s) => s.isAged).length,
-  }), [surface]);
+    agingWarningDays: config?.signalAgingWarningDays ?? 14,
+  }), [surface, config]);
 
   return {
     activeSignals: surface,

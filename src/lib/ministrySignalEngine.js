@@ -12,23 +12,48 @@
 //    when an issue returns, a brand-new Open signal is created.
 //  - Modular: new rules are added to the SIGNAL_RULES registry without touching
 //    existing logic. This is the structured knowledge source for Epic 7.
+//  - Thresholds are loaded dynamically from MinistryIntelligenceConfig (admin-
+//    editable). With no stored config, defaults are used — so existing signal
+//    behavior is unchanged until leadership adjusts policy.
 import { RECOMMENDATION_CONFIG, todayISO } from '@/lib/recommendationEngine';
+import { DEFAULT_CONFIG_VALUES } from '@/lib/intelligenceConfigSchema';
 
 const DAY = 86400000;
 
-// Centralized, configurable thresholds for signal rules.
-// Adjust these values to tune the engine — no other code changes required.
-export const SIGNAL_CONFIG = {
-  capacityRiskTeamCount: 2,        // min teams over threshold to trigger Volunteer Capacity Risk
-  assignmentImbalanceRatio: 0.5,   // max team load must exceed the average by this ratio
-  growthRateThreshold: 3,          // new Champions in period to flag Growing Ministry Region
-  recommendationBacklogThreshold: 10, // open recommendations to trigger Recommendation Backlog
-  criticalRecBacklogThreshold: 2,  // critical open recommendations to trigger backlog
-  transferTrendThreshold: 3,       // transfers in period to flag Stewardship Transfer Trend
-  unassignedGrowthThreshold: 5,    // unassigned Champions to flag Unassigned Champion Growth
-  signalAgingWarningDays: 14,      // open beyond this many days is highlighted
-  healthDeclineThreshold: 3,        // Champions declining in health to flag Declining Stewardship Health
-};
+// Map a persisted config record (snake_case) to the engine's config object
+// (camelCase keys consumed by signal rules). Falls back to defaults for any
+// missing field, so a partial or absent config never breaks signal generation.
+export function resolveConfig(stored) {
+  const d = DEFAULT_CONFIG_VALUES;
+  const s = stored || {};
+  return {
+    capacityRiskTeamCount: s.capacity_risk_team_count ?? d.capacity_risk_team_count,
+    assignmentImbalanceRatio: (s.assignment_imbalance_percentage ?? d.assignment_imbalance_percentage) / 100,
+    growthRateThreshold: s.champion_growth_threshold ?? d.champion_growth_threshold,
+    recommendationBacklogThreshold: s.max_open_recommendations ?? d.max_open_recommendations,
+    criticalRecBacklogThreshold: s.max_critical_recommendations ?? d.max_critical_recommendations,
+    transferTrendThreshold: s.transfer_trend_threshold ?? d.transfer_trend_threshold,
+    unassignedGrowthThreshold: s.max_unassigned_champions ?? d.max_unassigned_champions,
+    signalAgingWarningDays: s.signal_aging_warning_days ?? d.signal_aging_warning_days,
+    healthDeclineThreshold: s.health_decline_window ?? d.health_decline_window,
+    // Fields reserved for future Ministry Signals — stored & ready to consume.
+    capacityWarningThreshold: s.capacity_warning_threshold ?? d.capacity_warning_threshold,
+    capacityCriticalThreshold: s.capacity_critical_threshold ?? d.capacity_critical_threshold,
+    recommendationAgeThreshold: s.recommendation_age_threshold ?? d.recommendation_age_threshold,
+    healthImprovementWindow: s.health_improvement_window ?? d.health_improvement_window,
+    householdGrowthThreshold: s.household_growth_threshold ?? d.household_growth_threshold,
+    signalAgingCriticalDays: s.signal_aging_critical_days ?? d.signal_aging_critical_days,
+    minRecommendationCompletionRate: s.min_recommendation_completion_rate ?? d.min_recommendation_completion_rate,
+    minHealthImprovementPercentage: s.min_health_improvement_percentage ?? d.min_health_improvement_percentage,
+    volunteerCapacityRequirement: s.volunteer_capacity_requirement ?? d.volunteer_capacity_requirement,
+  };
+}
+
+// Default config (used when no persisted configuration exists). Values match
+// the original hard-coded thresholds, so existing signal behavior is preserved.
+export const DEFAULT_SIGNAL_CONFIG = resolveConfig(null);
+// Backwards-compatible alias.
+export const SIGNAL_CONFIG = DEFAULT_SIGNAL_CONFIG;
 
 export const SIGNAL_CATEGORIES = ['Capacity', 'Stewardship', 'Growth', 'Recommendations', 'Momentum', 'Transfers'];
 export const SIGNAL_SEVERITIES = ['Information', 'Low', 'Medium', 'High', 'Critical'];
@@ -72,15 +97,15 @@ function sig({
 
 // --- Rule registry ---
 // Each rule: { signalType, category, evaluate(ctx) -> [derivedSignal] }
-// ctx = { intel, recommendations, teams, assignments, activeByTeam }
+// ctx = { intel, recommendations, teams, assignments, activeByTeam, config }
 // Add new rules here; existing rules and consumers never need to change.
 const SIGNAL_RULES = [
   {
     signalType: 'Volunteer Capacity Risk',
     category: 'Capacity',
-    evaluate({ intel, recommendations }) {
+    evaluate({ intel, recommendations, config }) {
       const over = intel.volunteer.nearCapacity || [];
-      if (over.length < SIGNAL_CONFIG.capacityRiskTeamCount) return [];
+      if (over.length < config.capacityRiskTeamCount) return [];
       const teamIds = over.map((t) => t.teamId);
       const recs = (recommendations || []).filter((r) => r.status === 'Open' && teamIds.includes(r.volunteer_team_id));
       return [sig({
@@ -90,7 +115,7 @@ const SIGNAL_RULES = [
         title: `${over.length} Volunteer Team${over.length > 1 ? 's' : ''} near or over capacity`,
         description: `${over.length} active teams have reached ${RECOMMENDATION_CONFIG.capacityThresholdPct}% or more of their target Champion capacity, limiting the ministry's ability to absorb new assignments.`,
         whyGenerated: [
-          `Rule: ${over.length} team(s) met or exceeded the ${SIGNAL_CONFIG.capacityRiskTeamCount}-team capacity-risk threshold`,
+          `Rule: ${over.length} team(s) met or exceeded the ${config.capacityRiskTeamCount}-team capacity-risk threshold`,
           `Each listed team is at or above ${RECOMMENDATION_CONFIG.capacityThresholdPct}% of its target capacity`,
           ...over.map((t) => `${t.teamName}: ${t.count}/${t.capacity} Champions (${t.pct}% utilization)`),
           `${recs.length} open recommendation(s) reference these teams`,
@@ -105,13 +130,13 @@ const SIGNAL_RULES = [
   {
     signalType: 'Assignment Imbalance',
     category: 'Capacity',
-    evaluate({ intel, teams, activeByTeam }) {
+    evaluate({ intel, teams, activeByTeam, config }) {
       const active = (teams || []).filter((t) => t.active !== false && t.target_capacity);
       if (active.length < 3) return [];
       const counts = active.map((t) => ({ team: t, count: activeByTeam[t.id] || 0 }));
       const max = counts.reduce((a, b) => (b.count > a.count ? b : a));
       const avg = counts.reduce((s, c) => s + c.count, 0) / counts.length;
-      if (max.count < 1 || max.count < avg * (1 + SIGNAL_CONFIG.assignmentImbalanceRatio)) return [];
+      if (max.count < 1 || max.count < avg * (1 + config.assignmentImbalanceRatio)) return [];
       const ranked = [...counts].sort((a, b) => b.count - a.count).slice(0, 5);
       return [sig({
         identity: 'assignment-imbalance',
@@ -120,7 +145,7 @@ const SIGNAL_RULES = [
         title: `${max.team.team_name} carries a disproportionate Champion load`,
         description: `${max.team.team_name} is stewarding ${max.count} Champions — significantly more than the ${Math.round(avg)} average across ${active.length} comparable teams — which may strain stewardship quality.`,
         whyGenerated: [
-          `Rule: top team load exceeded the average by more than ${Math.round(SIGNAL_CONFIG.assignmentImbalanceRatio * 100)}%`,
+          `Rule: top team load exceeded the average by more than ${Math.round(config.assignmentImbalanceRatio * 100)}%`,
           `${max.team.team_name}: ${max.count} Champions vs ${Math.round(avg)} team average`,
           `Compared across ${active.length} active teams with defined capacity`,
         ],
@@ -133,9 +158,9 @@ const SIGNAL_RULES = [
   {
     signalType: 'Growing Ministry Region',
     category: 'Growth',
-    evaluate({ intel }) {
+    evaluate({ intel, config }) {
       const m = metric(intel.growth.metrics, 'newChampions');
-      if (!m || m.value < SIGNAL_CONFIG.growthRateThreshold) return [];
+      if (!m || m.value < config.growthRateThreshold) return [];
       const present = (intel.growth.metrics || []).filter((x) => x.value > 0);
       return [sig({
         identity: 'growing-region',
@@ -144,7 +169,7 @@ const SIGNAL_RULES = [
         title: `Ministry growth is accelerating — ${m.value} new Champions this period`,
         description: `${m.value} new Champions joined this period${m.delta > 0 ? ` (up from ${m.prev} in the prior period)` : ''}, indicating sustained ministry growth that may require additional volunteer capacity.`,
         whyGenerated: [
-          `Rule: new Champions (${m.value}) met the ${SIGNAL_CONFIG.growthRateThreshold} growth-rate threshold`,
+          `Rule: new Champions (${m.value}) met the ${config.growthRateThreshold} growth-rate threshold`,
           m.delta > 0 ? `Growth increased by ${m.delta} versus the prior period` : 'Growth is steady versus the prior period',
         ],
         supportingMetrics: present.map((x) => ({ label: x.label, value: `${x.value}${x.delta != null && x.delta !== 0 ? ` (${x.delta > 0 ? '+' : ''}${x.delta})` : ''}` })),
@@ -155,20 +180,20 @@ const SIGNAL_RULES = [
   {
     signalType: 'Declining Stewardship Health',
     category: 'Stewardship',
-    evaluate({ intel }) {
+    evaluate({ intel, config }) {
       const declines = riskItem(intel.risks.items, 'declines')?.value || 0;
       const immediate = riskItem(intel.risks.items, 'immediate');
       const immediateNow = immediate?.value || 0;
       const trendingUp = immediate && typeof immediate.sub === 'string' && !immediate.sub.startsWith('-') && immediateNow > 0;
-      if (declines < SIGNAL_CONFIG.healthDeclineThreshold && !trendingUp) return [];
+      if (declines < config.healthDeclineThreshold && !trendingUp) return [];
       return [sig({
         identity: 'declining-health',
         signalType: this.signalType, category: this.category,
-        severity: declines >= SIGNAL_CONFIG.healthDeclineThreshold * 2 ? 'High' : 'Medium',
+        severity: declines >= config.healthDeclineThreshold * 2 ? 'High' : 'Medium',
         title: `Stewardship health is declining — ${declines} Champions worsened this period`,
         description: `${declines} Champions declined in stewardship health${trendingUp ? `, and Immediate Attention cases are trending upward (${immediateNow})` : ''}, suggesting workload or follow-up gaps.`,
         whyGenerated: [
-          `Rule: stewardship health declines (${declines}) met or exceeded the ${SIGNAL_CONFIG.healthDeclineThreshold} threshold`,
+          `Rule: stewardship health declines (${declines}) met or exceeded the ${config.healthDeclineThreshold} threshold`,
           trendingUp ? `Immediate Attention cases trending upward (${immediateNow} currently)` : 'Immediate Attention cases are not currently increasing',
         ],
         supportingMetrics: [
@@ -183,21 +208,21 @@ const SIGNAL_RULES = [
   {
     signalType: 'Recommendation Backlog',
     category: 'Recommendations',
-    evaluate({ recommendations }) {
+    evaluate({ recommendations, config }) {
       const open = (recommendations || []).filter((r) => r.status === 'Open');
       const critical = open.filter((r) => r.priority === 'Critical');
       const now = Date.now();
       const ages = open.map((r) => (r.created_date ? Math.floor((now - new Date(r.created_date).getTime()) / DAY) : 0));
       const avgAge = ages.length ? Math.round(ages.reduce((s, a) => s + a, 0) / ages.length) : 0;
-      if (open.length < SIGNAL_CONFIG.recommendationBacklogThreshold && critical.length < SIGNAL_CONFIG.criticalRecBacklogThreshold) return [];
+      if (open.length < config.recommendationBacklogThreshold && critical.length < config.criticalRecBacklogThreshold) return [];
       return [sig({
         identity: 'rec-backlog',
         signalType: this.signalType, category: this.category,
-        severity: critical.length >= SIGNAL_CONFIG.criticalRecBacklogThreshold * 2 ? 'High' : 'Medium',
+        severity: critical.length >= config.criticalRecBacklogThreshold * 2 ? 'High' : 'Medium',
         title: `Recommendation backlog growing — ${open.length} open (${critical.length} critical)`,
         description: `${open.length} open stewardship recommendations with an average age of ${avgAge} days${critical.length ? `, including ${critical.length} critical` : ''}, indicate the Action Center needs leadership attention.`,
         whyGenerated: [
-          `Rule: open recommendations (${open.length}) met the ${SIGNAL_CONFIG.recommendationBacklogThreshold} backlog threshold`,
+          `Rule: open recommendations (${open.length}) met the ${config.recommendationBacklogThreshold} backlog threshold`,
           critical.length ? `${critical.length} critical recommendation(s) remain open` : 'No critical recommendations are currently open',
           `Average recommendation age is ${avgAge} days`,
         ],
@@ -214,12 +239,12 @@ const SIGNAL_RULES = [
   {
     signalType: 'Positive Ministry Momentum',
     category: 'Momentum',
-    evaluate({ intel }) {
+    evaluate({ intel, config }) {
       const resolution = metric(intel.performance.metrics, 'resolution');
       const improvingItem = (intel.opportunities.items || []).find((i) => i.key === 'improving');
       const improvingVal = improvingItem?.value || 0;
       const nearCapacity = intel.volunteer.nearCapacityCount || 0;
-      if (!(resolution && resolution.delta > 0) || improvingVal <= 0 || nearCapacity > 0) return [];
+      if (!(resolution && resolution.delta > 0) || improvingVal <= 0 || nearCapacity > (config.volunteerCapacityRequirement || 0)) return [];
       return [sig({
         identity: 'positive-momentum',
         signalType: this.signalType, category: this.category,
@@ -244,9 +269,9 @@ const SIGNAL_RULES = [
   {
     signalType: 'Stewardship Transfer Trend',
     category: 'Transfers',
-    evaluate({ intel }) {
+    evaluate({ intel, config }) {
       const transfers = metric(intel.performance.metrics, 'transfers');
-      if (!transfers || transfers.value < SIGNAL_CONFIG.transferTrendThreshold || transfers.delta <= 0) return [];
+      if (!transfers || transfers.value < config.transferTrendThreshold || transfers.delta <= 0) return [];
       return [sig({
         identity: 'transfer-trend',
         signalType: this.signalType, category: this.category,
@@ -254,7 +279,7 @@ const SIGNAL_RULES = [
         title: `Stewardship transfers trending up — ${transfers.value} this period`,
         description: `${transfers.value} Champions were transferred between teams this period (up from ${transfers.prev}), which may signal workload strain or volunteer retention concerns.`,
         whyGenerated: [
-          `Rule: transfers (${transfers.value}) met the ${SIGNAL_CONFIG.transferTrendThreshold} threshold and increased versus the prior period`,
+          `Rule: transfers (${transfers.value}) met the ${config.transferTrendThreshold} threshold and increased versus the prior period`,
           `Transfers rose by ${transfers.delta} compared to the previous period`,
         ],
         supportingMetrics: [
@@ -268,9 +293,9 @@ const SIGNAL_RULES = [
   {
     signalType: 'Unassigned Champion Growth',
     category: 'Stewardship',
-    evaluate({ intel }) {
+    evaluate({ intel, config }) {
       const unassigned = intel.volunteer.unassignedCount || 0;
-      if (unassigned < SIGNAL_CONFIG.unassignedGrowthThreshold) return [];
+      if (unassigned < config.unassignedGrowthThreshold) return [];
       return [sig({
         identity: 'unassigned-growth',
         signalType: this.signalType, category: this.category,
@@ -278,7 +303,7 @@ const SIGNAL_RULES = [
         title: `${unassigned} Champions await stewardship assignment`,
         description: `${unassigned} Champions currently have no active Volunteer Team assignment, indicating a stewardship coverage gap that may leave new Champions without care.`,
         whyGenerated: [
-          `Rule: unassigned Champions (${unassigned}) met or exceeded the ${SIGNAL_CONFIG.unassignedGrowthThreshold} threshold`,
+          `Rule: unassigned Champions (${unassigned}) met or exceeded the ${config.unassignedGrowthThreshold} threshold`,
           `${intel.volunteer.totalAvailable || 0} capacity slots are available across active teams`,
         ],
         supportingMetrics: [
@@ -293,10 +318,12 @@ const SIGNAL_RULES = [
 
 // Derive all current Ministry Signals from intelligence + recommendations.
 // Pure function — no persistence. Reuses the `intel` object computed by
-// computeMinistryIntelligence so no metrics are recalculated.
-export function deriveSignals({ intel, recommendations = [], teams = [], assignments = [] }) {
+// computeMinistryIntelligence so no metrics are recalculated. Thresholds come
+// from the resolved config (admin-editable), defaulting to safe values.
+export function deriveSignals({ intel, recommendations = [], teams = [], assignments = [], config }) {
   if (!intel) return [];
-  const ctx = { intel, recommendations, teams, assignments, activeByTeam: activeByTeamMap(assignments) };
+  const cfg = config || DEFAULT_SIGNAL_CONFIG;
+  const ctx = { intel, recommendations, teams, assignments, activeByTeam: activeByTeamMap(assignments), config: cfg };
   const out = [];
   SIGNAL_RULES.forEach((rule) => out.push(...rule.evaluate(ctx)));
   const byId = {};
@@ -353,7 +380,8 @@ function teamName(teamMap, id) {
 }
 
 // Build the active display surface: live derived fields + resolved names + aging.
-export function buildSignalSurface(existing, derived, teams, households) {
+export function buildSignalSurface(existing, derived, teams, households, config) {
+  const cfg = config || DEFAULT_SIGNAL_CONFIG;
   const derivedMap = {};
   derived.forEach((d) => { derivedMap[d.identity] = d; });
   const teamMap = {};
@@ -362,11 +390,11 @@ export function buildSignalSurface(existing, derived, teams, households) {
   (households || []).forEach((h) => { hhMap[h.id] = h; });
   return (existing || [])
     .filter((s) => s.status !== 'Resolved')
-    .map((s) => toSignalSurface(s, derivedMap[s.identity], teamMap, hhMap))
+    .map((s) => toSignalSurface(s, derivedMap[s.identity], teamMap, hhMap, cfg))
     .sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity]);
 }
 
-function toSignalSurface(s, d, teamMap, hhMap) {
+function toSignalSurface(s, d, teamMap, hhMap, cfg) {
   const createdMs = s.created_date ? new Date(s.created_date).getTime() : 0;
   const ackMs = s.acknowledged_date ? new Date(s.acknowledged_date).getTime() : 0;
   const resolvedMs = s.resolved_date ? new Date(s.resolved_date).getTime() : 0;
@@ -396,7 +424,7 @@ function toSignalSurface(s, d, teamMap, hhMap) {
     daysOpen: createdMs ? Math.max(0, Math.floor((Date.now() - createdMs) / DAY)) : 0,
     daysSinceAcknowledged: ackMs ? Math.max(0, Math.floor((Date.now() - ackMs) / DAY)) : null,
     daysSinceResolved: resolvedMs ? Math.max(0, Math.floor((Date.now() - resolvedMs) / DAY)) : null,
-    isAged: s.status === 'Open' && createdMs ? (Date.now() - createdMs) > SIGNAL_CONFIG.signalAgingWarningDays * DAY : false,
+    isAged: s.status === 'Open' && createdMs ? (Date.now() - createdMs) > cfg.signalAgingWarningDays * DAY : false,
   };
 }
 

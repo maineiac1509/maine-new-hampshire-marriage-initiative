@@ -53,7 +53,7 @@ export default function ActiveMinistrySignalsSection({ signals, summary, loading
     <>
       <Section index={7} title="Active Ministry Signals" icon={Activity}
         summary={summary?.total
-          ? `${summary.total} active signal${summary.total === 1 ? '' : 's'} — ${summary.critical} critical, ${summary.high} high, ${summary.aged} aged beyond ${14} days.`
+          ? `${summary.total} active signal${summary.total === 1 ? '' : 's'} — ${summary.critical} critical, ${summary.high} high, ${summary.aged} aged beyond ${summary.agingWarningDays} days.`
           : 'No active Ministry Signals — all configured thresholds are within healthy range.'}
       >
         {loading ? (
