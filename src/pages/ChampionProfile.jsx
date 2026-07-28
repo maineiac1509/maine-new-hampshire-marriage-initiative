@@ -4,6 +4,7 @@ import {
   ArrowLeft, Home, MapPin, ClipboardList, Users as UsersIcon, StickyNote, Phone, Mail,
   Save, X, Plus, Trash2, Loader2,
   AlertCircle, Clock, CheckCircle2, CircleDashed,
+  Church, MessageSquareOff, Ticket,
 } from 'lucide-react';
 import RelationshipSummary, { getFollowUpStatus } from '@/components/champions/RelationshipSummary';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -32,6 +33,9 @@ const RELATIONSHIP_STYLES = {
   Member: 'bg-slate-100 text-slate-600',
 };
 
+const CHAMPION_STATUS_OPTIONS = ['Active', 'Inactive', 'Prospect', 'Alumni'];
+const PRIORITY_OPTIONS = ['High', 'Medium', 'Low'];
+
 function Section({ icon: Icon, title, children }) {
   return (
     <section className="rounded-xl border bg-card p-5 shadow-sm">
@@ -45,28 +49,47 @@ function Section({ icon: Icon, title, children }) {
 }
 
 function FieldRow({ label, value, onChange, editing, type = 'text', options }) {
+  const isBoolean = type === 'boolean';
+  const isNumber = type === 'number';
   if (!editing) {
+    if (isBoolean) {
+      return (
+        <div className="flex items-center gap-2">
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
+          <dd className={`text-sm font-medium ${value ? 'text-red-600' : 'text-muted-foreground'}`}>{value ? 'Yes' : 'No'}</dd>
+        </div>
+      );
+    }
     return (
       <div className="space-y-0.5">
         <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
-        <dd className="text-sm text-foreground">{value || '—'}</dd>
+        <dd className="text-sm text-foreground">{value != null && value !== '' ? value : '—'}</dd>
       </div>
     );
   }
   return (
-    <div className="space-y-1">
-      <label className="text-xs uppercase tracking-wide text-muted-foreground">{label}</label>
-      {type === 'select' ? (
-        <Select value={value || ''} onValueChange={onChange}>
-          <SelectTrigger><SelectValue placeholder={label} /></SelectTrigger>
-          <SelectContent>
-            {options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      ) : type === 'textarea' ? (
-        <Textarea value={value || ''} onChange={(e) => onChange(e.target.value)} rows={4} />
+    <div className={isBoolean ? 'flex items-center gap-2' : 'space-y-1'}>
+      {isBoolean ? (
+        <>
+          <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 rounded border-input accent-primary" />
+          <label className="text-xs uppercase tracking-wide text-muted-foreground">{label}</label>
+        </>
       ) : (
-        <Input type={type} value={value || ''} onChange={(e) => onChange(e.target.value)} />
+        <>
+          <label className="text-xs uppercase tracking-wide text-muted-foreground">{label}</label>
+          {type === 'select' ? (
+            <Select value={value || ''} onValueChange={onChange}>
+              <SelectTrigger><SelectValue placeholder={label} /></SelectTrigger>
+              <SelectContent>
+                {options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          ) : type === 'textarea' ? (
+            <Textarea value={value || ''} onChange={(e) => onChange(e.target.value)} rows={4} />
+          ) : (
+            <Input type={type} value={value != null ? value : ''} onChange={(e) => onChange(isNumber ? Number(e.target.value) : e.target.value)} />
+          )}
+        </>
       )}
     </div>
   );
@@ -182,7 +205,7 @@ export default function ChampionProfile() {
   function addMember() {
     setMembersForm((ms) => [
       ...ms,
-      { first_name: '', last_name: '', email: '', mobile_phone: '', relationship: 'Member', household_id: id },
+      { first_name: '', last_name: '', email: '', mobile_phone: '', work_phone: '', relationship: 'Member', household_id: id },
     ]);
   }
 
@@ -207,6 +230,7 @@ export default function ChampionProfile() {
             last_name: m.last_name,
             email: m.email,
             mobile_phone: m.mobile_phone,
+            work_phone: m.work_phone,
             relationship: m.relationship,
           };
           return m.id
@@ -342,6 +366,7 @@ export default function ChampionProfile() {
                   <FieldRow label="Last Name" value={m.last_name} editing={editing} onChange={(v) => setMemberField(idx, 'last_name', v)} />
                   <FieldRow label="Email" value={m.email} editing={editing} onChange={(v) => setMemberField(idx, 'email', v)} />
                   <FieldRow label="Mobile Phone" value={m.mobile_phone} editing={editing} onChange={(v) => setMemberField(idx, 'mobile_phone', v)} />
+                  <FieldRow label="Work Phone" value={m.work_phone} editing={editing} onChange={(v) => setMemberField(idx, 'work_phone', v)} />
                 </dl>
                 {!editing && (m.mobile_phone || m.email) && (
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -367,10 +392,11 @@ export default function ChampionProfile() {
           </div>
         </Section>
 
-        {/* Address */}
-        <Section icon={MapPin} title="Address">
+        {/* Contact Information */}
+        <Section icon={MapPin} title="Contact Information">
           <dl className="grid grid-cols-2 gap-4">
             <FieldRow label="Street Address" value={h.address} editing={editing} onChange={(v) => setField('address', v)} />
+            <FieldRow label="Address Line 2" value={h.address_line_2} editing={editing} onChange={(v) => setField('address_line_2', v)} />
             <FieldRow label="City" value={h.city} editing={editing} onChange={(v) => setField('city', v)} />
             <FieldRow label="State" value={h.state} editing={editing} onChange={(v) => setField('state', v)} />
             <FieldRow label="Zip Code" value={h.zip_code} editing={editing} onChange={(v) => setField('zip_code', v)} />
@@ -393,9 +419,12 @@ export default function ChampionProfile() {
           )}
         </Section>
 
-        {/* Registration */}
-        <Section icon={ClipboardList} title="Registration Information">
+        {/* Ministry Information */}
+        <Section icon={ClipboardList} title="Ministry Information">
           <dl className="grid grid-cols-2 gap-4">
+            <FieldRow label="Champion Status" value={h.champion_status} editing={editing} type="select" options={CHAMPION_STATUS_OPTIONS} onChange={(v) => setField('champion_status', v)} />
+            <FieldRow label="Church Priority" value={h.church_priority} editing={editing} type="select" options={PRIORITY_OPTIONS} onChange={(v) => setField('church_priority', v)} />
+            <FieldRow label="Marriage Conference Priority" value={h.marriage_conference_priority} editing={editing} type="select" options={PRIORITY_OPTIONS} onChange={(v) => setField('marriage_conference_priority', v)} />
             <FieldRow label="Registration Date" value={h.registration_date} editing={editing} type="date" onChange={(v) => setField('registration_date', v)} />
             <FieldRow label="Registration Type" value={h.registration_type} editing={editing} type="select" options={REGISTRATION_TYPE_OPTIONS} onChange={(v) => setField('registration_type', v)} />
             <FieldRow label="Group Name" value={h.group_name} editing={editing} onChange={(v) => setField('group_name', v)} />
@@ -413,6 +442,36 @@ export default function ChampionProfile() {
             </div>
             <FieldRow label="Assigned Director" value={h.assigned_director} editing={editing} onChange={(v) => setField('assigned_director', v)} />
           </div>
+        </Section>
+
+        {/* Church Information */}
+        <Section icon={Church} title="Church Information">
+          <dl className="grid grid-cols-2 gap-4">
+            <FieldRow label="Church Name" value={h.church_name} editing={editing} onChange={(v) => setField('church_name', v)} />
+            <FieldRow label="Church City" value={h.church_city} editing={editing} onChange={(v) => setField('church_city', v)} />
+            <FieldRow label="Church State" value={h.church_state} editing={editing} onChange={(v) => setField('church_state', v)} />
+            <FieldRow label="Church ZIP Code" value={h.church_zip_code} editing={editing} onChange={(v) => setField('church_zip_code', v)} />
+          </dl>
+        </Section>
+
+        {/* Communication Preferences */}
+        <Section icon={MessageSquareOff} title="Communication Preferences">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <FieldRow label="Do Not Call" value={h.do_not_call} editing={editing} type="boolean" onChange={(v) => setField('do_not_call', v)} />
+            <FieldRow label="Do Not Text" value={h.do_not_text} editing={editing} type="boolean" onChange={(v) => setField('do_not_text', v)} />
+            <FieldRow label="Email Opt Out" value={h.email_opt_out} editing={editing} type="boolean" onChange={(v) => setField('email_opt_out', v)} />
+          </div>
+        </Section>
+
+        {/* Event Participation */}
+        <Section icon={Ticket} title="Event Participation">
+          <dl className="grid grid-cols-2 gap-4">
+            <FieldRow label="Cumulative Registrations" value={h.cumulative_registrations} editing={editing} type="number" onChange={(v) => setField('cumulative_registrations', v)} />
+            <FieldRow label="Free Couple Registrations Used" value={h.free_couple_registrations_used} editing={editing} type="number" onChange={(v) => setField('free_couple_registrations_used', v)} />
+            <FieldRow label="Free Couple Registrations Available" value={h.free_couple_registrations_available} editing={editing} type="number" onChange={(v) => setField('free_couple_registrations_available', v)} />
+            <FieldRow label="Registrations Toward Next Free Registration" value={h.registrations_toward_next_free_registration} editing={editing} type="number" onChange={(v) => setField('registrations_toward_next_free_registration', v)} />
+            <FieldRow label="Registrations Needed for Next Free Registration" value={h.registrations_needed_for_next_free_registration} editing={editing} type="number" onChange={(v) => setField('registrations_needed_for_next_free_registration', v)} />
+          </dl>
         </Section>
       </div>
 

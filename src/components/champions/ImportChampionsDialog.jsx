@@ -19,7 +19,10 @@ const CHAMPION_SCHEMA = {
     mobile_phone: { type: 'string' },
     relationship: { type: 'string' },
     home_phone: { type: 'string' },
+    work_phone: { type: 'string' },
+    account_salutation: { type: 'string' },
     address: { type: 'string' },
+    address_line_2: { type: 'string' },
     city: { type: 'string' },
     state: { type: 'string' },
     zip_code: { type: 'string' },
@@ -36,14 +39,14 @@ const CHAMPION_SCHEMA = {
 };
 
 const HOUSEHOLD_FIELDS = [
-  'household_name', 'address', 'city', 'state', 'zip_code', 'home_phone', 'area',
+  'household_name', 'address', 'address_line_2', 'city', 'state', 'zip_code', 'home_phone', 'area',
   'registration_date', 'registration_type', 'group_name', 'status',
   'assigned_volunteer', 'assigned_director', 'notes',
 ];
 
 const COLUMNS = [
-  'household_name', 'first_name', 'last_name', 'email', 'mobile_phone', 'home_phone',
-  'relationship', 'address', 'city', 'state', 'zip_code', 'area', 'status',
+  'household_name', 'first_name', 'last_name', 'account_salutation', 'email', 'mobile_phone', 'home_phone', 'work_phone',
+  'relationship', 'address', 'address_line_2', 'city', 'state', 'zip_code', 'area', 'status',
   'registration_date', 'registration_type', 'group_name',
   'assigned_volunteer', 'assigned_director', 'notes',
 ];
@@ -53,13 +56,16 @@ const RELATIONSHIP_BY_INDEX = ['Primary', 'Spouse', 'Member'];
 // Maps common spreadsheet column headers to entity field keys.
 const HEADER_MAP = {
   household_name: ['household', 'household name', 'family', 'family name'],
+  account_salutation: ['account salutation', 'salutation'],
   first_name: ['first name', 'firstname', 'first', 'fname', 'given name'],
   last_name: ['last name', 'lastname', 'last', 'lname', 'surname', 'family name'],
   email: ['email', 'e-mail', 'email address', 'e-mail address'],
   mobile_phone: ['mobile phone', 'mobile', 'cell', 'cell phone', 'cellphone', 'mobile number'],
   home_phone: ['home phone', 'home', 'home number', 'phone', 'phone number', 'telephone'],
+  work_phone: ['work phone', 'work', 'work number', 'business phone'],
   relationship: ['relationship', 'role', 'position', 'title'],
   address: ['address', 'street', 'street address', 'address 1', 'address1'],
+  address_line_2: ['address 2', 'address2', 'address line 2', 'address line two'],
   city: ['city', 'town'],
   state: ['state', 'st', 'province'],
   zip_code: ['zip', 'zip code', 'zip/postal', 'postal', 'postal code', 'postcode'],
@@ -143,10 +149,11 @@ function buildHouseholds(rows) {
       if (!g.household[f] && row[f]) g.household[f] = row[f];
     });
     g.members.push({
-      first_name: row.first_name,
+      first_name: row.account_salutation || row.first_name,
       last_name: row.last_name,
       email: row.email,
       mobile_phone: row.mobile_phone,
+      work_phone: row.work_phone,
       relationship: row.relationship,
     });
   });
@@ -311,7 +318,7 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
       });
 
       const stats = { created: 0, updated: 0, membersAdded: 0, membersUpdated: 0 };
-      const MEMBER_FIELDS = ['first_name', 'last_name', 'email', 'mobile_phone', 'relationship'];
+      const MEMBER_FIELDS = ['first_name', 'last_name', 'email', 'mobile_phone', 'work_phone', 'relationship'];
 
       for (const g of households) {
         const incomingHH = g.household;

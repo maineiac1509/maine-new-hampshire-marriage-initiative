@@ -23,6 +23,10 @@
       "type": "string",
       "title": "Mobile Phone"
     },
+    "work_phone": {
+      "type": "string",
+      "title": "Work Phone"
+    },
     "relationship": {
       "type": "string",
       "title": "Relationship",

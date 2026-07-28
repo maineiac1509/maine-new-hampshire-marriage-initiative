@@ -10,6 +10,10 @@
       "type": "string",
       "title": "Address"
     },
+    "address_line_2": {
+      "type": "string",
+      "title": "Address Line 2"
+    },
     "city": {
       "type": "string",
       "title": "City"
@@ -34,6 +38,90 @@
     "area": {
       "type": "string",
       "title": "Area"
+    },
+    "church_name": {
+      "type": "string",
+      "title": "Church Name"
+    },
+    "church_city": {
+      "type": "string",
+      "title": "Church City"
+    },
+    "church_state": {
+      "type": "string",
+      "title": "Church State"
+    },
+    "church_zip_code": {
+      "type": "string",
+      "title": "Church ZIP Code"
+    },
+    "church_priority": {
+      "type": "string",
+      "title": "Church Priority",
+      "enum": [
+        "High",
+        "Medium",
+        "Low"
+      ]
+    },
+    "marriage_conference_priority": {
+      "type": "string",
+      "title": "Marriage Conference Priority",
+      "enum": [
+        "High",
+        "Medium",
+        "Low"
+      ]
+    },
+    "champion_status": {
+      "type": "string",
+      "title": "Champion Status",
+      "enum": [
+        "Active",
+        "Inactive",
+        "Prospect",
+        "Alumni"
+      ]
+    },
+    "do_not_call": {
+      "type": "boolean",
+      "title": "Do Not Call",
+      "default": false
+    },
+    "do_not_text": {
+      "type": "boolean",
+      "title": "Do Not Text",
+      "default": false
+    },
+    "email_opt_out": {
+      "type": "boolean",
+      "title": "Email Opt Out",
+      "default": false
+    },
+    "cumulative_registrations": {
+      "type": "number",
+      "title": "Cumulative Registrations",
+      "default": 0
+    },
+    "free_couple_registrations_used": {
+      "type": "number",
+      "title": "Free Couple Registrations Used",
+      "default": 0
+    },
+    "free_couple_registrations_available": {
+      "type": "number",
+      "title": "Free Couple Registrations Available",
+      "default": 0
+    },
+    "registrations_toward_next_free_registration": {
+      "type": "number",
+      "title": "Registrations Toward Next Free Registration",
+      "default": 0
+    },
+    "registrations_needed_for_next_free_registration": {
+      "type": "number",
+      "title": "Registrations Needed for Next Free Registration",
+      "default": 0
     },
     "registration_date": {
       "type": "string",
