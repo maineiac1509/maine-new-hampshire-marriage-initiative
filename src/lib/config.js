@@ -13,6 +13,7 @@ export const NAV_ITEMS = [
   { label: 'Assignments', path: '/assignments', icon: 'UserCheck' },
   { label: 'Contact History', path: '/contact-history', icon: 'MessageSquare' },
   { label: 'Reports', path: '/reports', icon: 'BarChart3' },
+  { label: 'Ministry Intelligence', path: '/intelligence', icon: 'Activity' },
   { label: 'Users', path: '/users', icon: 'UsersRound', adminOnly: true },
   { label: 'Administration', path: '/administration', icon: 'Settings', adminOnly: true },
 ];
