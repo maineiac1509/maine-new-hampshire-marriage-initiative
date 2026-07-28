@@ -580,7 +580,7 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5" />
@@ -701,7 +701,7 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
                 </p>
                 <details className="mt-1">
                   <summary className="cursor-pointer text-amber-700">View details</summary>
-                  <ul className="mt-1 space-y-0.5">
+                  <ul className="mt-1 max-h-40 space-y-0.5 overflow-y-auto">
                     {diagnostics.validationErrors.map((e, i) => (
                       <li key={i}>{e.household} · {e.label}: "{e.value}"</li>
                     ))}
@@ -813,7 +813,7 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
             {result.validationErrors.length > 0 && (
               <details className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs">
                 <summary className="cursor-pointer font-medium text-destructive">Validation errors ({result.validationErrors.length})</summary>
-                <div className="mt-2 space-y-1">
+                <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
                   {result.validationErrors.map((e, i) => (
                     <div key={i} className="flex flex-col">
                       <span className="text-muted-foreground">{e.household} · {e.label}</span>
