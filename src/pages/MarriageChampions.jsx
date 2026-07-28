@@ -13,9 +13,10 @@ import RelationshipStatusSummary from '@/components/champions/RelationshipStatus
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
-  isAssignedTo, householdIndicator, lastActivityDate, nextFollowUpDate, isRecentlyContacted,
+  householdIndicator, lastActivityDate, nextFollowUpDate, isRecentlyContacted,
 } from '@/lib/championUtils';
 import { buildAssignmentMap, assignmentStatusFor } from '@/lib/assignmentUtils';
+import { isAdmin } from '@/lib/permissions';
 import { computeStewardshipHealth, STEWARDSHIP_HEALTH_LEVELS } from '@/lib/stewardshipHealth';
 import AssignmentStatusBadge from '@/components/champions/AssignmentStatusBadge';
 import CreateAssignmentDialog from '@/components/assignments/CreateAssignmentDialog';
@@ -59,6 +60,7 @@ export default function MarriageChampions() {
   const [activities, setActivities] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
   const [assignChampion, setAssignChampion] = useState(null);
   const [assignmentFilter, setAssignmentFilter] = useState('all');
   const [healthFilter, setHealthFilter] = useState('all');
@@ -82,8 +84,9 @@ export default function MarriageChampions() {
       base44.entities.ChampionActivity.list(),
       base44.entities.VolunteerTeam.list(),
       base44.entities.Assignment.list(),
+      base44.entities.TeamMember.list(),
     ])
-      .then(([hhs, members, acts, ts, asgs]) => {
+      .then(([hhs, members, acts, ts, asgs, tms]) => {
         const byHouse = {};
         members.forEach((m) => {
           if (!byHouse[m.household_id]) byHouse[m.household_id] = [];
@@ -93,8 +96,9 @@ export default function MarriageChampions() {
         setTeams(ts || []);
         setActivities(acts || []);
         setAssignments(asgs || []);
+        setTeamMembers(tms || []);
       })
-      .catch(() => { setHouseholds([]); setTeams([]); setActivities([]); setAssignments([]); })
+      .catch(() => { setHouseholds([]); setTeams([]); setActivities([]); setAssignments([]); setTeamMembers([]); })
       .finally(() => setLoading(false));
   };
 
@@ -133,22 +137,39 @@ export default function MarriageChampions() {
   const assignmentMap = useMemo(() => buildAssignmentMap(assignments), [assignments]);
   const canManage = currentUser?.role === 'admin' || currentUser?.role === 'director';
 
+  // Derive the current user's team from TeamMember records (source of truth),
+  // then match champions via Assignment records — not the denormalized
+  // assigned_volunteer text field on the household.
+  const myTeamId = useMemo(() => {
+    if (!currentUser) return null;
+    const membership = (teamMembers || []).find((m) => m.user_id === currentUser.id);
+    return membership?.team_id || null;
+  }, [teamMembers, currentUser]);
+
+  function isMyChampion(h) {
+    if (!currentUser) return false;
+    if (isAdmin(currentUser) && !myTeamId) return true;
+    if (!myTeamId) return false;
+    const activeAsg = assignmentMap[h.id]?.active;
+    return activeAsg?.volunteer_team_id === myTeamId;
+  }
+
   const counts = useMemo(() => {
     const c = { all: households.length, my: 0, 'first-contact': 0, 'follow-up': 0, recent: 0, unassigned: 0 };
     households.forEach((h) => {
       const acts = activitiesByHouse[h.id] || [];
       const ind = householdIndicator(acts);
-      if (isAssignedTo(h, currentUser)) c.my++;
+      if (isMyChampion(h)) c.my++;
       if (h.status === 'New') c['first-contact']++;
       if (ind.key === 'overdue' || ind.key === 'due-today' || h.status === 'Follow-Up') c['follow-up']++;
       if (isRecentlyContacted(acts)) c.recent++;
       if (assignmentStatusFor(h.id, assignmentMap) === 'unassigned') c.unassigned++;
     });
     return c;
-  }, [households, activitiesByHouse, currentUser, assignmentMap]);
+  }, [households, activitiesByHouse, currentUser, assignmentMap, myTeamId]);
 
   const myStats = useMemo(() => {
-    const mine = households.filter((h) => isAssignedTo(h, currentUser));
+    const mine = households.filter((h) => isMyChampion(h));
     let needFirst = 0, dueToday = 0, overdue = 0, lastAct = null;
     mine.forEach((h) => {
       if (h.status === 'New') needFirst++;
@@ -160,24 +181,24 @@ export default function MarriageChampions() {
       if (la && (!lastAct || la > lastAct)) lastAct = la;
     });
     return { total: mine.length, needFirstContact: needFirst, dueToday, overdue, lastActivity: lastAct };
-  }, [households, activitiesByHouse, currentUser]);
+  }, [households, activitiesByHouse, currentUser, myTeamId, assignmentMap]);
 
   const myRelStatusCounts = useMemo(() => {
     const c = {};
     households
-      .filter((h) => isAssignedTo(h, currentUser))
+      .filter((h) => isMyChampion(h))
       .forEach((h) => {
         const s = h.relationship_status || 'New';
         c[s] = (c[s] || 0) + 1;
       });
     return c;
-  }, [households, currentUser]);
+  }, [households, currentUser, myTeamId, assignmentMap]);
 
   const filtered = useMemo(() => {
     let result = households.filter((h) => {
       const acts = activitiesByHouse[h.id] || [];
       switch (activeView) {
-        case 'my': return isAssignedTo(h, currentUser);
+        case 'my': return isMyChampion(h);
         case 'first-contact': return h.status === 'New';
         case 'follow-up': {
           const ind = householdIndicator(acts);
@@ -220,7 +241,7 @@ export default function MarriageChampions() {
       return 0;
     });
     return result;
-  }, [households, activeView, currentUser, activitiesByHouse, assignmentMap, search, statusFilter, typeFilter, relStatusFilter, assignmentFilter, healthFilter, sortKey, sortDir]);
+  }, [households, activeView, currentUser, activitiesByHouse, assignmentMap, search, statusFilter, typeFilter, relStatusFilter, assignmentFilter, healthFilter, sortKey, sortDir, myTeamId]);
 
   useEffect(() => { setPage(1); }, [activeView, search, statusFilter, typeFilter, relStatusFilter, assignmentFilter, healthFilter]);
 
