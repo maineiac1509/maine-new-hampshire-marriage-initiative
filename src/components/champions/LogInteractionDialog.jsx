@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { ACTIVITY_TYPE_OPTIONS, CONTACT_METHOD_OPTIONS, CONTACT_OUTCOME_OPTIONS, OUTCOME_STATUS_SUGGESTIONS } from '@/lib/config';
+import { ACTIVITY_TYPE_OPTIONS, CONTACT_METHOD_OPTIONS, ACTIVITY_CONTACT_METHODS, CONTACT_OUTCOME_OPTIONS, OUTCOME_STATUS_SUGGESTIONS } from '@/lib/config';
 import { Loader2, Sparkles } from 'lucide-react';
 import RelationshipStatusBadge from './RelationshipStatusBadge';
 
@@ -57,6 +57,18 @@ export default function LogInteractionDialog({
   function set(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
   }
+
+  // When activity type changes, clear contact_method if it's no longer valid.
+  function setActivityType(value) {
+    const validMethods = ACTIVITY_CONTACT_METHODS[value] || CONTACT_METHOD_OPTIONS;
+    setForm((f) => ({
+      ...f,
+      activity_type: value,
+      contact_method: validMethods.includes(f.contact_method) ? f.contact_method : '',
+    }));
+  }
+
+  const availableContactMethods = ACTIVITY_CONTACT_METHODS[form.activity_type] || CONTACT_METHOD_OPTIONS;
 
   async function handleSave() {
     setError('');
@@ -167,7 +179,7 @@ export default function LogInteractionDialog({
               </div>
               <div className="space-y-1.5">
                 <Label>Activity Type</Label>
-                <Select value={form.activity_type || ''} onValueChange={(v) => set('activity_type', v)}>
+                <Select value={form.activity_type || ''} onValueChange={setActivityType}>
                   <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                   <SelectContent>
                     {ACTIVITY_TYPE_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
@@ -179,7 +191,7 @@ export default function LogInteractionDialog({
                 <Select value={form.contact_method || ''} onValueChange={(v) => set('contact_method', v)}>
                   <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
                   <SelectContent>
-                    {CONTACT_METHOD_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                    {availableContactMethods.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
