@@ -76,7 +76,7 @@ export default function AddChampionDialog({ open, onOpenChange, onCreated }) {
         const m = members.find((x) => x.last_name.trim());
         hh.household_name = m ? `${m.last_name.trim()} Household` : 'Household';
       }
-      const [created] = await base44.entities.ChampionHousehold.create(hh);
+      const created = await base44.entities.ChampionHousehold.create(hh);
       const memberRecords = members
         .filter((m) => m.first_name.trim() || m.last_name.trim())
         .map((m) => ({
