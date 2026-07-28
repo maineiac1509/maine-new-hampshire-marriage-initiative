@@ -488,55 +488,72 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
         validationErrors: [...(diagnostics?.validationErrors || [])],
       };
 
-      for (const g of households) {
-        const incomingHH = g.household;
-        const match = findExistingHousehold(incomingHH, g.members, existingHH || [], membersByHouse);
+      // Partition into new vs. update groups to minimize API calls.
+      const newGroups = [];
+      const updateGroups = [];
+      households.forEach((g) => {
+        const match = findExistingHousehold(g.household, g.members, existingHH || [], membersByHouse);
+        if (match) updateGroups.push({ match, incoming: g.household, members: g.members });
+        else newGroups.push({ incoming: g.household, members: g.members });
+      });
 
-        if (match) {
-          // Update household fields that differ — import wins on mismatch.
-          const hhUpdates = {};
-          HOUSEHOLD_FIELDS.forEach((f) => {
-            if (incomingHH[f] != null && incomingHH[f] !== '' && incomingHH[f] !== (match[f] ?? '')) {
-              hhUpdates[f] = incomingHH[f];
-            }
-          });
-          if (Object.keys(hhUpdates).length) {
-            await base44.entities.ChampionHousehold.update(match.id, hhUpdates);
-            summary.householdsUpdated++;
-          } else {
-            summary.contactsLinked++;
-          }
-
-          // Sync members: update matches, add new ones.
-          const houseMembers = membersByHouse[match.id] || [];
-          for (const im of g.members) {
-            const em = findExistingMember(im, houseMembers);
-            if (em) {
-              const mUpdates = {};
-              MEMBER_FIELDS.forEach((f) => {
-                if (im[f] && im[f] !== (em[f] ?? '')) mUpdates[f] = im[f];
-              });
-              if (Object.keys(mUpdates).length) {
-                await base44.entities.HouseholdMember.update(em.id, mUpdates);
-                summary.contactsUpdated++;
-              } else {
-                summary.contactsLinked++;
-              }
-            } else {
-              await base44.entities.HouseholdMember.create({ ...im, household_id: match.id });
-              summary.contactsCreated++;
-            }
-          }
-        } else {
-          // No match — create a new household and its members.
-          const created = await base44.entities.ChampionHousehold.create(incomingHH);
-          summary.householdsCreated++;
-          const memberRecords = g.members.map((m) => ({ ...m, household_id: created.id }));
-          if (memberRecords.length) {
-            await base44.entities.HouseholdMember.bulkCreate(memberRecords);
-            summary.contactsCreated += memberRecords.length;
-          }
+      // 1. Bulk-create all new households, then bulk-create their members.
+      if (newGroups.length) {
+        const createdHHs = await base44.entities.ChampionHousehold.bulkCreate(
+          newGroups.map((g) => g.incoming)
+        );
+        summary.householdsCreated = createdHHs.length;
+        const byName = {};
+        createdHHs.forEach((hh) => { byName[norm(hh.household_name)] = hh; });
+        const newMembers = [];
+        newGroups.forEach((g, i) => {
+          const hh = byName[norm(g.incoming.household_name)] || createdHHs[i];
+          (g.members || []).forEach((m) => newMembers.push({ ...m, household_id: hh.id }));
+        });
+        if (newMembers.length) {
+          await base44.entities.HouseholdMember.bulkCreate(newMembers);
+          summary.contactsCreated += newMembers.length;
         }
+      }
+
+      // 2. For matched households, batch updates + new members.
+      const hhUpdates = [];
+      const memberUpdates = [];
+      const matchedNewMembers = [];
+      updateGroups.forEach((g) => {
+        const u = {};
+        HOUSEHOLD_FIELDS.forEach((f) => {
+          if (g.incoming[f] != null && g.incoming[f] !== '' && g.incoming[f] !== (g.match[f] ?? '')) u[f] = g.incoming[f];
+        });
+        if (Object.keys(u).length) hhUpdates.push({ id: g.match.id, ...u });
+        else summary.contactsLinked++;
+
+        const houseMembers = membersByHouse[g.match.id] || [];
+        g.members.forEach((im) => {
+          const em = findExistingMember(im, houseMembers);
+          if (em) {
+            const mu = {};
+            MEMBER_FIELDS.forEach((f) => {
+              if (im[f] && im[f] !== (em[f] ?? '')) mu[f] = im[f];
+            });
+            if (Object.keys(mu).length) memberUpdates.push({ id: em.id, ...mu });
+            else summary.contactsLinked++;
+          } else {
+            matchedNewMembers.push({ ...im, household_id: g.match.id });
+          }
+        });
+      });
+      if (hhUpdates.length) {
+        await base44.entities.ChampionHousehold.bulkUpdate(hhUpdates);
+        summary.householdsUpdated = hhUpdates.length;
+      }
+      if (memberUpdates.length) {
+        await base44.entities.HouseholdMember.bulkUpdate(memberUpdates);
+        summary.contactsUpdated = memberUpdates.length;
+      }
+      if (matchedNewMembers.length) {
+        await base44.entities.HouseholdMember.bulkCreate(matchedNewMembers);
+        summary.contactsCreated += matchedNewMembers.length;
       }
 
       setResult(summary);
