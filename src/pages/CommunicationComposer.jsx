@@ -16,8 +16,10 @@ import {
   resolveTemplate, findMergeFields, resolveFieldValue, highlightMergeFields, COMMUNICATION_TYPES,
 } from '@/lib/mergeFields';
 import RelatedResourcesPanel from '@/components/resources/RelatedResourcesPanel';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function CommunicationComposer() {
+  const { toast } = useToast();
   const [params, setParams] = useSearchParams();
   const templateId = params.get('templateId');
   const championId = params.get('championId');
@@ -42,6 +44,7 @@ export default function CommunicationComposer() {
     subject: '', notes: '', follow_up_date: '', outcome: '', related_guide: '',
   });
   const [logging, setLogging] = useState(false);
+  const [logError, setLogError] = useState('');
   const [noteOpen, setNoteOpen] = useState(false);
   const [personalNote, setPersonalNote] = useState('');
 
@@ -138,10 +141,15 @@ export default function CommunicationComposer() {
   }
 
   async function handleLog() {
+    setLogError('');
+    if (!selectedChampionId) {
+      setLogError('Please select a Champion before logging.');
+      return;
+    }
     setLogging(true);
     try {
       await base44.entities.CommunicationLog.create({
-        household_id: selectedChampionId || undefined,
+        household_id: selectedChampionId,
         communication_type: logForm.communication_type,
         template_id: template?.id,
         template_title: template?.title,
@@ -153,8 +161,11 @@ export default function CommunicationComposer() {
         outcome: logForm.outcome,
         related_guide: logForm.related_guide,
       });
+      toast({ title: 'Communication logged', description: 'Saved to this Champion\'s history.' });
       setLogOpen(false);
       setLogForm({ communication_type: logForm.communication_type, subject: '', notes: '', follow_up_date: '', outcome: '', related_guide: '' });
+    } catch (err) {
+      setLogError(err.message || 'Failed to log communication. Please try again.');
     } finally {
       setLogging(false);
     }
@@ -340,6 +351,7 @@ export default function CommunicationComposer() {
                   <Label className="text-xs">Notes</Label>
                   <Textarea value={logForm.notes} onChange={(e) => setLogForm((f) => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Defaults to your message—edit as needed." />
                 </div>
+                {logError && <p className="text-sm text-destructive">{logError}</p>}
                 <Button onClick={handleLog} disabled={logging}>
                   {logging ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />} Save Log
                 </Button>
