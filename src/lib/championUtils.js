@@ -1,12 +1,12 @@
 // Shared helpers for Champion list views (filters, badges, summaries).
 
-// Does this household's Assigned Volunteer match the logged-in user?
-export function isAssignedTo(household, user) {
-  if (!household?.assigned_volunteer || !user) return false;
-  const av = household.assigned_volunteer.trim().toLowerCase();
-  if (!av) return false;
-  const candidates = [user.full_name, user.email].filter(Boolean).map((v) => v.trim().toLowerCase());
-  return candidates.some((c) => av === c || av.includes(c) || c.includes(av));
+// Does this household's active Assignment belong to the current user's team?
+// Requires the active Assignment and the user's team ID (derived from
+// TeamMember records) — both from the Assignment entity, not the denormalized
+// assigned_volunteer text field on ChampionHousehold.
+export function isAssignedTo(household, user, activeAssignment, myTeamId) {
+  if (!household || !user || !activeAssignment || !myTeamId) return false;
+  return activeAssignment.volunteer_team_id === myTeamId;
 }
 
 // Most recent activity date (yyyy-mm-dd) for a household, or null.

@@ -126,7 +126,7 @@ const RULES = [
         return rec({
           identity: `follow-up:${h.id}`, type: this.type, priority: this.priority,
           household_id: h.id, volunteer_team_id: a.volunteer_team_id, assignment_id: a.id,
-          assigned_volunteer: h.assigned_volunteer,
+          assigned_volunteer: a.assigned_by,
           why: [
             'Stewardship Health changed to Follow-up Recommended',
             health.daysSinceActivity != null
@@ -152,7 +152,7 @@ const RULES = [
         return rec({
           identity: `immediate:${h.id}`, type: this.type, priority: this.priority,
           household_id: h.id, volunteer_team_id: a.volunteer_team_id, assignment_id: a.id,
-          assigned_volunteer: h.assigned_volunteer,
+          assigned_volunteer: a.assigned_by,
           why: [
             'Stewardship Health changed to Immediate Attention',
             health.daysSinceActivity != null
@@ -178,7 +178,7 @@ const RULES = [
         return rec({
           identity: `re-engagement:${h.id}`, type: this.type, priority: this.priority,
           household_id: h.id, volunteer_team_id: a.volunteer_team_id, assignment_id: a.id,
-          assigned_volunteer: h.assigned_volunteer,
+          assigned_volunteer: a.assigned_by,
           why: [
             'Stewardship Health changed to Re-engagement Opportunity',
             health.daysSinceActivity != null
@@ -245,7 +245,7 @@ const RULES = [
         return rec({
           identity: `transferred:${a.household_id}`, type: this.type, priority: this.priority,
           household_id: a.household_id, volunteer_team_id: a.volunteer_team_id, assignment_id: a.id,
-          assigned_volunteer: h?.assigned_volunteer,
+          assigned_volunteer: a.assigned_by,
           why: [
             'Stewardship was recently transferred to another team',
             `Transfer occurred ${days} day(s) ago`,
@@ -267,7 +267,7 @@ const RULES = [
         return rec({
           identity: `ending-soon:${a.id}`, type: this.type, priority: this.priority,
           household_id: a.household_id, volunteer_team_id: a.volunteer_team_id, assignment_id: a.id,
-          assigned_volunteer: h?.assigned_volunteer,
+          assigned_volunteer: a.assigned_by,
           why: [
             `Assignment is scheduled to end on ${fmtDate(a.planned_end_date)}`,
             days === 0 ? 'That is today' : `That is in ${days} day(s)`,
@@ -387,7 +387,7 @@ function toSurfaceItem(r, d, householdMap, teamMap) {
     volunteer_team_id: r.volunteer_team_id,
     assignment_id: r.assignment_id,
     championName: householdName(h),
-    assignedVolunteer: r.assigned_volunteer || h?.assigned_volunteer || '—',
+    assignedVolunteer: r.assigned_volunteer || '—',
     teamName: t?.team_name || '—',
     why,
     suggestedAction: d ? d.suggested_action : r.suggested_action,

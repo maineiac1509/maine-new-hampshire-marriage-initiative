@@ -6,20 +6,14 @@ import {
 } from '@/components/ui/select';
 import { RELATIONSHIP_STATUS_OPTIONS } from '@/lib/config';
 import RelationshipStatusBadge from './RelationshipStatusBadge';
-import { isAssignedTo } from '@/lib/championUtils';
-
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
 // Prominent status control for the Champion detail page.
-// Admins/Directors can change any Champion's status;
-// Volunteers can change only Champions assigned to them.
-// Every change is recorded as a RelationshipStatusChange for the timeline.
-export default function RelationshipStatusControl({ household, currentUser, onStatusChanged }) {
+// canChange is computed by the parent from the Assignment entity.
+export default function RelationshipStatusControl({ household, canChange, onStatusChanged }) {
   const [saving, setSaving] = useState(false);
-  const role = currentUser?.role;
-  const canChange = role === 'admin' || role === 'director' || isAssignedTo(household, currentUser);
   const current = household?.relationship_status || 'New';
 
   async function handleChange(newStatus) {

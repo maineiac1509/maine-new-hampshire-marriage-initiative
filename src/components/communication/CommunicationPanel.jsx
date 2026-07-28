@@ -21,7 +21,7 @@ function fmtDate(s) {
   return s ? new Date(s + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 }
 
-export default function CommunicationPanel({ champion, activities, currentUser }) {
+export default function CommunicationPanel({ champion, activities, currentUser, hasActiveAssignment = false }) {
   const [templates, setTemplates] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [logs, setLogs] = useState([]);
@@ -48,7 +48,7 @@ export default function CommunicationPanel({ champion, activities, currentUser }
   };
 
   // Suggested templates: match recommended_situations against champion situations
-  const ctx = buildChampionContext(champion, activities);
+  const ctx = buildChampionContext(champion, activities, hasActiveAssignment);
   const situations = detectChampionSituations(champion, ctx).map((s) => s.situation);
   const suggested = templates
     .filter((t) => t.enabled !== false && Array.isArray(t.recommended_situations) && t.recommended_situations.some((s) => situations.includes(s)))

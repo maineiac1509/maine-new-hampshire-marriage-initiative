@@ -45,8 +45,8 @@ export default function AssignmentDetail() {
           loads.push(base44.entities.VolunteerTeam.get(a.volunteer_team_id).then(setTeam).catch(() => setTeam(null)));
           loads.push(base44.entities.TeamMember.filter({ team_id: a.volunteer_team_id }).then(setMembers).catch(() => setMembers([])));
           loads.push(
-            base44.entities.ChampionHousehold.filter({ volunteer_team_id: a.volunteer_team_id })
-              .then((cs) => setTeamChampionCount((cs || []).length))
+            base44.entities.Assignment.filter({ volunteer_team_id: a.volunteer_team_id, assignment_status: 'Active' })
+              .then((asgs) => setTeamChampionCount((asgs || []).length))
               .catch(() => setTeamChampionCount(0))
           );
         }

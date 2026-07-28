@@ -132,6 +132,7 @@ export default function ChampionProfile() {
   const [milestones, setMilestones] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
 
   function load() {
     setLoading(true);
@@ -187,7 +188,14 @@ export default function ChampionProfile() {
     loadAssignments();
     base44.entities.VolunteerTeam.list().then((ts) => setTeams(ts || [])).catch(() => {});
     base44.auth.me().then((u) => setCurrentUser(u)).catch(() => {});
+    base44.entities.TeamMember.list().then((tms) => setTeamMembers(tms || [])).catch(() => {});
   }, [id]);
+
+  // Derive team membership from Assignment records (source of truth), not the
+  // denormalized assigned_volunteer text field on ChampionHousehold.
+  const myTeamId = (teamMembers || []).find((m) => m.user_id === currentUser?.id)?.team_id || null;
+  const activeAssignment = (assignments || []).find((a) => a.assignment_status === 'Active');
+  const canChangeStatus = currentUser?.role === 'admin' || currentUser?.role === 'director' || isAssignedTo(household, currentUser, activeAssignment, myTeamId);
 
   function startEdit() {
     setForm({ ...household });
@@ -347,7 +355,7 @@ export default function ChampionProfile() {
               <div className="mt-2">
                 <RelationshipStatusControl
                   household={household}
-                  currentUser={currentUser}
+                  canChange={canChangeStatus}
                   onStatusChanged={handleStatusChanged}
                 />
               </div>
@@ -502,13 +510,13 @@ export default function ChampionProfile() {
       </div>
 
       {/* Recommended Stewardship Guides */}
-      <RecommendedGuidesPanel champion={household} activities={activities} />
+      <RecommendedGuidesPanel champion={household} activities={activities} hasActiveAssignment={!!activeAssignment} />
 
       {/* Communication Center */}
-      <CommunicationPanel champion={household} activities={activities} currentUser={currentUser} />
+      <CommunicationPanel champion={household} activities={activities} currentUser={currentUser} hasActiveAssignment={!!activeAssignment} />
 
       {/* Recommended Resources */}
-      <ResourceRecommendationPanel champion={household} activities={activities} />
+      <ResourceRecommendationPanel champion={household} activities={activities} hasActiveAssignment={!!activeAssignment} />
 
       {/* Stewardship Timeline */}
       <StewardshipTimeline assignments={assignments} teams={teams} />
@@ -526,7 +534,7 @@ export default function ChampionProfile() {
         statusChanges={statusChanges}
         milestones={milestones}
         currentStatus={household?.relationship_status || 'New'}
-        canChangeStatus={currentUser?.role === 'admin' || currentUser?.role === 'director' || isAssignedTo(household, currentUser)}
+        canChangeStatus={canChangeStatus}
         onRefresh={loadActivities}
         onStatusChanged={handleStatusChanged}
         currentUser={currentUser}

@@ -385,11 +385,7 @@ export default function MarriageChampions() {
                 </button>
               </th>
               <th className="px-4 py-3 font-medium">Relationship</th>
-              <th className="px-4 py-3">
-                <button onClick={() => toggleSort('assigned_volunteer')} className="inline-flex items-center gap-1 font-medium hover:text-foreground">
-                  Assigned Team <ArrowUpDown className="h-3 w-3" />
-                </button>
-              </th>
+              <th className="px-4 py-3 font-medium">Assigned Team</th>
               <th className="px-4 py-3 font-medium">Last Contact</th>
               <th className="px-4 py-3 font-medium">Next Follow-up</th>
               <th className="px-4 py-3 font-medium">Follow-up</th>
@@ -403,8 +399,8 @@ export default function MarriageChampions() {
                 .join(', ');
               const aStatus = assignmentStatusFor(h.id, assignmentMap);
               const activeAsg = assignmentMap[h.id]?.active;
-              const teamId = activeAsg?.volunteer_team_id || h.volunteer_team_id;
-              const teamName = teamMap[teamId]?.team_name || (aStatus === 'closed' ? '' : h.assigned_volunteer);
+              const teamId = activeAsg?.volunteer_team_id;
+              const teamName = teamMap[teamId]?.team_name || '';
               return (
                 <tr key={h.id} className="border-b last:border-0 transition-colors hover:bg-muted/40">
                   <td className="px-4 py-3.5">

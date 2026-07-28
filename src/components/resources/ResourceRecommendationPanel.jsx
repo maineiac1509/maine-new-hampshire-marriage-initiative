@@ -5,7 +5,7 @@ import { base44 } from '@/api/base44Client';
 import { recommendResources } from '@/lib/resourceMatcher';
 import ResourceCard from './ResourceCard';
 
-export default function ResourceRecommendationPanel({ champion, activities = [] }) {
+export default function ResourceRecommendationPanel({ champion, activities = [], hasActiveAssignment = false }) {
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -16,7 +16,7 @@ export default function ResourceRecommendationPanel({ champion, activities = [] 
       .finally(() => setLoading(false));
   }, []);
 
-  const recommendations = recommendResources(resources, { champion, activities });
+  const recommendations = recommendResources(resources, { champion, activities, hasActiveAssignment });
 
   if (loading || recommendations.length === 0) return null;
 

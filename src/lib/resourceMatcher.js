@@ -6,13 +6,13 @@
  * Designed so Epic 7 can later add AI-powered personalization
  * by extending or replacing the scoring function.
  */
-export function recommendResources(resources, { champion, activities = [] }) {
+export function recommendResources(resources, { champion, activities = [], hasActiveAssignment = false }) {
   if (!resources?.length) return [];
 
   const status = champion?.relationship_status || '';
   const champStatus = champion?.champion_status || '';
   const hasChurch = Boolean(champion?.church_name);
-  const isVolunteer = Boolean(champion?.volunteer_team_id || champion?.assigned_volunteer);
+  const isVolunteer = hasActiveAssignment;
   const hasPrayerActivity = (activities || []).some(
     (a) => {
       const t = (a?.activity_type || a?.type || '').toLowerCase();

@@ -43,8 +43,9 @@ export function situationLabel(key) {
 
 // Build a lightweight context object from the champion's activity history.
 // Future signals (from the Ministry Intelligence Engine) can extend this.
-export function buildChampionContext(champion, activities = []) {
+export function buildChampionContext(champion, activities = [], hasActiveAssignment = false) {
   const ctx = {};
+  ctx.hasActiveAssignment = hasActiveAssignment;
   if (Array.isArray(activities) && activities.length) {
     const dates = activities.map((a) => a.activity_date).filter(Boolean).sort();
     const latest = dates[dates.length - 1];
@@ -83,7 +84,7 @@ export const SITUATION_RULES = [
   },
   {
     situation: 'volunteer',
-    test: (c) => c?.champion_status === 'Active' && Boolean(c?.volunteer_team_id || c?.assigned_volunteer),
+    test: (c, ctx) => c?.champion_status === 'Active' && Boolean(ctx?.hasActiveAssignment),
     reason: () => 'This Champion is serving as a volunteer — encouragement can go a long way.',
   },
   {

@@ -26,6 +26,12 @@ export default function AssignedChampionsTable({ champions, activitiesByHouse, a
     return m;
   }, [assignments]);
 
+  const assignedByMap = useMemo(() => {
+    const m = {};
+    (assignments || []).forEach((a) => { if (a.household_id) m[a.household_id] = a.assigned_by; });
+    return m;
+  }, [assignments]);
+
   const rows = useMemo(() => {
     let r = champions.map((c) => {
       const acts = activitiesByHouse[c.id] || [];
@@ -36,7 +42,7 @@ export default function AssignedChampionsTable({ champions, activitiesByHouse, a
         assigned: assignedDateMap[c.id] || c.registration_date || '',
         lastContact: lastActivityDate(acts),
         followUp: nextFollowUpDate(acts),
-        volunteer: c.assigned_volunteer || '',
+        volunteer: assignedByMap[c.id] || '',
       };
     });
     if (search.trim()) {
@@ -51,7 +57,7 @@ export default function AssignedChampionsTable({ champions, activitiesByHouse, a
       return 0;
     });
     return r;
-  }, [champions, activitiesByHouse, assignedDateMap, search, sort]);
+  }, [champions, activitiesByHouse, assignedDateMap, assignedByMap, search, sort]);
 
   function toggleSort(key) {
     setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));

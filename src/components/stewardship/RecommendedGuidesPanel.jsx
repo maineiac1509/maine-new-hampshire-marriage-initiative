@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 
 // "Recommended Stewardship Guides" panel for the Champion profile.
 // Deterministic situation matching today; designed for Epic 7 AI integration.
-export default function RecommendedGuidesPanel({ champion, activities }) {
+export default function RecommendedGuidesPanel({ champion, activities, hasActiveAssignment = false }) {
   const [guides, setGuides] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -19,7 +19,7 @@ export default function RecommendedGuidesPanel({ champion, activities }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const context = buildChampionContext(champion, activities);
+  const context = buildChampionContext(champion, activities, hasActiveAssignment);
   const recommendations = recommendGuidesForChampion(champion, guides, context);
 
   return (
