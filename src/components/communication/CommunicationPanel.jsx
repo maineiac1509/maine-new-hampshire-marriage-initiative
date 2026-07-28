@@ -1,21 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Send, Mail, Phone, Coffee, HeartHandshake, Star, MessageSquare,
+  Send, Star,
   Clock, Loader2, History, ChevronRight,
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { detectChampionSituations, buildChampionContext } from '@/lib/stewardshipGuideMatcher';
-
-const QUICK_ACTIONS = [
-  { label: 'Text', icon: MessageSquare, type: 'Text Message' },
-  { label: 'Email', icon: Mail, type: 'Email' },
-  { label: 'Phone Notes', icon: Phone, type: 'Phone Call' },
-  { label: 'Prayer', icon: HeartHandshake, type: 'Prayer' },
-  { label: 'Coffee', icon: Coffee, type: 'Coffee Invitation' },
-];
 
 function fmtDate(s) {
   return s ? new Date(s + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
@@ -61,7 +52,6 @@ export default function CommunicationPanel({ champion, activities, currentUser, 
   const recentTemplates = recentTemplateIds.map((id) => templates.find((t) => t.id === id)).filter(Boolean);
 
   const compose = (templateId) => `/communication/compose?templateId=${templateId}&championId=${champion?.id || ''}`;
-  const composeType = (type) => `/communication/compose?championId=${champion?.id || ''}&type=${encodeURIComponent(type)}`;
 
   return (
     <div className="rounded-lg border bg-card p-4 shadow-sm">
@@ -71,21 +61,6 @@ export default function CommunicationPanel({ champion, activities, currentUser, 
           <h3 className="text-sm font-semibold text-foreground">Communication Center</h3>
         </div>
         <Link to="/communication" className="text-xs font-medium text-primary hover:underline">Browse all</Link>
-      </div>
-
-      {/* Quick Launch */}
-      <div className="mt-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Quick Launch</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {QUICK_ACTIONS.map((a) => {
-            const Icon = a.icon;
-            return (
-              <Button key={a.label} asChild variant="outline" size="sm">
-                <Link to={composeType(a.type)}><Icon className="h-4 w-4" /> {a.label}</Link>
-              </Button>
-            );
-          })}
-        </div>
       </div>
 
       {loading ? (

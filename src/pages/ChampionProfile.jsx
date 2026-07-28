@@ -10,6 +10,7 @@ import RelationshipSummary, { getFollowUpStatus } from '@/components/champions/R
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import RelationshipStatusControl from '@/components/champions/RelationshipStatusControl';
 import RelationshipTimeline from '@/components/champions/RelationshipTimeline';
+import QuickActionsBar from '@/components/champions/QuickActionsBar';
 import ChampionAssignmentCard from '@/components/assignments/ChampionAssignmentCard';
 import StewardshipTimeline from '@/components/champions/StewardshipTimeline';
 import StewardshipHealthBadge from '@/components/champions/StewardshipHealthBadge';
@@ -365,6 +366,27 @@ export default function ChampionProfile() {
         {!editing && <span className="text-xs text-muted-foreground">ID: {h.id}</span>}
       </div>
 
+      {/* Stewardship Workspace */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Relationship Snapshot</h2>
+        <RelationshipSummary activities={activities} />
+      </div>
+
+      <QuickActionsBar championId={id} />
+
+      <RelationshipTimeline
+        householdId={id}
+        activities={activities}
+        statusChanges={statusChanges}
+        milestones={milestones}
+        currentStatus={household?.relationship_status || 'New'}
+        canChangeStatus={canChangeStatus}
+        onRefresh={loadActivities}
+        onStatusChanged={handleStatusChanged}
+        currentUser={currentUser}
+      />
+
+      {/* Record Details */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Contacts / Members */}
         <Section icon={UsersIcon} title="Contacts">
@@ -520,25 +542,6 @@ export default function ChampionProfile() {
 
       {/* Stewardship Timeline */}
       <StewardshipTimeline assignments={assignments} teams={teams} />
-
-      {/* Relationship Summary */}
-      <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Upcoming Follow-up</h2>
-        <RelationshipSummary activities={activities} />
-      </div>
-
-      {/* Relationship Timeline */}
-      <RelationshipTimeline
-        householdId={id}
-        activities={activities}
-        statusChanges={statusChanges}
-        milestones={milestones}
-        currentStatus={household?.relationship_status || 'New'}
-        canChangeStatus={canChangeStatus}
-        onRefresh={loadActivities}
-        onStatusChanged={handleStatusChanged}
-        currentUser={currentUser}
-      />
 
       {/* Notes */}
       <Section icon={StickyNote} title="Notes">
