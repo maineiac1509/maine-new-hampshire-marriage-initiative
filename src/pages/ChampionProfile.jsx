@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Home, MapPin, ClipboardList, Users as UsersIcon, StickyNote, Phone, Mail,
   Save, X, Plus, Trash2, Loader2,
@@ -21,6 +21,9 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { STATUS_OPTIONS, REGISTRATION_TYPE_OPTIONS } from '@/lib/config';
 
 const FU_ICONS = { danger: AlertCircle, warning: Clock, success: CheckCircle2, neutral: CircleDashed };
@@ -107,6 +110,7 @@ function fmtDate(s) {
 
 export default function ChampionProfile() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [household, setHousehold] = useState(null);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -117,6 +121,8 @@ export default function ChampionProfile() {
   const [membersForm, setMembersForm] = useState([]);
   const [deletedIds, setDeletedIds] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [activities, setActivities] = useState([]);
   const [teams, setTeams] = useState([]);
   const [statusChanges, setStatusChanges] = useState([]);
@@ -248,6 +254,18 @@ export default function ChampionProfile() {
     }
   }
 
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      const ms = await base44.entities.HouseholdMember.filter({ household_id: id });
+      await Promise.all((ms || []).map((m) => base44.entities.HouseholdMember.delete(m.id)));
+      await base44.entities.ChampionHousehold.delete(id);
+      navigate('/champions');
+    } catch {
+      setDeleting(false);
+    }
+  }
+
   if (loading) {
     return <div className="py-20 text-center text-muted-foreground">Loading household…</div>;
   }
@@ -285,9 +303,14 @@ export default function ChampionProfile() {
             </Button>
           </div>
         ) : (
-          <Button size="sm" variant="outline" onClick={startEdit}>
-            <Save className="h-4 w-4" /> Edit Champion
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={startEdit}>
+              <Save className="h-4 w-4" /> Edit Champion
+            </Button>
+            <Button size="sm" variant="destructive" onClick={() => setDeleteOpen(true)}>
+              <Trash2 className="h-4 w-4" /> Delete
+            </Button>
+          </div>
         )}
       </div>
 
@@ -505,6 +528,24 @@ export default function ChampionProfile() {
           <p className="whitespace-pre-wrap text-sm text-foreground">{h.notes || 'No notes recorded yet.'}</p>
         )}
       </Section>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this champion?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the household and all its contacts. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Delete
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
