@@ -31,6 +31,10 @@ export const ACTIVITY_TYPE_OPTIONS = [
 export const CONTACT_METHOD_OPTIONS = [
   'Phone', 'Email', 'Text Message', 'In Person', 'Video Call', 'Mail', 'Other',
 ];
+export const CONTACT_OUTCOME_OPTIONS = [
+  'No Answer', 'Left Voicemail', 'Spoke with Champion', 'Requested Follow-up',
+  'Interested', 'Not Interested', 'Serving', 'Do Not Contact', 'Other',
+];
 
 // Maps each Activity Type to the outcomes that make sense for it.
 // Used by the Log Activity dialog to filter the Outcome dropdown.
@@ -45,10 +49,6 @@ export const ACTIVITY_OUTCOMES = {
   'Administrative Update': ['Other'],
   'Other': CONTACT_OUTCOME_OPTIONS,
 };
-export const CONTACT_OUTCOME_OPTIONS = [
-  'No Answer', 'Left Voicemail', 'Spoke with Champion', 'Requested Follow-up',
-  'Interested', 'Not Interested', 'Serving', 'Do Not Contact', 'Other',
-];
 
 export const RELATIONSHIP_STATUS_OPTIONS = [
   'New',
