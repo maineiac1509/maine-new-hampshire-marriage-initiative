@@ -1,0 +1,131 @@
+{
+  "name": "StewardshipGuide",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "category": {
+      "type": "string",
+      "title": "Category",
+      "enum": [
+        "First Contact",
+        "Re-engagement",
+        "Coffee Meeting",
+        "Follow-up",
+        "Volunteer Encouragement",
+        "Prayer & Spiritual Care",
+        "Marriage Crisis",
+        "Leadership Development",
+        "Celebrating Milestones",
+        "Church Partnership",
+        "General"
+      ],
+      "default": "General"
+    },
+    "situations": {
+      "type": "array",
+      "title": "Champion Situations",
+      "items": {
+        "type": "string"
+      }
+    },
+    "overview": {
+      "type": "string",
+      "title": "Overview"
+    },
+    "suggested_approaches": {
+      "type": "array",
+      "title": "Suggested Approaches",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "why_effective": {
+            "type": "string",
+            "title": "Why This Approach May Be Effective"
+          }
+        }
+      }
+    },
+    "conversation_ideas": {
+      "type": "array",
+      "title": "Conversation Ideas",
+      "items": {
+        "type": "string"
+      }
+    },
+    "scripture_encouragement": {
+      "type": "string",
+      "title": "Scripture & Encouragement"
+    },
+    "helpful_resources": {
+      "type": "array",
+      "title": "Helpful Resources",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        }
+      }
+    },
+    "things_to_remember": {
+      "type": "array",
+      "title": "Things to Remember",
+      "items": {
+        "type": "string"
+      }
+    },
+    "display_order": {
+      "type": "number",
+      "title": "Display Order",
+      "default": 100
+    },
+    "enabled": {
+      "type": "boolean",
+      "title": "Enabled",
+      "default": true
+    },
+    "archived": {
+      "type": "boolean",
+      "title": "Archived",
+      "default": false
+    }
+  },
+  "required": [
+    "title"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
