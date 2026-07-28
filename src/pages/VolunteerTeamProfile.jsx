@@ -37,13 +37,16 @@ export default function VolunteerTeamProfile() {
     Promise.all([
       base44.entities.VolunteerTeam.get(id),
       base44.entities.TeamMember.filter({ team_id: id }),
-      base44.entities.ChampionHousehold.filter({ volunteer_team_id: id }),
+      base44.entities.ChampionHousehold.list(),
       base44.entities.Assignment.filter({ volunteer_team_id: id }),
     ])
-      .then(([t, ms, chs, asgs]) => {
+      .then(([t, ms, allHouseholds, asgs]) => {
         setTeam(t);
         setMembers(ms || []);
-        setChampions(chs || []);
+        // Derive team champions from Assignment records (source of truth),
+        // not the denormalized volunteer_team_id field on ChampionHousehold.
+        const assignedHouseholdIds = new Set((asgs || []).map((a) => a.household_id).filter(Boolean));
+        setChampions((allHouseholds || []).filter((h) => assignedHouseholdIds.has(h.id)));
         setAssignments(asgs || []);
         setNotFound(!t);
         if (t) setForm({ ...t });

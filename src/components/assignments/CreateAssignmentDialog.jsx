@@ -20,6 +20,7 @@ export default function CreateAssignmentDialog({ open, onOpenChange, champion, c
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [form, setForm] = useState({ reason: '', notes: '', assigned_by: '', assigned_date: todayISO() });
   const [saving, setSaving] = useState(false);
+  const [allAssignments, setAllAssignments] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -32,18 +33,25 @@ export default function CreateAssignmentDialog({ open, onOpenChange, champion, c
     Promise.all([
       base44.entities.VolunteerTeam.list(),
       base44.entities.ChampionHousehold.list(),
+      base44.entities.Assignment.list(),
     ])
-      .then(([ts, chs]) => {
+      .then(([ts, chs, asgs]) => {
         setTeams((ts || []).filter((t) => t.active !== false));
         setChampions(chs || []);
+        setAllAssignments(asgs || []);
       })
       .catch(() => {})
       .finally(() => setLoadingTeams(false));
   }, [open, currentUser]);
 
   function teamCapacity(team) {
+    const activeHouseholdIds = new Set(
+      allAssignments
+        .filter((a) => a.volunteer_team_id === team.id && a.assignment_status === 'Active')
+        .map((a) => a.household_id)
+    );
     const active = champions.filter(
-      (c) => c.volunteer_team_id === team.id && c.relationship_status !== 'Inactive'
+      (c) => activeHouseholdIds.has(c.id) && c.relationship_status !== 'Inactive'
     ).length;
     const target = Number(team.target_capacity) || 12;
     return { active, target, remaining: Math.max(target - active, 0) };
