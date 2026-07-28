@@ -11,6 +11,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import RelationshipStatusControl from '@/components/champions/RelationshipStatusControl';
 import RelationshipTimeline from '@/components/champions/RelationshipTimeline';
 import QuickActionsBar from '@/components/champions/QuickActionsBar';
+import DoNotContactBanner from '@/components/champions/DoNotContactBanner';
 import ChampionAssignmentCard from '@/components/assignments/ChampionAssignmentCard';
 import StewardshipTimeline from '@/components/champions/StewardshipTimeline';
 import StewardshipHealthBadge from '@/components/champions/StewardshipHealthBadge';
@@ -300,6 +301,7 @@ export default function ChampionProfile() {
 
   return (
     <div className="space-y-5">
+      <DoNotContactBanner household={household} />
       <div className="flex items-center justify-between gap-2">
         <Button variant="ghost" size="sm" asChild>
           <Link to="/champions"><ArrowLeft className="h-4 w-4" /> Back to Champions</Link>
