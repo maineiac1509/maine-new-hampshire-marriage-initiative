@@ -1,0 +1,115 @@
+{
+  "name": "AIConfig",
+  "type": "object",
+  "properties": {
+    "ai_enabled": {
+      "type": "boolean",
+      "title": "AI Enabled (Global Master Switch)",
+      "default": false
+    },
+    "provider": {
+      "type": "string",
+      "title": "AI Provider",
+      "default": "base44",
+      "description": "Configuration-driven provider selection. Swapping providers requires only a config change \u2014 no code modifications."
+    },
+    "model": {
+      "type": "string",
+      "title": "Model Identifier",
+      "default": "automatic"
+    },
+    "temperature": {
+      "type": "number",
+      "title": "Temperature",
+      "default": 0.3
+    },
+    "max_tokens": {
+      "type": "number",
+      "title": "Maximum Output Tokens",
+      "default": 2000
+    },
+    "timeout_ms": {
+      "type": "number",
+      "title": "Request Timeout (ms)",
+      "default": 30000
+    },
+    "max_retries": {
+      "type": "number",
+      "title": "Maximum Retry Attempts",
+      "default": 2
+    },
+    "max_context_size": {
+      "type": "number",
+      "title": "Maximum Context Size (characters)",
+      "default": 50000
+    },
+    "feature_flags": {
+      "type": "object",
+      "title": "Feature Flags (scoped overrides)",
+      "properties": {
+        "global": {
+          "type": "boolean",
+          "title": "Global AI Enabled",
+          "default": false
+        },
+        "organizations": {
+          "type": "object",
+          "title": "Organization-level Overrides",
+          "additionalProperties": {
+            "type": "boolean"
+          }
+        },
+        "regions": {
+          "type": "object",
+          "title": "Region-level Overrides",
+          "additionalProperties": {
+            "type": "boolean"
+          }
+        },
+        "churches": {
+          "type": "object",
+          "title": "Church-level Overrides",
+          "additionalProperties": {
+            "type": "boolean"
+          }
+        },
+        "users": {
+          "type": "object",
+          "title": "User-level Overrides",
+          "additionalProperties": {
+            "type": "boolean"
+          }
+        }
+      },
+      "default": {}
+    },
+    "updated_by": {
+      "type": "string",
+      "title": "Last Updated By"
+    },
+    "last_updated": {
+      "type": "string",
+      "format": "date",
+      "title": "Last Updated"
+    }
+  },
+  "required": [],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

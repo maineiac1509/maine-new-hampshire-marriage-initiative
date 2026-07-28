@@ -1,0 +1,122 @@
+{
+  "name": "AIRequestLog",
+  "type": "object",
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "title": "Request ID"
+    },
+    "user_id": {
+      "type": "string",
+      "title": "Requesting User ID"
+    },
+    "capability": {
+      "type": "string",
+      "title": "AI Capability Requested",
+      "description": "The type of AI task requested (e.g. 'relationship_summary', 'communication_draft'). Metadata only \u2014 never stores the task content."
+    },
+    "provider": {
+      "type": "string",
+      "title": "Provider Used"
+    },
+    "model": {
+      "type": "string",
+      "title": "Model Used"
+    },
+    "duration_ms": {
+      "type": "number",
+      "title": "Request Duration (ms)"
+    },
+    "token_usage": {
+      "type": "object",
+      "title": "Token Usage",
+      "properties": {
+        "prompt_tokens": {
+          "type": "number"
+        },
+        "completion_tokens": {
+          "type": "number"
+        },
+        "total_tokens": {
+          "type": "number"
+        }
+      }
+    },
+    "success": {
+      "type": "boolean",
+      "title": "Success",
+      "default": false
+    },
+    "error_category": {
+      "type": "string",
+      "title": "Error Category",
+      "enum": [
+        "timeout",
+        "provider_unavailable",
+        "invalid_response",
+        "context_too_large",
+        "empty_context",
+        "partial_context",
+        "feature_disabled",
+        "permission_denied",
+        "config_error",
+        "unknown"
+      ]
+    },
+    "context_entities_count": {
+      "type": "number",
+      "title": "Context Entities Assembled"
+    },
+    "context_sources": {
+      "type": "array",
+      "title": "Context Sources Retrieved",
+      "items": {
+        "type": "string"
+      }
+    },
+    "feature_flag_source": {
+      "type": "string",
+      "title": "Feature Flag Decision Source",
+      "enum": [
+        "global",
+        "organization",
+        "region",
+        "church",
+        "user"
+      ]
+    },
+    "created_date": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "request_id",
+    "user_id",
+    "capability",
+    "provider",
+    "success"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
