@@ -38,6 +38,7 @@ export default function LogInteractionDialog({
   onStatusChanged,
   currentStatus,
   canChangeStatus,
+  currentUser,
 }) {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
@@ -90,7 +91,14 @@ export default function LogInteractionDialog({
       if (activity?.id) {
         await base44.entities.ChampionActivity.update(activity.id, payload);
       } else {
-        await base44.entities.ChampionActivity.create(payload);
+        // Stamp the authenticated user on new activities so historical records
+        // remain accurate even if the profile changes or account is removed.
+        await base44.entities.ChampionActivity.create({
+          ...payload,
+          logged_by_user_id: currentUser?.id || '',
+          logged_by_name: currentUser?.full_name || currentUser?.email || 'Unknown',
+          logged_at: new Date().toISOString(),
+        });
       }
 
       // Optional status suggestion — never auto-changes; user must confirm.

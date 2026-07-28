@@ -267,7 +267,7 @@ export default function RelationshipTimeline({
                     </div>
                   </div>
                   <p className="mt-2 text-sm font-medium text-foreground">{a.summary}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Logged by {a.created_by || 'Unknown'}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Logged by {a.logged_by_name || 'Unknown'}</p>
                   {a.detailed_notes && (
                     <button
                       onClick={() => setExpanded((e) => ({ ...e, [a.id]: !open }))}
@@ -298,6 +298,7 @@ export default function RelationshipTimeline({
         onStatusChanged={onStatusChanged}
         currentStatus={currentStatus}
         canChangeStatus={canChangeStatus}
+        currentUser={currentUser}
       />
     </section>
   );

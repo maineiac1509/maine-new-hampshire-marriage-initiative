@@ -72,6 +72,19 @@
       "type": "string",
       "format": "date",
       "title": "Follow-up Date"
+    },
+    "logged_by_user_id": {
+      "type": "string",
+      "title": "Logged By User ID"
+    },
+    "logged_by_name": {
+      "type": "string",
+      "title": "Logged By Name"
+    },
+    "logged_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Logged At"
     }
   },
   "required": [
