@@ -20,6 +20,12 @@
 // ============================================================
 
 import { AIError, AI_ERROR_CATEGORIES } from './errors.ts';
+import { reduceContext } from './contextReduction.ts';
+
+// Context package version — incremented when the Context Builder schema evolves.
+// Enables backward compatibility between Context Builder, Prompt Framework,
+// and AI Orchestrator across iterations.
+export const CONTEXT_VERSION = '1.0';
 
 // Normalizers strip internal fields and format records for AI consumption.
 // They NEVER add data that doesn't exist in the source record.
@@ -229,7 +235,7 @@ const CONTEXT_SOURCES = {
 // Builds a structured context package from requested sources.
 // Returns: { sources, entities, warnings, entityCount }
 export async function buildContext(base44, opts) {
-  const { user, householdId, requestedSources, maxContextSize } = opts;
+  const { user, householdId, requestedSources, maxContextSize, reductionConfig } = opts;
   const sources = requestedSources && requestedSources.length > 0
     ? requestedSources
     : Object.keys(CONTEXT_SOURCES);
@@ -266,20 +272,34 @@ export async function buildContext(base44, opts) {
     );
   }
 
-  // Validate context size.
-  const serialized = JSON.stringify(entities);
-  if (serialized.length > maxContextSize) {
-    throw new AIError(
-      AI_ERROR_CATEGORIES.CONTEXT_TOO_LARGE,
-      `Context package exceeds maximum size (${serialized.length} > ${maxContextSize} characters).`
-    );
+  // Apply intelligent context reduction if the package exceeds the size limit.
+  // Uses a relevance-weighted strategy: priority entities are always retained,
+  // recent records are kept, older records are summarized, and only the oldest
+  // non-priority items are truncated as a last resort.
+  let finalEntities = entities;
+  let reductionSummary = null;
+  const serializedSize = JSON.stringify(entities).length;
+  if (serializedSize > maxContextSize) {
+    const reduction = reduceContext(entities, maxContextSize, reductionConfig);
+    finalEntities = reduction.entities;
+    reductionSummary = reduction.summary;
+    if (reduction.reduced) {
+      warnings.push({
+        source: 'context_builder',
+        warning: `Context reduced from ${entities.length} to ${finalEntities.length} entities (strategy: ${reductionSummary.strategy}).`,
+      });
+    }
   }
 
   return {
+    contextVersion: CONTEXT_VERSION,
+    generatedAt: new Date().toISOString(),
     sources: retrievedSources,
-    entities,
+    entities: finalEntities,
     warnings,
-    entityCount: entities.length,
+    entityCount: finalEntities.length,
+    originalEntityCount: entities.length,
+    reductionSummary,
   };
 }
 

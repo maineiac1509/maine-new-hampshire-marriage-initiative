@@ -18,6 +18,12 @@ export const DEFAULT_CONFIG = {
   timeout_ms: 30000,
   max_retries: 2,
   max_context_size: 50000,
+  context_reduction: {
+    recency_window_days: 90,
+    max_items_per_source: 50,
+    summarize_older_records: true,
+    hard_truncate_enabled: true,
+  },
   feature_flags: {
     global: false,
     organizations: {},
@@ -37,6 +43,10 @@ export async function loadConfig(base44) {
     return {
       ...DEFAULT_CONFIG,
       ...stored,
+      context_reduction: {
+        ...DEFAULT_CONFIG.context_reduction,
+        ...(stored.context_reduction || {}),
+      },
       feature_flags: {
         ...DEFAULT_CONFIG.feature_flags,
         ...(stored.feature_flags || {}),

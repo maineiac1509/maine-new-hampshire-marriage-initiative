@@ -12,6 +12,7 @@
 
 import { getProvider } from './providers.ts';
 import { buildPrompt } from './prompts.ts';
+import { resolveResponseSchema } from './responseContract.ts';
 import { AIError, AI_ERROR_CATEGORIES, categorizeError } from './errors.ts';
 
 // Validates a structured (JSON) response against the expected schema shape.
@@ -55,11 +56,15 @@ export async function orchestrate(base44, opts) {
   // Select provider (configuration-driven — no code changes needed to swap).
   const provider = getProvider(config.provider);
 
+  // Resolve the effective response schema — use the caller-provided schema
+  // if given, otherwise enforce the standard AI response contract.
+  const effectiveSchema = resolveResponseSchema(outputSchema);
+
   // Build standardized prompt via the Prompt Framework.
   const { messages, responseJsonSchema } = buildPrompt({
     task,
     contextPackage,
-    outputSchema,
+    outputSchema: effectiveSchema,
     additionalInstructions,
   });
 
@@ -74,12 +79,12 @@ export async function orchestrate(base44, opts) {
         model: config.model,
         temperature: config.temperature,
         maxTokens: config.max_tokens,
-        responseJsonSchema: responseJsonSchema || outputSchema,
+        responseJsonSchema,
         timeoutMs: config.timeout_ms,
       });
 
-      // Validate structured response if a schema was requested.
-      const result = validateStructuredResponse(response.content, outputSchema);
+      // Validate response against the effective schema (standard contract or caller override).
+      const result = validateStructuredResponse(response.content, effectiveSchema);
 
       const durationMs = Date.now() - startTime;
 

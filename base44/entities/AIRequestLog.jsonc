@@ -25,11 +25,11 @@
     },
     "duration_ms": {
       "type": "number",
-      "title": "Request Duration (ms)"
+      "title": "Total Request Latency (ms)"
     },
     "token_usage": {
       "type": "object",
-      "title": "Token Usage",
+      "title": "Token Usage (nested)",
       "properties": {
         "prompt_tokens": {
           "type": "number"
@@ -41,6 +41,25 @@
           "type": "number"
         }
       }
+    },
+    "prompt_tokens": {
+      "type": "number",
+      "title": "Prompt Tokens",
+      "description": "Top-level for easy querying. Falls back to character-based estimation if the provider does not return token counts."
+    },
+    "completion_tokens": {
+      "type": "number",
+      "title": "Completion Tokens"
+    },
+    "estimated_cost": {
+      "type": "number",
+      "title": "Estimated Request Cost (USD)",
+      "description": "Provider-agnostic cost estimate based on token counts and default rate tables."
+    },
+    "context_size": {
+      "type": "number",
+      "title": "Context Size (characters)",
+      "description": "Serialized size of the context package sent to the LLM."
     },
     "success": {
       "type": "boolean",

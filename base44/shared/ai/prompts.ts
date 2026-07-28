@@ -39,6 +39,10 @@ const GUARDRAILS = [
   'If the context is insufficient to complete the task safely, decline and explain what is missing.',
 ];
 
+// Prompt version — incremented when the prompt framework changes.
+// Enables A/B testing and regression tracking across prompt iterations.
+const PROMPT_VERSION = '1.0';
+
 // Builds the standard message array for an AI request.
 // outputSchema, when provided, is a JSON schema object that the LLM
 // should match in its response.
@@ -47,6 +51,8 @@ export function buildPrompt(opts) {
 
   const systemContent = [
     SYSTEM_MISSION,
+    '',
+    `Prompt Version: ${PROMPT_VERSION}`,
     '',
     '## Ministry Principles',
     ...MINISTRY_PRINCIPLES.map((p) => `- ${p}`),
@@ -58,6 +64,8 @@ export function buildPrompt(opts) {
   const contextContent = [
     '## Context Package',
     '',
+    `Context Version: ${contextPackage.contextVersion || 'unknown'}`,
+    `Generated: ${contextPackage.generatedAt || 'unknown'}`,
     `Sources assembled: ${contextPackage.sources.join(', ') || 'none'}`,
     `Total records: ${contextPackage.entityCount}`,
     '',
@@ -91,4 +99,4 @@ export function buildPrompt(opts) {
   };
 }
 
-export { SYSTEM_MISSION, MINISTRY_PRINCIPLES, GUARDRAILS };
+export { SYSTEM_MISSION, MINISTRY_PRINCIPLES, GUARDRAILS, PROMPT_VERSION };

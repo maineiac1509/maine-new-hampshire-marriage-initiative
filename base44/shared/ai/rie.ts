@@ -20,7 +20,7 @@ import { orchestrate } from './orchestrator.ts';
 import { loadConfig } from './config.ts';
 import { isAIEnabled, getFeatureFlagSource } from './featureFlags.ts';
 import { authorizeChampionAccess, getUserPermissionScope } from './security.ts';
-import { logAIRequest } from './logging.ts';
+import { logAIRequest, estimateCost, estimateTokensFromChars } from './logging.ts';
 import { AIError, AI_ERROR_CATEGORIES } from './errors.ts';
 
 // Main entry point for all AI requests.
@@ -42,6 +42,10 @@ export async function processAIRequest(base44, request) {
     model: null,
     durationMs: 0,
     tokenUsage: null,
+    promptTokens: null,
+    completionTokens: null,
+    estimatedCost: 0,
+    contextSize: 0,
     success: false,
     errorCategory: null,
     contextEntitiesCount: 0,
@@ -96,6 +100,7 @@ export async function processAIRequest(base44, request) {
       householdId: request.householdId,
       requestedSources: request.requestedSources,
       maxContextSize: config.max_context_size,
+      reductionConfig: config.context_reduction,
     });
     logEntry.contextEntitiesCount = contextPackage.entityCount;
     logEntry.contextSources = contextPackage.sources;
@@ -110,8 +115,13 @@ export async function processAIRequest(base44, request) {
     });
 
     // 7. Log metadata (no content) — non-blocking.
+    const contextSize = JSON.stringify(contextPackage.entities).length;
     logEntry.durationMs = Date.now() - startTime;
     logEntry.tokenUsage = meta.usage;
+    logEntry.promptTokens = meta.usage?.promptTokens || estimateTokensFromChars(contextSize);
+    logEntry.completionTokens = meta.usage?.completionTokens || null;
+    logEntry.contextSize = contextSize;
+    logEntry.estimatedCost = estimateCost(logEntry.promptTokens, logEntry.completionTokens);
     logEntry.success = true;
     logAIRequest(base44, logEntry);
 

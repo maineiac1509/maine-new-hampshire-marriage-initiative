@@ -43,6 +43,38 @@
       "title": "Maximum Context Size (characters)",
       "default": 50000
     },
+    "context_reduction": {
+      "type": "object",
+      "title": "Intelligent Context Reduction Strategy",
+      "description": "Configurable relevance-weighted strategy for keeping context within model limits. Evolves without changes to business logic.",
+      "properties": {
+        "recency_window_days": {
+          "type": "number",
+          "title": "Recency Window (days)",
+          "default": 90,
+          "description": "Records newer than this are always retained (Tier 2)."
+        },
+        "max_items_per_source": {
+          "type": "number",
+          "title": "Max Items Per Source",
+          "default": 50,
+          "description": "Initial retrieval cap per context source."
+        },
+        "summarize_older_records": {
+          "type": "boolean",
+          "title": "Summarize Older Records",
+          "default": true,
+          "description": "Deterministically aggregate older records into compact summaries before truncating (Tier 3)."
+        },
+        "hard_truncate_enabled": {
+          "type": "boolean",
+          "title": "Hard Truncation Enabled",
+          "default": true,
+          "description": "If context still exceeds limits after summarization, remove oldest non-priority items (Tier 4)."
+        }
+      },
+      "default": {}
+    },
     "feature_flags": {
       "type": "object",
       "title": "Feature Flags (scoped overrides)",
