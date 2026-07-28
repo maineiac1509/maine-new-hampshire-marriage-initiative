@@ -163,6 +163,49 @@ function buildHouseholds(rows) {
   return groups;
 }
 
+function norm(s) { return (s || '').toString().trim().toLowerCase(); }
+
+// Find an existing household that matches the incoming one.
+// Match priority: household name → address+city → member email → member name.
+function findExistingHousehold(incomingHH, incomingMembers, existingHHs, membersByHouse) {
+  const inName = norm(incomingHH.household_name);
+  const inAddr = `${norm(incomingHH.address)}|${norm(incomingHH.city)}`;
+  const inEmails = incomingMembers.map((m) => norm(m.email)).filter(Boolean);
+  const inKeys = incomingMembers
+    .map((m) => `${norm(m.first_name)}|${norm(m.last_name)}`)
+    .filter((k) => k !== '|');
+
+  if (inName) {
+    const m = existingHHs.find((h) => norm(h.household_name) === inName);
+    if (m) return m;
+  }
+  if (inAddr !== '|') {
+    const m = existingHHs.find((h) => `${norm(h.address)}|${norm(h.city)}` === inAddr);
+    if (m) return m;
+  }
+  for (const h of existingHHs) {
+    const ems = membersByHouse[h.id] || [];
+    if (inEmails.length && ems.some((em) => inEmails.includes(norm(em.email)))) return h;
+    if (inKeys.length && ems.some((em) => inKeys.includes(`${norm(em.first_name)}|${norm(em.last_name)}`))) return h;
+  }
+  return null;
+}
+
+// Find an existing member within a household by email, then by name.
+function findExistingMember(incoming, houseMembers) {
+  const inEmail = norm(incoming.email);
+  if (inEmail) {
+    const m = houseMembers.find((em) => norm(em.email) === inEmail);
+    if (m) return m;
+  }
+  const inKey = `${norm(incoming.first_name)}|${norm(incoming.last_name)}`;
+  if (inKey !== '|') {
+    const m = houseMembers.find((em) => `${norm(em.first_name)}|${norm(em.last_name)}` === inKey);
+    if (m) return m;
+  }
+  return null;
+}
+
 export default function ImportChampionsDialog({ open, onOpenChange, onImported }) {
   const [step, setStep] = useState('idle'); // idle | uploading | preview | importing | done | error
   const [households, setHouseholds] = useState([]);
@@ -235,17 +278,68 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
   async function handleImport() {
     setStep('importing');
     try {
-      const createdHH = await base44.entities.ChampionHousehold.bulkCreate(
-        households.map((g) => g.household)
-      );
-      const memberRecords = [];
-      createdHH.forEach((hh, i) => {
-        households[i].members.forEach((m) => {
-          memberRecords.push({ ...m, household_id: hh.id });
-        });
+      // Load existing records for de-duplication.
+      const [existingHH, existingMembers] = await Promise.all([
+        base44.entities.ChampionHousehold.list(),
+        base44.entities.HouseholdMember.list(),
+      ]);
+      const membersByHouse = {};
+      (existingMembers || []).forEach((m) => {
+        (membersByHouse[m.household_id] = membersByHouse[m.household_id] || []).push(m);
       });
-      await base44.entities.HouseholdMember.bulkCreate(memberRecords);
-      setResult({ households: createdHH.length, members: memberRecords.length });
+
+      const stats = { created: 0, updated: 0, membersAdded: 0, membersUpdated: 0 };
+      const MEMBER_FIELDS = ['first_name', 'last_name', 'email', 'mobile_phone', 'relationship'];
+
+      for (const g of households) {
+        const incomingHH = g.household;
+        const match = findExistingHousehold(incomingHH, g.members, existingHH || [], membersByHouse);
+
+        if (match) {
+          // Update household fields that differ — import wins on mismatch.
+          const hhUpdates = {};
+          HOUSEHOLD_FIELDS.forEach((f) => {
+            if (incomingHH[f] && incomingHH[f] !== (match[f] || '')) hhUpdates[f] = incomingHH[f];
+          });
+          if (Object.keys(hhUpdates).length) {
+            await base44.entities.ChampionHousehold.update(match.id, hhUpdates);
+            stats.updated++;
+          }
+
+          // Sync members: update matches, add new ones.
+          const houseMembers = membersByHouse[match.id] || [];
+          for (const im of g.members) {
+            const em = findExistingMember(im, houseMembers);
+            if (em) {
+              const mUpdates = {};
+              MEMBER_FIELDS.forEach((f) => {
+                if (im[f] && im[f] !== (em[f] || '')) mUpdates[f] = im[f];
+              });
+              if (Object.keys(mUpdates).length) {
+                await base44.entities.HouseholdMember.update(em.id, mUpdates);
+                stats.membersUpdated++;
+              }
+            } else {
+              await base44.entities.HouseholdMember.create({ ...im, household_id: match.id });
+              stats.membersAdded++;
+            }
+          }
+        } else {
+          // No match — create a new household and its members.
+          const [created] = await base44.entities.ChampionHousehold.create(incomingHH);
+          stats.created++;
+          const memberRecords = g.members.map((m) => ({ ...m, household_id: created.id }));
+          if (memberRecords.length) await base44.entities.HouseholdMember.bulkCreate(memberRecords);
+          stats.membersAdded += memberRecords.length;
+        }
+      }
+
+      setResult({
+        households: stats.created + stats.updated,
+        members: stats.membersAdded + stats.membersUpdated,
+        created: stats.created,
+        updated: stats.updated,
+      });
       setStep('done');
       onImported?.();
     } catch (err) {
@@ -402,7 +496,9 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
               <CheckCircle2 className="h-6 w-6 text-emerald-600" />
             </div>
             <p className="text-sm font-medium">
-              {result?.households} {result?.households === 1 ? 'household' : 'households'} ({result?.members} contacts) imported successfully!
+              {result?.created} {result?.created === 1 ? 'household' : 'households'} created
+              {result?.updated ? `, ${result?.updated} updated` : ''}
+              {' '}({result?.members} contacts synced)
             </p>
           </div>
         )}
