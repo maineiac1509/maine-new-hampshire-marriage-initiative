@@ -1,0 +1,25 @@
+{
+  "name": "FavoriteTemplate",
+  "type": "object",
+  "properties": {
+    "template_id": {
+      "type": "string",
+      "title": "Template"
+    }
+  },
+  "required": [
+    "template_id"
+  ],
+  "rls": {
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "create": {},
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
+}

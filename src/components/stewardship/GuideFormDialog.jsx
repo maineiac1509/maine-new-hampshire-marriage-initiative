@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Loader2 } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -16,7 +17,7 @@ const EMPTY = {
   title: '', category: 'Relationship Building', situations: [], tags: [],
   overview: '', suggested_approaches: [], conversation_ideas: [], prayer_prompts: [],
   scriptures: [], wisdom_callouts: [], helpful_resources: [], things_to_remember: [],
-  reflection_questions: [], related_guides: [],
+  reflection_questions: [], related_guides: [], suggested_communications: [],
   display_order: 100, enabled: true, archived: false,
 };
 
@@ -35,16 +36,25 @@ function deepCopy(g) {
     things_to_remember: [...(g?.things_to_remember || [])],
     reflection_questions: [...(g?.reflection_questions || [])],
     related_guides: [...(g?.related_guides || [])],
+    suggested_communications: (g?.suggested_communications || []).map((c) => ({ ...c })),
   };
 }
 
 export default function GuideFormDialog({ open, guide, onOpenChange, onSave }) {
   const [form, setForm] = useState(deepCopy(null));
   const [saving, setSaving] = useState(false);
+  const [commTemplates, setCommTemplates] = useState([]);
 
   useEffect(() => {
     if (open) setForm(deepCopy(guide));
   }, [open, guide]);
+
+  useEffect(() => {
+    base44.entities.CommunicationTemplate.filter({ archived: false }).then(setCommTemplates).catch(() => {});
+  }, []);
+
+  const setSuggested = (i, patch) =>
+    setForm((f) => ({ ...f, suggested_communications: f.suggested_communications.map((c, idx) => (idx === i ? { ...c, ...patch } : c)) }));
 
   const set = (field, value) => setForm((f) => ({ ...f, [field]: value }));
 
@@ -84,6 +94,7 @@ export default function GuideFormDialog({ open, guide, onOpenChange, onSave }) {
         things_to_remember: form.things_to_remember.filter((s) => s.trim()),
         reflection_questions: form.reflection_questions.filter((s) => s.trim()),
         related_guides: form.related_guides.filter((s) => s.trim()),
+        suggested_communications: form.suggested_communications.filter((c) => c.template_id),
         tags: form.tags.filter((s) => s.trim()),
       });
     } finally {
@@ -162,6 +173,25 @@ export default function GuideFormDialog({ open, guide, onOpenChange, onSave }) {
           <StringList label="Reflection Questions" items={form.reflection_questions} placeholder="A reflection question for the leader…" onChange={(i, v) => updateStr('reflection_questions', i, v)} onAdd={() => addStr('reflection_questions')} onRemove={(i) => removeStr('reflection_questions', i)} />
           <StringList label="Things to Remember" items={form.things_to_remember} placeholder="Practical ministry wisdom…" onChange={(i, v) => updateStr('things_to_remember', i, v)} onAdd={() => addStr('things_to_remember')} onRemove={(i) => removeStr('things_to_remember', i)} />
           <StringList label="Related Guides (titles)" items={form.related_guides} placeholder="Exact title of another guide…" onChange={(i, v) => updateStr('related_guides', i, v)} onAdd={() => addStr('related_guides')} onRemove={(i) => removeStr('related_guides', i)} />
+
+          {/* Suggested Communications */}
+          <div className="space-y-2">
+            <Label>Suggested Communications</Label>
+            <p className="text-xs text-muted-foreground">Link communication templates that pair well with this guide.</p>
+            {form.suggested_communications.map((c, i) => (
+              <div key={i} className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center">
+                <Input value={c.label} onChange={(e) => setSuggested(i, { label: e.target.value })} placeholder="Label (e.g. Friendly Text)" className="flex-1" />
+                <Select value={c.template_id || ''} onValueChange={(v) => { const t = commTemplates.find((x) => x.id === v); setSuggested(i, { template_id: v, template_title: t?.title || '' }); }}>
+                  <SelectTrigger className="sm:w-56"><SelectValue placeholder="Select template" /></SelectTrigger>
+                  <SelectContent>
+                    {commTemplates.map((t) => <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-destructive" onClick={() => removeObj('suggested_communications', i)}><Trash2 className="h-3.5 w-3.5" /></Button>
+              </div>
+            ))}
+            <Button variant="outline" size="sm" onClick={() => addObj('suggested_communications', { label: '', template_id: '', template_title: '' })}><Plus className="h-4 w-4" /> Add Communication</Button>
+          </div>
 
           {/* Scriptures */}
           <div className="space-y-2">

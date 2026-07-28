@@ -5,6 +5,7 @@ import {
   Quote, Sparkles, HandHeart, ArrowRight, BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import SuggestedCommunications from '@/components/stewardship/SuggestedCommunications';
 
 function SectionToggle({ icon: Icon, title, isOpen, onToggle }) {
   return (
@@ -248,6 +249,9 @@ export default function GuideViewer({ guide, allGuides = [] }) {
             )}
           </section>
         )}
+
+        {/* Suggested Communications */}
+        <SuggestedCommunications items={guide.suggested_communications} />
 
         {/* Related Guides — cross references */}
         {(related.length > 0 || relatedUnresolved.length > 0) && (

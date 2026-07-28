@@ -1,0 +1,54 @@
+{
+  "name": "MergeField",
+  "type": "object",
+  "properties": {
+    "key": {
+      "type": "string",
+      "title": "Field Key"
+    },
+    "label": {
+      "type": "string",
+      "title": "Label"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "example_value": {
+      "type": "string",
+      "title": "Example Value"
+    },
+    "builtin": {
+      "type": "boolean",
+      "title": "Built-in (auto-resolved)",
+      "default": false
+    },
+    "display_order": {
+      "type": "number",
+      "title": "Display Order",
+      "default": 100
+    }
+  },
+  "required": [
+    "key",
+    "label"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

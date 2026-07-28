@@ -31,6 +31,9 @@ import MinistrySignalHistory from '@/pages/MinistrySignalHistory';
 import StewardshipGuides from '@/pages/StewardshipGuides';
 import StewardshipGuideDetail from '@/pages/StewardshipGuideDetail';
 import StewardshipGuideAdmin from '@/pages/StewardshipGuideAdmin';
+import CommunicationCenter from '@/pages/CommunicationCenter';
+import CommunicationComposer from '@/pages/CommunicationComposer';
+import CommunicationAdmin from '@/pages/CommunicationAdmin';
 // Add page imports here
 
 const AuthenticatedApp = () => {
@@ -77,6 +80,8 @@ const AuthenticatedApp = () => {
           <Route path="/intelligence/history" element={<MinistrySignalHistory />} />
           <Route path="/stewardship-guides" element={<StewardshipGuides />} />
           <Route path="/stewardship-guides/:id" element={<StewardshipGuideDetail />} />
+          <Route path="/communication" element={<CommunicationCenter />} />
+          <Route path="/communication/compose" element={<CommunicationComposer />} />
           <Route path="/volunteer-teams" element={<VolunteerTeams />} />
           <Route path="/volunteer-teams/:id" element={<VolunteerTeamProfile />} />
           <Route element={<AdminRoute />}>
@@ -84,6 +89,7 @@ const AuthenticatedApp = () => {
             <Route path="/users/:id" element={<UserDetail />} />
             <Route path="/administration" element={<Administration />} />
             <Route path="/stewardship-guides/admin" element={<StewardshipGuideAdmin />} />
+            <Route path="/communication/admin" element={<CommunicationAdmin />} />
           </Route>
         </Route>
       </Route>

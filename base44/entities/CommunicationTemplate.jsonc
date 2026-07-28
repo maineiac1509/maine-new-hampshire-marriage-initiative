@@ -1,0 +1,123 @@
+{
+  "name": "CommunicationTemplate",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "category": {
+      "type": "string",
+      "title": "Category"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "recommended_situations": {
+      "type": "array",
+      "title": "Recommended Situations",
+      "items": {
+        "type": "string"
+      }
+    },
+    "body": {
+      "type": "string",
+      "title": "Template Body"
+    },
+    "suggested_tone": {
+      "type": "string",
+      "title": "Suggested Tone"
+    },
+    "estimated_reading_time": {
+      "type": "string",
+      "title": "Estimated Reading Time"
+    },
+    "tags": {
+      "type": "array",
+      "title": "Tags",
+      "items": {
+        "type": "string"
+      }
+    },
+    "related_guides": {
+      "type": "array",
+      "title": "Related Stewardship Guides (titles)",
+      "items": {
+        "type": "string"
+      }
+    },
+    "related_resources": {
+      "type": "array",
+      "title": "Related Resources",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "title": "Resource Category",
+            "enum": [
+              "Books",
+              "Articles",
+              "Videos",
+              "Podcasts",
+              "Downloadable Resources",
+              "FamilyLife Materials"
+            ],
+            "default": "FamilyLife Materials"
+          }
+        }
+      }
+    },
+    "recommended_followup": {
+      "type": "string",
+      "title": "Recommended Follow-up"
+    },
+    "admin_notes": {
+      "type": "string",
+      "title": "Administrator Notes"
+    },
+    "enabled": {
+      "type": "boolean",
+      "title": "Enabled",
+      "default": true
+    },
+    "archived": {
+      "type": "boolean",
+      "title": "Archived",
+      "default": false
+    },
+    "display_order": {
+      "type": "number",
+      "title": "Display Order",
+      "default": 100
+    }
+  },
+  "required": [
+    "title"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

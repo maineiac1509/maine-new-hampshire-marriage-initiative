@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Menu, X, Heart, LayoutDashboard, Users, UserCheck, MessageSquare, BarChart3, Settings, UsersRound, Activity, BookOpen } from 'lucide-react';
+import { Menu, X, Heart, LayoutDashboard, Users, UserCheck, MessageSquare, BarChart3, Settings, UsersRound, Activity, BookOpen, MessagesSquare } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { NAV_ITEMS, APP_CONFIG } from '@/lib/config';
 import { isAdmin } from '@/lib/permissions';
@@ -17,6 +17,7 @@ const ICON_MAP = {
   UsersRound,
   Activity,
   BookOpen,
+  MessagesSquare,
 };
 
 function NavLinks({ items, onNavigate }) {

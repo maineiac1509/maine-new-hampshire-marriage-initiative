@@ -1,0 +1,108 @@
+{
+  "name": "CommunicationLog",
+  "type": "object",
+  "properties": {
+    "household_id": {
+      "type": "string",
+      "title": "Champion"
+    },
+    "communication_type": {
+      "type": "string",
+      "title": "Communication Type",
+      "enum": [
+        "Text Message",
+        "Email",
+        "Phone Call",
+        "Coffee Invitation",
+        "Prayer",
+        "Encouragement",
+        "Event Invitation",
+        "Event Follow-Up",
+        "Volunteer Encouragement",
+        "Church Communication",
+        "Other"
+      ],
+      "default": "Text Message"
+    },
+    "template_id": {
+      "type": "string",
+      "title": "Template Used"
+    },
+    "template_title": {
+      "type": "string",
+      "title": "Template Title"
+    },
+    "volunteer_name": {
+      "type": "string",
+      "title": "Volunteer"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "title": "Date"
+    },
+    "subject": {
+      "type": "string",
+      "title": "Subject"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notes"
+    },
+    "follow_up_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Follow-up Date"
+    },
+    "outcome": {
+      "type": "string",
+      "title": "Outcome"
+    },
+    "related_guide": {
+      "type": "string",
+      "title": "Related Stewardship Guide"
+    }
+  },
+  "required": [
+    "communication_type",
+    "date"
+  ],
+  "rls": {
+    "read": {},
+    "create": {},
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "director"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "director"
+          }
+        }
+      ]
+    }
+  }
+}

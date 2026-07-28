@@ -1,0 +1,41 @@
+{
+  "name": "CommunicationCategory",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Category Name"
+    },
+    "display_order": {
+      "type": "number",
+      "title": "Display Order",
+      "default": 100
+    },
+    "enabled": {
+      "type": "boolean",
+      "title": "Enabled",
+      "default": true
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

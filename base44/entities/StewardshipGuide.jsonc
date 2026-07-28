@@ -120,6 +120,27 @@
         }
       }
     },
+    "suggested_communications": {
+      "type": "array",
+      "title": "Suggested Communications",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "template_id": {
+            "type": "string",
+            "title": "Template"
+          },
+          "template_title": {
+            "type": "string",
+            "title": "Template Title"
+          }
+        }
+      }
+    },
     "helpful_resources": {
       "type": "array",
       "title": "Helpful Resources",
