@@ -1,0 +1,203 @@
+{
+  "name": "Resource",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "subtitle": {
+      "type": "string",
+      "title": "Subtitle"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "summary": {
+      "type": "string",
+      "title": "Summary"
+    },
+    "author": {
+      "type": "string",
+      "title": "Author"
+    },
+    "organization": {
+      "type": "string",
+      "title": "Organization"
+    },
+    "publisher": {
+      "type": "string",
+      "title": "Publisher"
+    },
+    "publication_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Publication Date"
+    },
+    "resource_type": {
+      "type": "string",
+      "title": "Resource Type",
+      "enum": [
+        "Articles",
+        "Books",
+        "Videos",
+        "Podcasts",
+        "Bible Studies",
+        "Downloadable PDFs",
+        "Worksheets",
+        "Discussion Guides",
+        "External Websites",
+        "FamilyLife Resources",
+        "Church Documents",
+        "Training Materials",
+        "Templates",
+        "Other"
+      ],
+      "default": "Articles"
+    },
+    "category": {
+      "type": "string",
+      "title": "Category"
+    },
+    "topics": {
+      "type": "array",
+      "title": "Topics",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "title": "Tags",
+      "items": {
+        "type": "string"
+      }
+    },
+    "life_stages": {
+      "type": "array",
+      "title": "Life Stages",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ministry_situations": {
+      "type": "array",
+      "title": "Ministry Situations",
+      "items": {
+        "type": "string"
+      }
+    },
+    "estimated_reading_time": {
+      "type": "string",
+      "title": "Estimated Reading Time"
+    },
+    "estimated_viewing_time": {
+      "type": "string",
+      "title": "Estimated Viewing Time"
+    },
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "default": "English"
+    },
+    "internal_external": {
+      "type": "string",
+      "title": "Internal / External",
+      "enum": [
+        "Internal",
+        "External"
+      ],
+      "default": "Internal"
+    },
+    "featured": {
+      "type": "boolean",
+      "title": "Featured Resource",
+      "default": false
+    },
+    "active": {
+      "type": "boolean",
+      "title": "Active",
+      "default": true
+    },
+    "archived": {
+      "type": "boolean",
+      "title": "Archived",
+      "default": false
+    },
+    "thumbnail_url": {
+      "type": "string",
+      "title": "Thumbnail Image URL"
+    },
+    "content_url": {
+      "type": "string",
+      "title": "Content / Launch URL"
+    },
+    "download_url": {
+      "type": "string",
+      "title": "Download URL"
+    },
+    "external_url": {
+      "type": "string",
+      "title": "External Link URL"
+    },
+    "related_guides": {
+      "type": "array",
+      "title": "Related Stewardship Guides (titles)",
+      "items": {
+        "type": "string"
+      }
+    },
+    "related_templates": {
+      "type": "array",
+      "title": "Related Communication Templates (titles)",
+      "items": {
+        "type": "string"
+      }
+    },
+    "scripture_topics": {
+      "type": "array",
+      "title": "Related Scripture Topics",
+      "items": {
+        "type": "string"
+      }
+    },
+    "related_resources": {
+      "type": "array",
+      "title": "Related Resource Recommendations (titles)",
+      "items": {
+        "type": "string"
+      }
+    },
+    "admin_notes": {
+      "type": "string",
+      "title": "Administrative Notes"
+    },
+    "display_order": {
+      "type": "number",
+      "title": "Display Order",
+      "default": 100
+    }
+  },
+  "required": [
+    "title"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

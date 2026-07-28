@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import SuggestedCommunications from '@/components/stewardship/SuggestedCommunications';
+import RelatedResourcesPanel from '@/components/resources/RelatedResourcesPanel';
 
 function SectionToggle({ icon: Icon, title, isOpen, onToggle }) {
   return (
@@ -42,7 +43,6 @@ export default function GuideViewer({ guide, allGuides = [] }) {
     { key: 'conversation', label: 'Conversation Starters', icon: HeartHandshake, show: Array.isArray(guide.conversation_ideas) && guide.conversation_ideas.length > 0 },
     { key: 'prayer', label: 'Prayer Prompts', icon: HandHeart, show: Array.isArray(guide.prayer_prompts) && guide.prayer_prompts.length > 0 },
     { key: 'scripture', label: 'Scripture & Encouragement', icon: BookMarked, show: Array.isArray(guide.scriptures) && guide.scriptures.length > 0 },
-    { key: 'resources', label: 'Helpful Resources', icon: Lightbulb, show: Array.isArray(guide.helpful_resources) && guide.helpful_resources.length > 0 },
     { key: 'remember', label: 'Things to Remember', icon: ClipboardList, show: Array.isArray(guide.things_to_remember) && guide.things_to_remember.length > 0 },
     { key: 'reflection', label: 'Reflection Questions', icon: Compass, show: Array.isArray(guide.reflection_questions) && guide.reflection_questions.length > 0 },
   ].filter((s) => s.show);
@@ -183,24 +183,8 @@ export default function GuideViewer({ guide, allGuides = [] }) {
           </section>
         )}
 
-        {Array.isArray(guide.helpful_resources) && guide.helpful_resources.length > 0 && (
-          <section id="section-resources" className="scroll-mt-4 rounded-lg border bg-card p-3">
-            <SectionToggle icon={Lightbulb} title="Helpful Resources" isOpen={open.resources} onToggle={() => toggle('resources')} />
-            {open.resources && (
-              <div className="grid grid-cols-1 gap-2 px-1 pb-2 pt-2 sm:grid-cols-2">
-                {guide.helpful_resources.map((r, i) => (
-                  <div key={i} className="rounded-md border border-dashed bg-background p-3">
-                    <span className="inline-flex rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium text-accent-foreground">
-                      {r.category || 'Resource'}
-                    </span>
-                    <p className="mt-1.5 text-sm font-medium text-foreground">{r.title}</p>
-                    {r.description && <p className="mt-1 text-xs text-muted-foreground">{r.description}</p>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
+        {/* Related Resources — actual Resource entity records linked to this guide */}
+        <RelatedResourcesPanel guideTitle={guide.title} />
 
         {Array.isArray(guide.things_to_remember) && guide.things_to_remember.length > 0 && (
           <section

@@ -15,6 +15,7 @@ import {
 import {
   resolveTemplate, findMergeFields, resolveFieldValue, highlightMergeFields, COMMUNICATION_TYPES,
 } from '@/lib/mergeFields';
+import RelatedResourcesPanel from '@/components/resources/RelatedResourcesPanel';
 
 export default function CommunicationComposer() {
   const [params, setParams] = useSearchParams();
@@ -373,6 +374,8 @@ export default function CommunicationComposer() {
                 </div>
               </div>
             )}
+
+            <RelatedResourcesPanel templateTitle={template.title} />
           </aside>
         </div>
       )}

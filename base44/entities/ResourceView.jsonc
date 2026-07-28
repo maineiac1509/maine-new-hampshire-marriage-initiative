@@ -1,0 +1,34 @@
+{
+  "name": "ResourceView",
+  "type": "object",
+  "properties": {
+    "resource_id": {
+      "type": "string",
+      "title": "Resource"
+    },
+    "resource_title": {
+      "type": "string",
+      "title": "Resource Title"
+    },
+    "viewed_date": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Viewed Date"
+    }
+  },
+  "required": [
+    "resource_id"
+  ],
+  "rls": {
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "create": {},
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
+}

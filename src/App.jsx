@@ -34,6 +34,9 @@ import StewardshipGuideAdmin from '@/pages/StewardshipGuideAdmin';
 import CommunicationCenter from '@/pages/CommunicationCenter';
 import CommunicationComposer from '@/pages/CommunicationComposer';
 import CommunicationAdmin from '@/pages/CommunicationAdmin';
+import ResourceLibrary from '@/pages/ResourceLibrary';
+import ResourceDetail from '@/pages/ResourceDetail';
+import ResourceAdmin from '@/pages/ResourceAdmin';
 // Add page imports here
 
 const AuthenticatedApp = () => {
@@ -82,6 +85,8 @@ const AuthenticatedApp = () => {
           <Route path="/stewardship-guides/:id" element={<StewardshipGuideDetail />} />
           <Route path="/communication" element={<CommunicationCenter />} />
           <Route path="/communication/compose" element={<CommunicationComposer />} />
+          <Route path="/resources" element={<ResourceLibrary />} />
+          <Route path="/resources/:id" element={<ResourceDetail />} />
           <Route path="/volunteer-teams" element={<VolunteerTeams />} />
           <Route path="/volunteer-teams/:id" element={<VolunteerTeamProfile />} />
           <Route element={<AdminRoute />}>
@@ -90,6 +95,7 @@ const AuthenticatedApp = () => {
             <Route path="/administration" element={<Administration />} />
             <Route path="/stewardship-guides/admin" element={<StewardshipGuideAdmin />} />
             <Route path="/communication/admin" element={<CommunicationAdmin />} />
+            <Route path="/resources/admin" element={<ResourceAdmin />} />
           </Route>
         </Route>
       </Route>

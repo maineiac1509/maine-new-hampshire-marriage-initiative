@@ -1,0 +1,29 @@
+{
+  "name": "ResourceFavorite",
+  "type": "object",
+  "properties": {
+    "resource_id": {
+      "type": "string",
+      "title": "Resource"
+    },
+    "resource_title": {
+      "type": "string",
+      "title": "Resource Title"
+    }
+  },
+  "required": [
+    "resource_id"
+  ],
+  "rls": {
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "create": {},
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
+}

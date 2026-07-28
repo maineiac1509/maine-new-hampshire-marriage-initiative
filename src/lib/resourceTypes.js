@@ -1,0 +1,78 @@
+export const RESOURCE_TYPES = [
+  'Articles',
+  'Books',
+  'Videos',
+  'Podcasts',
+  'Bible Studies',
+  'Downloadable PDFs',
+  'Worksheets',
+  'Discussion Guides',
+  'External Websites',
+  'FamilyLife Resources',
+  'Church Documents',
+  'Training Materials',
+  'Templates',
+  'Other',
+];
+
+export const DEFAULT_CATEGORIES = [
+  'Marriage',
+  'Parenting',
+  'Communication',
+  'Conflict Resolution',
+  'Finances',
+  'Prayer',
+  'Leadership',
+  'Volunteer Development',
+  'Church Partnerships',
+  'Weekend to Remember',
+  'Small Groups',
+  'Discipleship',
+  'FamilyLife',
+  'General Ministry',
+];
+
+export const DEFAULT_LIFE_STAGES = [
+  'Newly Married',
+  'Young Families',
+  'School-Age Children',
+  'Teen Families',
+  'Empty Nesters',
+  'Blended Families',
+  'Single Parents',
+  'All Stages',
+];
+
+export const DEFAULT_MINISTRY_SITUATIONS = [
+  'New Champion',
+  'First Contact',
+  'Coffee Meeting',
+  'Prayer Request',
+  'Marriage Concern',
+  'Volunteer Encouragement',
+  'Church Partnership',
+  'Event Invitation',
+  'Event Follow-Up',
+  'Anniversary',
+  'Birthday',
+  'Marriage Crisis',
+  'Spiritual Encouragement',
+  'Inactive Champion',
+];
+
+export const RESOURCE_TYPE_META = {
+  Articles: { icon: 'FileText', color: 'text-blue-600' },
+  Books: { icon: 'BookOpen', color: 'text-amber-700' },
+  Videos: { icon: 'Video', color: 'text-rose-600' },
+  Podcasts: { icon: 'Headphones', color: 'text-purple-600' },
+  'Bible Studies': { icon: 'BookMarked', color: 'text-emerald-700' },
+  'Downloadable PDFs': { icon: 'Download', color: 'text-sky-600' },
+  Worksheets: { icon: 'ClipboardList', color: 'text-indigo-600' },
+  'Discussion Guides': { icon: 'MessagesSquare', color: 'text-teal-600' },
+  'External Websites': { icon: 'Globe', color: 'text-cyan-600' },
+  'FamilyLife Resources': { icon: 'Heart', color: 'text-red-500' },
+  'Church Documents': { icon: 'Building2', color: 'text-slate-600' },
+  'Training Materials': { icon: 'GraduationCap', color: 'text-orange-600' },
+  Templates: { icon: 'LayoutTemplate', color: 'text-violet-600' },
+  Other: { icon: 'File', color: 'text-muted-foreground' },
+};

@@ -16,6 +16,7 @@ export const NAV_ITEMS = [
   { label: 'Ministry Intelligence', path: '/intelligence', icon: 'Activity' },
   { label: 'Stewardship Guides', path: '/stewardship-guides', icon: 'BookOpen' },
   { label: 'Communication Center', path: '/communication', icon: 'MessagesSquare' },
+  { label: 'Resource Library', path: '/resources', icon: 'Library' },
   { label: 'Users', path: '/users', icon: 'UsersRound', adminOnly: true },
   { label: 'Administration', path: '/administration', icon: 'Settings', adminOnly: true },
 ];

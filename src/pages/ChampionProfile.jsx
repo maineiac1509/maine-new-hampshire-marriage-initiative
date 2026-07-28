@@ -15,6 +15,7 @@ import StewardshipTimeline from '@/components/champions/StewardshipTimeline';
 import StewardshipHealthBadge from '@/components/champions/StewardshipHealthBadge';
 import RecommendedGuidesPanel from '@/components/stewardship/RecommendedGuidesPanel';
 import CommunicationPanel from '@/components/communication/CommunicationPanel';
+import ResourceRecommendationPanel from '@/components/resources/ResourceRecommendationPanel';
 import { isAssignedTo } from '@/lib/championUtils';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -505,6 +506,9 @@ export default function ChampionProfile() {
 
       {/* Communication Center */}
       <CommunicationPanel champion={household} activities={activities} currentUser={currentUser} />
+
+      {/* Recommended Resources */}
+      <ResourceRecommendationPanel champion={household} activities={activities} />
 
       {/* Stewardship Timeline */}
       <StewardshipTimeline assignments={assignments} teams={teams} />
