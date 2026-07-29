@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import { fmtDate } from '@/lib/teamUtils';
 
 export default function VolunteerTeamProfile() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [team, setTeam] = useState(null);
   const [members, setMembers] = useState([]);
   const [champions, setChampions] = useState([]);
@@ -148,6 +149,27 @@ export default function VolunteerTeamProfile() {
     try { await base44.entities.TeamMember.delete(m.id); setMembers((ms) => ms.filter((x) => x.id !== m.id)); } catch (e) {}
   }
 
+  const activeAssignmentCount = (assignments || []).filter((a) => a.assignment_status === 'Active').length;
+
+  async function handleDelete() {
+    const today = new Date().toISOString().slice(0, 10);
+    if (activeAssignmentCount > 0) {
+      await base44.entities.Assignment.updateMany(
+        { volunteer_team_id: id, assignment_status: 'Active' },
+        {
+          $set: {
+            assignment_status: 'Ended',
+            end_date: today,
+            end_reason: 'Administrative Cleanup',
+            end_reason_notes: 'Relationship Builder deleted',
+          },
+        }
+      );
+    }
+    await base44.entities.VolunteerTeam.delete(id);
+    navigate('/volunteer-teams');
+  }
+
   if (loading) {
     return <div className="py-20 text-center text-muted-foreground">Loading MC Relationship Builder…</div>;
   }
@@ -176,6 +198,8 @@ export default function VolunteerTeamProfile() {
         onField={setField}
         memberCount={members.length}
         championCount={champions.length}
+        onDelete={handleDelete}
+        activeAssignmentCount={activeAssignmentCount}
       />
 
       <TeamStatistics stats={stats} />
