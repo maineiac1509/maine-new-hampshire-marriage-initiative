@@ -65,7 +65,7 @@ export default function CloseAssignmentDialog({ open, onOpenChange, assignment, 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-amber-500" /> End Assignment</DialogTitle>
           <p className="text-sm text-muted-foreground">
-            This concludes this team's stewardship of the Champion relationship. The Assignment record is preserved permanently in ministry history, and the Champion becomes available for reassignment.
+            This concludes this Relationship Builder's stewardship of the Champion relationship. The Assignment record is preserved permanently in ministry history, and the Champion becomes available for reassignment.
           </p>
         </DialogHeader>
         <div className="space-y-3">

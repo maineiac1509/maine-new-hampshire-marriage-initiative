@@ -210,11 +210,11 @@ export default function Dashboard() {
         >
           <ActivityFeed
             items={myFeed}
-            title="My Team Activity"
-            description="Recent stewardship activity involving your Volunteer Team."
+            title="My Activity"
+            description="Recent stewardship activity involving your MC Relationship Builder."
             limit={10}
-            emptyTitle="No team activity yet"
-            emptyDescription="Activity involving your Volunteer Team will appear here as it happens."
+            emptyTitle="No activity yet"
+            emptyDescription="Activity involving your MC Relationship Builder will appear here as it happens."
           />
         </div>
       </section>

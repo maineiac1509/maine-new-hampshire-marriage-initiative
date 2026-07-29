@@ -42,7 +42,7 @@ export default function TeamFormDialog({ open, onOpenChange, onCreated }) {
 
   async function handleSave() {
     if (!form.team_name.trim()) {
-      setError('Team name is required.');
+      setError('Name is required.');
       return;
     }
     setSaving(true);
@@ -56,7 +56,7 @@ export default function TeamFormDialog({ open, onOpenChange, onCreated }) {
       onOpenChange(false);
       onCreated?.(created);
     } catch (e) {
-      setError('Could not create the team. Please try again.');
+      setError('Could not create the Relationship Builder. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -66,12 +66,12 @@ export default function TeamFormDialog({ open, onOpenChange, onCreated }) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create Volunteer Team</DialogTitle>
+          <DialogTitle>Create MC Relationship Builder</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1">
-            <Label>Team Name *</Label>
-            <Input value={form.team_name} onChange={(e) => setField('team_name', e.target.value)} placeholder="e.g. Smith Team" />
+            <Label>Name *</Label>
+            <Input value={form.team_name} onChange={(e) => setField('team_name', e.target.value)} placeholder="e.g. Smith Relationship Builder" />
           </div>
           <div className="space-y-1">
             <Label>Family Name</Label>
@@ -120,7 +120,7 @@ export default function TeamFormDialog({ open, onOpenChange, onCreated }) {
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />} Create Team
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />} Create Relationship Builder
           </Button>
         </DialogFooter>
       </DialogContent>

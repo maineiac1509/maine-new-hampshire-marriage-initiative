@@ -4,9 +4,9 @@ import { UserPlus, ClipboardList, BookOpen, Users2, LayoutDashboard } from 'luci
 
 const ACTIONS = [
   { label: 'New Champion', desc: 'Add a new Champion household.', icon: UserPlus, to: '/champions' },
-  { label: 'Assign Champion', desc: 'Connect a Champion with a Volunteer Team.', icon: ClipboardList, to: '/champions' },
+  { label: 'Assign Champion', desc: 'Connect a Champion with an MC Relationship Builder.', icon: ClipboardList, to: '/champions' },
   { label: 'Champion Directory', desc: 'Browse and manage Champion profiles.', icon: BookOpen, to: '/champions' },
-  { label: 'Volunteer Teams', desc: 'View and manage Volunteer Teams.', icon: Users2, to: '/volunteer-teams' },
+  { label: 'MC Relationship Builders', desc: 'View and manage MC Relationship Builders.', icon: Users2, to: '/volunteer-teams' },
   { label: 'Assignment Workspace', desc: 'Manage active and closed Assignments.', icon: LayoutDashboard, to: '/assignments' },
 ];
 

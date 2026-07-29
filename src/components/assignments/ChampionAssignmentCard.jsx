@@ -43,7 +43,7 @@ export default function ChampionAssignmentCard({ champion, currentUser, onChange
       <>
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-foreground">{team?.team_name || 'Team'}</p>
+            <p className="text-sm font-medium text-foreground">{team?.team_name || 'Relationship Builder'}</p>
             <p className="text-xs text-muted-foreground">Assigned {active.assigned_date}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -62,7 +62,7 @@ export default function ChampionAssignmentCard({ champion, currentUser, onChange
         <p className="text-sm text-muted-foreground">No active Assignment for this Champion.</p>
         {canManage && (
           <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4" /> Assign to Team
+            <Plus className="h-4 w-4" /> Assign to Relationship Builder
           </Button>
         )}
       </div>

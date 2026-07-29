@@ -495,7 +495,7 @@ export default function ChampionProfile() {
         <Section icon={UsersIcon} title="Assignment Information">
           <div className="space-y-4">
             <div className="space-y-1">
-              <label className="text-xs uppercase tracking-wide text-muted-foreground">Assigned Volunteer Team</label>
+              <label className="text-xs uppercase tracking-wide text-muted-foreground">Assigned MC Relationship Builder</label>
               <ChampionAssignmentCard champion={household} currentUser={currentUser} onChanged={loadMilestones} />
             </div>
             <FieldRow label="Assigned Director" value={h.assigned_director} editing={editing} onChange={(v) => setField('assigned_director', v)} />

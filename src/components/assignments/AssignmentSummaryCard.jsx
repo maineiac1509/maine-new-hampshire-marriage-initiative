@@ -23,7 +23,7 @@ export default function AssignmentSummaryCard({ assignment, form, editing, onFie
           <p className="text-sm text-foreground">{championName}</p>
         </div>
         <div className="space-y-1">
-          <label className="text-xs uppercase tracking-wide text-muted-foreground">Volunteer Team</label>
+          <label className="text-xs uppercase tracking-wide text-muted-foreground">MC Relationship Builder</label>
           <p className="text-sm text-foreground">{teamName}</p>
         </div>
         <div className="space-y-1">

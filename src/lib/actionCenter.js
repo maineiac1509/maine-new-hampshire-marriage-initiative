@@ -84,7 +84,7 @@ export function buildActionItems({ households, assignments, teams, activities, t
       raw.push({
         entityKey: `hh:${h.id}`, priority: 'critical', icon: UserPlus,
         title: 'Awaiting Assignment', subject: hhName(h),
-        description: 'This Champion has not been connected with a Volunteer Team for over 30 days.',
+        description: 'This Champion has not been connected with an MC Relationship Builder for over 30 days.',
         detected: ms(h.created_date),
         actionLabel: 'Assign Champion', href: `/champions/${h.id}`,
       });
@@ -95,10 +95,10 @@ export function buildActionItems({ households, assignments, teams, activities, t
     if (t.active === false && (activeByTeam[t.id] || 0) > 0) {
       raw.push({
         entityKey: `team:${t.id}`, priority: 'critical', icon: Users,
-        title: 'Inactive Team Owning Champions', subject: t.team_name,
-        description: 'This Volunteer Team is marked inactive but still owns active Champions.',
+        title: 'Inactive Relationship Builder Owning Champions', subject: t.team_name,
+        description: 'This MC Relationship Builder is marked inactive but still owns active Champions.',
         detected: ms(t.updated_date) || now,
-        actionLabel: 'View Team', href: `/volunteer-teams/${t.id}`,
+        actionLabel: 'View Relationship Builder', href: `/volunteer-teams/${t.id}`,
       });
     }
   });
@@ -134,7 +134,7 @@ export function buildActionItems({ households, assignments, teams, activities, t
       raw.push({
         entityKey: `hh:${h.id}`, priority: 'high', icon: UserPlus,
         title: 'Awaiting First Assignment', subject: hhName(h),
-        description: 'A newly created Champion has not yet been connected with a Volunteer Team.',
+        description: 'A newly created Champion has not yet been connected with an MC Relationship Builder.',
         detected: ms(h.created_date),
         actionLabel: 'Assign Champion', href: `/champions/${h.id}`,
       });
@@ -148,10 +148,10 @@ export function buildActionItems({ households, assignments, teams, activities, t
     if (cap > 0 && count >= cap * 0.9) {
       raw.push({
         entityKey: `team:${t.id}`, priority: 'high', icon: Users2,
-        title: 'Volunteer Team Near Capacity', subject: t.team_name,
+        title: 'MC Relationship Builder Near Capacity', subject: t.team_name,
         description: `Current utilization is at ${Math.round((count / cap) * 100)}% of target capacity.`,
         detected: now,
-        actionLabel: 'View Team', href: `/volunteer-teams/${t.id}`,
+        actionLabel: 'View Relationship Builder', href: `/volunteer-teams/${t.id}`,
       });
     }
   });
@@ -219,9 +219,9 @@ export function buildActionItems({ households, assignments, teams, activities, t
       raw.push({
         entityKey: `tm:${m.id}`, priority: 'informational', icon: Users2,
         title: 'New Volunteer Joined', subject: m.display_name,
-        description: 'A volunteer joined a team this week.',
+        description: 'A volunteer joined a Relationship Builder this week.',
         detected: ms(m.created_date),
-        actionLabel: 'View Teams', href: '/volunteer-teams',
+        actionLabel: 'View Relationship Builders', href: '/volunteer-teams',
       });
     }
   });

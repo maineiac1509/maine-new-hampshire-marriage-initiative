@@ -6,7 +6,7 @@ const CARDS = [
   { key: 'active', label: 'Active Champions', icon: Users, tone: 'bg-emerald-100 text-emerald-700', bar: 'bg-emerald-500', to: '/champions' },
   { key: 'households', label: 'Households', icon: Home, tone: 'bg-blue-100 text-blue-700', bar: 'bg-blue-500', to: '/champions' },
   { key: 'assignments', label: 'Active Assignments', icon: UserCheck, tone: 'bg-violet-100 text-violet-700', bar: 'bg-violet-500', to: '/assignments?status=Active' },
-  { key: 'teams', label: 'Volunteer Teams', icon: Users2, tone: 'bg-amber-100 text-amber-700', bar: 'bg-amber-500', to: '/volunteer-teams' },
+  { key: 'teams', label: 'MC Relationship Builders', icon: Users2, tone: 'bg-amber-100 text-amber-700', bar: 'bg-amber-500', to: '/volunteer-teams' },
   { key: 'awaiting', label: 'Champions Awaiting Assignment', icon: UserPlus, tone: 'bg-rose-100 text-rose-700', bar: 'bg-rose-500', to: '/champions?view=unassigned' },
   { key: 'closed', label: 'Stewardship Changes This Month', icon: Archive, tone: 'bg-slate-100 text-slate-600', bar: 'bg-slate-400', to: '/assignments?status=Ended&month=current' },
 ];

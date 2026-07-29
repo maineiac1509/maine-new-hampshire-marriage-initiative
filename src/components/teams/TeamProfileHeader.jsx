@@ -13,10 +13,10 @@ export default function TeamProfileHeader({
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <Button variant="ghost" size="sm" asChild>
-          <Link to="/volunteer-teams"><ArrowLeft className="h-4 w-4" /> Back to Teams</Link>
+          <Link to="/volunteer-teams"><ArrowLeft className="h-4 w-4" /> Back to MC Relationship Builders</Link>
         </Button>
         {canManage && !editing && (
-          <Button size="sm" variant="outline" onClick={onEdit}><Save className="h-4 w-4" /> Edit Team</Button>
+          <Button size="sm" variant="outline" onClick={onEdit}><Save className="h-4 w-4" /> Edit Relationship Builder</Button>
         )}
         {canManage && editing && (
           <div className="flex gap-2">

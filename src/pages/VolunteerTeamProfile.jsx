@@ -149,15 +149,15 @@ export default function VolunteerTeamProfile() {
   }
 
   if (loading) {
-    return <div className="py-20 text-center text-muted-foreground">Loading Volunteer Team…</div>;
+    return <div className="py-20 text-center text-muted-foreground">Loading MC Relationship Builder…</div>;
   }
   if (notFound || !team) {
     return (
       <div className="space-y-4">
         <Button variant="ghost" size="sm" asChild>
-          <Link to="/volunteer-teams"><ArrowLeft className="h-4 w-4" /> Back to Teams</Link>
+          <Link to="/volunteer-teams"><ArrowLeft className="h-4 w-4" /> Back to MC Relationship Builders</Link>
         </Button>
-        <p className="text-muted-foreground">Volunteer Team not found.</p>
+        <p className="text-muted-foreground">MC Relationship Builder not found.</p>
       </div>
     );
   }

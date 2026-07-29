@@ -26,7 +26,7 @@ function isInCurrentMonth(dateStr) {
 
 const COLUMNS = [
   { key: 'champion', label: 'Champion' },
-  { key: 'team', label: 'Volunteer Team' },
+  { key: 'team', label: 'MC Relationship Builder' },
   { key: 'status', label: 'Status' },
   { key: 'assigned_date', label: 'Assigned Date' },
   { key: 'assigned_by', label: 'Assigned By' },
@@ -163,7 +163,7 @@ export default function Assignments() {
     <div className="space-y-5">
       <PageHeader
         title="Assignment Management"
-        subtitle={`Administrative stewardship · ${assignments.length} ${assignments.length === 1 ? 'record' : 'records'} · ${counts.unassigned} ${counts.unassigned === 1 ? 'Champion needs' : 'Champions need'} a team`}
+        subtitle={`Administrative stewardship · ${assignments.length} ${assignments.length === 1 ? 'record' : 'records'} · ${counts.unassigned} ${counts.unassigned === 1 ? 'Champion needs' : 'Champions need'} a Relationship Builder`}
       />
 
       {/* Summary cards */}
@@ -207,7 +207,7 @@ export default function Assignments() {
         <EmptyState
           icon={UserCheck}
           title="No Champion relationships have been assigned yet"
-          description="Assign a Volunteer Team to a Champion to begin a stewardship relationship."
+          description="Assign an MC Relationship Builder to a Champion to begin a stewardship relationship."
           actionLabel="Go to Champions"
           onAction={() => { window.location.href = '/champions'; }}
         />
@@ -217,7 +217,7 @@ export default function Assignments() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Search by Champion, team, or assigner…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+              <Input placeholder="Search by Champion, Relationship Builder, or assigner…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Status" /></SelectTrigger>

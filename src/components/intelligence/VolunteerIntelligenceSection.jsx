@@ -15,7 +15,7 @@ function TeamList({ title, teams }) {
             <span className="text-muted-foreground">{t.count} · {t.pct}%</span>
           </Link>
         ))}
-        {!teams.length && <p className="text-sm text-muted-foreground">No teams found.</p>}
+        {!teams.length && <p className="text-sm text-muted-foreground">No Relationship Builders found.</p>}
       </div>
     </div>
   );
@@ -26,12 +26,12 @@ export default function VolunteerIntelligenceSection({ data }) {
     <Section index={3} title="Volunteer Intelligence" summary={data.summary} icon={Users2}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <MetricCard title="Avg Champions / Volunteer" value={data.avgPerVolunteer} explanation="Active Champions divided by total team members." drillTarget={data.drillTarget} icon={Users2} />
-        <MetricCard title="Teams Near Capacity" value={data.nearCapacityCount} positiveIsGood={false} explanation="Teams at or above 90% of target capacity." drillTarget={data.drillTarget} icon={AlertTriangle} />
-        <MetricCard title="Unassigned Champions" value={data.unassignedCount} positiveIsGood={false} explanation="Champions with no active Volunteer Team." drillTarget="/champions?view=unassigned" icon={UserX} />
+        <MetricCard title="Relationship Builders Near Capacity" value={data.nearCapacityCount} positiveIsGood={false} explanation="Relationship Builders at or above 90% of target capacity." drillTarget={data.drillTarget} icon={AlertTriangle} />
+        <MetricCard title="Unassigned Champions" value={data.unassignedCount} positiveIsGood={false} explanation="Champions with no active MC Relationship Builder." drillTarget="/champions?view=unassigned" icon={UserX} />
       </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <TeamList title="Most Active Teams" teams={data.mostActive} />
-        <TeamList title="Least Active Teams" teams={data.leastActive} />
+        <TeamList title="Most Active Relationship Builders" teams={data.mostActive} />
+        <TeamList title="Least Active Relationship Builders" teams={data.leastActive} />
       </div>
     </Section>
   );

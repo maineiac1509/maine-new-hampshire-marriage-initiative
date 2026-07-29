@@ -66,9 +66,9 @@ export default function TeamActivityFeed({ teamId, activities, statusChanges, ch
   }, [activities, statusChanges, teamEvents, champMap]);
 
   return (
-    <TeamSection icon={ActivityIcon} title="Team Activity Feed">
+    <TeamSection icon={ActivityIcon} title="Activity Feed">
       {events.length === 0 ? (
-        <EmptyState icon={ActivityIcon} title="No activity yet" description="Recent ministry activity across this team's Champions will appear here." />
+        <EmptyState icon={ActivityIcon} title="No activity yet" description="Recent ministry activity across this Relationship Builder's Champions will appear here." />
       ) : (
         <ol className="space-y-3">
           {events.map((e) => {

@@ -75,7 +75,7 @@ export default function AssignedChampionsTable({ champions, activitiesByHouse, a
       </div>
       {rows.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          {champions.length === 0 ? 'No Champions assigned to this team yet.' : 'No champions match your search.'}
+          {champions.length === 0 ? 'No Champions assigned to this Relationship Builder yet.' : 'No champions match your search.'}
         </p>
       ) : (
         <div className="overflow-x-auto">

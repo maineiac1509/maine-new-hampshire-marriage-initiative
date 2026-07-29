@@ -27,7 +27,7 @@ const RULE_SETTINGS = [
   { label: 'Days before Follow-up', value: `${STEWARDSHIP_HEALTH_CONFIG.thresholds.followUp} days`, description: 'Inactivity before Follow-up Recommended.' },
   { label: 'Days before Re-engagement', value: `${STEWARDSHIP_HEALTH_CONFIG.thresholds.reEngagement} days`, description: 'Inactivity before Re-engagement Opportunity.' },
   { label: 'Days before Immediate Attention', value: `${STEWARDSHIP_HEALTH_CONFIG.thresholds.immediate} days`, description: 'Inactivity before Immediate Attention.' },
-  { label: 'Capacity Threshold', value: `${RECOMMENDATION_CONFIG.capacityThresholdPct}%`, description: 'Team utilization before Team Near Capacity.' },
+  { label: 'Capacity Threshold', value: `${RECOMMENDATION_CONFIG.capacityThresholdPct}%`, description: 'Relationship Builder utilization before Near Capacity.' },
   { label: 'Transfer Monitoring Period', value: `${RECOMMENDATION_CONFIG.transferMonitoringDays} days`, description: 'Window to confirm transferred stewardship.' },
   { label: 'Upcoming Assignment Window', value: `${RECOMMENDATION_CONFIG.endingSoonDays} days`, description: 'Planned end within this window flags Stewardship Ending Soon.' },
 ];
@@ -66,10 +66,10 @@ export default function Administration() {
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Volunteer Teams</h3>
+              <h3 className="text-sm font-semibold">MC Relationship Builders</h3>
               <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">Manage volunteer teams, members, and Champion assignments.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Manage MC Relationship Builders, members, and Champion assignments.</p>
           </div>
         </Link>
 
@@ -85,7 +85,7 @@ export default function Administration() {
               <h3 className="text-sm font-semibold">Assignments</h3>
               <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">Assign, reassign, and close Champion stewardship. Review workload and team capacity.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Assign, reassign, and close Champion stewardship. Review workload and Relationship Builder capacity.</p>
           </div>
         </Link>
 

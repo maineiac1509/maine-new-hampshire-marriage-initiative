@@ -92,7 +92,7 @@ export function buildActivityFeed({
     items.push({
       id: 'tte-' + e.id,
       icon: e.event_type === 'Assignment Ended' ? Archive : UserCheck,
-      title: e.summary || e.event_type || 'Team update',
+      title: e.summary || e.event_type || 'Relationship Builder update',
       subtitle: teamName(e.team_id) || undefined,
       timestamp: timestamp(e, e.event_date),
       actor: userMap[e.created_by_id] || '',

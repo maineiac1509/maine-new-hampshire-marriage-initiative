@@ -7,9 +7,9 @@ import AssignmentSection from './AssignmentSection';
 
 export default function TeamSummaryCard({ team, members, assignedCount }) {
   return (
-    <AssignmentSection icon={UsersIcon} title="Volunteer Team">
+    <AssignmentSection icon={UsersIcon} title="MC Relationship Builder">
       {!team ? (
-        <p className="text-sm text-muted-foreground">Team record not found.</p>
+        <p className="text-sm text-muted-foreground">Relationship Builder record not found.</p>
       ) : (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
@@ -29,7 +29,7 @@ export default function TeamSummaryCard({ team, members, assignedCount }) {
             </div>
           </dl>
           <Button variant="outline" size="sm" asChild>
-            <Link to={`/volunteer-teams/${team.id}`}>Open Team Profile <ArrowRight className="h-4 w-4" /></Link>
+            <Link to={`/volunteer-teams/${team.id}`}>Open Relationship Builder Profile <ArrowRight className="h-4 w-4" /></Link>
           </Button>
         </div>
       )}

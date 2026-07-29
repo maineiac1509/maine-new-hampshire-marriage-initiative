@@ -42,7 +42,7 @@ export default function RecommendationDetailDialog({ rec, open, onOpenChange, on
   const navButtons = [];
   if (rec.household_id) navButtons.push({ label: 'Open Champion', href: `/champions/${rec.household_id}` });
   if (rec.assignment_id) navButtons.push({ label: 'Open Assignment', href: `/assignments/${rec.assignment_id}` });
-  if (rec.volunteer_team_id) navButtons.push({ label: 'Open Team', href: `/volunteer-teams/${rec.volunteer_team_id}` });
+  if (rec.volunteer_team_id) navButtons.push({ label: 'Open Relationship Builder', href: `/volunteer-teams/${rec.volunteer_team_id}` });
 
   const sortedTimeline = [...timeline].sort(
     (a, b) => new Date(b.event_date || b.change_date || b.created_date || 0) - new Date(a.event_date || a.change_date || a.created_date || 0)
@@ -78,7 +78,7 @@ export default function RecommendationDetailDialog({ rec, open, onOpenChange, on
             <div className="grid grid-cols-2 gap-3">
               <Info label="Champion" value={rec.championName} />
               <Info label="Assigned Volunteer" value={rec.assignedVolunteer} />
-              <Info label="Volunteer Team" value={rec.teamName} />
+              <Info label="MC Relationship Builder" value={rec.teamName} />
               <Info label="Last Activity" value={relativeDate(rec.lastActivityDate)?.label} />
               <Info label="Current Health" value={rec.healthLabel} />
             </div>

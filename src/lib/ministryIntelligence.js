@@ -208,9 +208,9 @@ function buildPerformance({ assignments, recommendations, activitiesByHouse, ran
   const metrics = [
     { key: 'cadence', label: 'Average Follow-up Time', value: cur.cadence, unit: 'days', prev: prev.cadence, delta: cur.cadence - prev.cadence, positiveIsGood: false, explanation: 'Average days between consecutive stewardship contacts per Champion.', drillTarget: '/contact-history' },
     { key: 'length', label: 'Average Assignment Length', value: cur.length, unit: 'days', prev: prev.length, delta: cur.length - prev.length, positiveIsGood: true, explanation: 'Average duration of stewardship relationships that ended in this period.', drillTarget: '/assignments?status=Ended' },
-    { key: 'newAsg', label: 'New Stewardship Assignments', value: cur.newAsg, unit: '', prev: prev.newAsg, delta: cur.newAsg - prev.newAsg, positiveIsGood: true, explanation: 'Volunteer Teams newly assigned to Champions in this period.', drillTarget: '/assignments?status=Active' },
+    { key: 'newAsg', label: 'New Stewardship Assignments', value: cur.newAsg, unit: '', prev: prev.newAsg, delta: cur.newAsg - prev.newAsg, positiveIsGood: true, explanation: 'MC Relationship Builders newly assigned to Champions in this period.', drillTarget: '/assignments?status=Active' },
     { key: 'ended', label: 'Ended Assignments', value: cur.ended, unit: '', prev: prev.ended, delta: cur.ended - prev.ended, positiveIsGood: false, explanation: 'Stewardship relationships closed in this period.', drillTarget: '/assignments?status=Ended' },
-    { key: 'transfers', label: 'Recent Stewardship Transfers', value: cur.transfers, unit: '', prev: prev.transfers, delta: cur.transfers - prev.transfers, positiveIsGood: false, explanation: 'Champions moved between Volunteer Teams in this period.', drillTarget: '/assignments' },
+    { key: 'transfers', label: 'Recent Stewardship Transfers', value: cur.transfers, unit: '', prev: prev.transfers, delta: cur.transfers - prev.transfers, positiveIsGood: false, explanation: 'Champions moved between MC Relationship Builders in this period.', drillTarget: '/assignments' },
     { key: 'resolution', label: 'Recommendation Resolution Rate', value: cur.resolution, unit: '%', prev: prev.resolution, delta: cur.resolution - prev.resolution, positiveIsGood: true, explanation: 'Share of recommendations created in this period that are now resolved.', drillTarget: '/recommendations?status=completed' },
   ];
   const summary = cur.newAsg >= cur.ended
@@ -235,7 +235,7 @@ function buildVolunteer({ teams, activeByTeam, membersByTeam, households, assign
 
   const ranked = teams
     .map((t) => ({
-      teamId: t.id, teamName: t.team_name || 'Unnamed Team',
+      teamId: t.id,       teamName: t.team_name || 'Unnamed Relationship Builder',
       count: activeByTeam[t.id] || 0, capacity: t.target_capacity || 0,
       pct: t.target_capacity ? Math.round(((activeByTeam[t.id] || 0) / t.target_capacity) * 100) : 0,
       drillTarget: `/volunteer-teams/${t.id}`,
@@ -245,8 +245,8 @@ function buildVolunteer({ teams, activeByTeam, membersByTeam, households, assign
   const leastActive = ranked.slice(-3).reverse();
 
   const summary = nearCapacity.length
-    ? `${nearCapacity.length} ${nearCapacity.length === 1 ? 'team is' : 'teams are'} near capacity; ${totalAvailable} Champion slot${totalAvailable === 1 ? '' : 's'} available ministry-wide.`
-    : `Volunteer capacity is healthy across all teams — ${totalAvailable} slots available ministry-wide.`;
+    ? `${nearCapacity.length} ${nearCapacity.length === 1 ? 'Relationship Builder is' : 'Relationship Builders are'} near capacity; ${totalAvailable} Champion slot${totalAvailable === 1 ? '' : 's'} available ministry-wide.`
+    : `Volunteer capacity is healthy across all Relationship Builders — ${totalAvailable} slots available ministry-wide.`;
   return { summary, totalCapacity, totalAssigned, totalAvailable, avgPerVolunteer, nearCapacityCount: nearCapacity.length, nearCapacity, unassignedCount, mostActive, leastActive, drillTarget: '/volunteer-teams' };
 }
 
@@ -304,9 +304,9 @@ function buildRisks({ householdHealth, recommendations, teams, activeByTeam, hou
   const items = [
     { key: 'immediate', label: 'Immediate Attention Champions', value: immediateNow, sub: `${immediateNow - immediatePrev >= 0 ? '+' : ''}${immediateNow - immediatePrev} vs previous`, severity: 1, explanation: 'Assigned Champions with no stewardship activity in 90+ days.', drillTarget: '/champions?health=immediate' },
     { key: 'recsOver30', label: 'Recommendations Older Than 30 Days', value: recsOver30, severity: 2, explanation: 'Open recommendations that have aged beyond 30 days.', drillTarget: '/recommendations?status=open' },
-    { key: 'aboveCapacity', label: 'Teams Above Capacity', value: aboveCapacity.length, severity: 3, explanation: 'Volunteer Teams exceeding their target Champion capacity.', drillTarget: '/volunteer-teams' },
+    { key: 'aboveCapacity', label: 'Relationship Builders Above Capacity', value: aboveCapacity.length, severity: 3, explanation: 'MC Relationship Builders exceeding their target Champion capacity.', drillTarget: '/volunteer-teams' },
     { key: 'noRecent', label: 'Champions Without Recent Activity', value: noRecentActivity, severity: 4, explanation: 'Assigned Champions in follow-up or re-engagement status.', drillTarget: '/champions?health=re-engagement' },
-    { key: 'awaiting', label: 'Champions Awaiting Assignment', value: awaitingAssignment, severity: 5, explanation: 'Champions with no active Volunteer Team.', drillTarget: '/champions?view=unassigned' },
+    { key: 'awaiting', label: 'Champions Awaiting Assignment', value: awaitingAssignment, severity: 5, explanation: 'Champions with no active MC Relationship Builder.', drillTarget: '/champions?view=unassigned' },
     { key: 'declines', label: 'Recent Stewardship Health Declines', value: declines, severity: 6, explanation: 'Champions whose health worsened versus the previous period.', drillTarget: '/champions' },
   ].sort((a, b) => a.severity - b.severity);
 
@@ -330,9 +330,9 @@ function buildOpportunities({ householdHealth, recommendations, teams, activeByT
   const completedRecs = recommendations.filter((r) => r.status === 'Completed' && inRange(toMs(r.completed_date), startMs, endMs)).length;
 
   const items = [
-    { key: 'capacity', label: 'Available Volunteer Capacity', value: availableCapacity, unit: 'slots', explanation: 'Total Champion slots open across all active Volunteer Teams.', drillTarget: '/volunteer-teams' },
+    { key: 'capacity', label: 'Available Volunteer Capacity', value: availableCapacity, unit: 'slots', explanation: 'Total Champion slots open across all active MC Relationship Builders.', drillTarget: '/volunteer-teams' },
     { key: 'healthy', label: 'Healthy Champions Ready for Deeper Engagement', value: healthyAssigned, unit: '', explanation: 'Assigned Champions with current, consistent stewardship contact.', drillTarget: '/champions?health=healthy' },
-    { key: 'regions', label: 'Regions With Capacity', value: regionsWithCapacity.length, unit: '', explanation: 'Teams below 50% capacity that can take on more Champions.', regions: regionsWithCapacity, drillTarget: '/volunteer-teams' },
+    { key: 'regions', label: 'Regions With Capacity', value: regionsWithCapacity.length, unit: '', explanation: 'Relationship Builders below 50% capacity that can take on more Champions.', regions: regionsWithCapacity, drillTarget: '/volunteer-teams' },
     { key: 'improving', label: 'Champions Showing Improving Health', value: improving, unit: '', explanation: 'Champions whose stewardship health improved this period.', drillTarget: '/champions' },
     { key: 'completed', label: 'Recently Completed Recommendations', value: completedRecs, unit: '', explanation: 'Stewardship recommendations resolved in this period.', drillTarget: '/recommendations?status=completed' },
   ];

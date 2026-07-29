@@ -10,7 +10,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { householdDisplay } from '@/lib/teamUtils';
 import { todayISO, actorName, recordAssignmentEvent, recordChampionMilestone, recordTeamMilestone } from '@/lib/assignmentEvents';
 
-const STEPS = ['Select Team', 'Details', 'Review'];
+const STEPS = ['Select Relationship Builder', 'Details', 'Review'];
 
 export default function CreateAssignmentDialog({ open, onOpenChange, champion, currentUser, onCreated }) {
   const [step, setStep] = useState(1);
@@ -61,7 +61,7 @@ export default function CreateAssignmentDialog({ open, onOpenChange, champion, c
 
   function next() {
     setError('');
-    if (step === 1 && !selectedTeam) { setError('Please select a Volunteer Team.'); return; }
+    if (step === 1 && !selectedTeam) { setError('Please select an MC Relationship Builder.'); return; }
     if (step === 2 && !form.reason.trim()) { setError('Assignment Reason is required.'); return; }
     setStep((s) => Math.min(s + 1, 3));
   }
@@ -113,7 +113,7 @@ export default function CreateAssignmentDialog({ open, onOpenChange, champion, c
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Assign Team — {champName}</DialogTitle>
+          <DialogTitle>Assign Relationship Builder — {champName}</DialogTitle>
         </DialogHeader>
 
         <div className="flex items-center gap-2 text-xs">
@@ -140,7 +140,7 @@ export default function CreateAssignmentDialog({ open, onOpenChange, champion, c
             {loadingTeams ? (
               <div className="flex items-center justify-center py-8 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>
             ) : teams.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">No active Volunteer Teams available.</p>
+              <p className="py-8 text-center text-sm text-muted-foreground">No active MC Relationship Builders available.</p>
             ) : (
               teams.map((t) => {
                 const cap = teamCapacity(t);
@@ -190,7 +190,7 @@ export default function CreateAssignmentDialog({ open, onOpenChange, champion, c
           <div className="space-y-2 rounded-lg border bg-muted/30 p-4 text-sm">
             <div className="mb-2 flex items-center gap-2 text-muted-foreground"><UsersIcon className="h-4 w-4" /> Review Assignment</div>
             <ReviewRow label="Champion" value={champName} />
-            <ReviewRow label="Volunteer Team" value={selectedTeam?.team_name} />
+            <ReviewRow label="MC Relationship Builder" value={selectedTeam?.team_name} />
             <ReviewRow label="Assignment Reason" value={form.reason} />
             <ReviewRow label="Assigned By" value={form.assigned_by} />
             <ReviewRow label="Assignment Date" value={form.assigned_date} />

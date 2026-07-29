@@ -205,7 +205,7 @@ const RULES = [
             'Champion has no active stewardship assignment',
             days != null ? `Created ${days} days ago` : 'No registration date recorded',
           ],
-          suggested_action: 'Assign a volunteer team.',
+          suggested_action: 'Assign an MC Relationship Builder.',
           nav_target: `/champions/${h.id}`,
         });
       });
@@ -225,10 +225,10 @@ const RULES = [
           identity: `team-capacity:${t.id}`, type: this.type, priority: this.priority,
           volunteer_team_id: t.id,
           why: [
-            `Volunteer Team reached ${pct}% of target capacity`,
+            `MC Relationship Builder reached ${pct}% of target capacity`,
             `Target capacity is ${cap}; currently stewarding ${count} Champions`,
           ],
-          suggested_action: 'Review team workload.',
+          suggested_action: 'Review Relationship Builder workload.',
           nav_target: `/volunteer-teams/${t.id}`,
         });
       }).filter(Boolean);
@@ -247,7 +247,7 @@ const RULES = [
           household_id: a.household_id, volunteer_team_id: a.volunteer_team_id, assignment_id: a.id,
           assigned_volunteer: a.assigned_by,
           why: [
-            'Stewardship was recently transferred to another team',
+            'Stewardship was recently transferred to another MC Relationship Builder',
             `Transfer occurred ${days} day(s) ago`,
           ],
           suggested_action: 'Confirm successful transition.',

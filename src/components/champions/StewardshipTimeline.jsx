@@ -21,7 +21,7 @@ export default function StewardshipTimeline({ assignments, teams, healthEvents =
       </div>
       {ordered.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No stewardship history yet. This Champion has not been assigned to a Volunteer Team.
+          No stewardship history yet. This Champion has not been assigned to an MC Relationship Builder.
         </p>
       ) : (
         <ol className="space-y-3">
@@ -36,7 +36,7 @@ export default function StewardshipTimeline({ assignments, teams, healthEvents =
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-foreground">{team?.team_name || 'Unknown Team'}</span>
+                    <span className="text-sm font-semibold text-foreground">{team?.team_name || 'Unknown Relationship Builder'}</span>
                     <StatusBadge variant={STATUS_VARIANT[status] || 'neutral'}>{isEnded ? 'Ended' : 'Active'}</StatusBadge>
                     <span className="ml-auto text-xs text-muted-foreground">
                       {fmtDate(a.assigned_date) || '—'} → {isEnded ? (fmtDate(a.end_date) || 'Ended') : 'Present'}

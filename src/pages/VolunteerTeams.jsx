@@ -112,12 +112,12 @@ export default function VolunteerTeams() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Volunteer Teams"
-        subtitle={`${filtered.length} ${filtered.length === 1 ? 'Team' : 'Teams'}`}
+        title="MC Relationship Builders"
+        subtitle={`${filtered.length} ${filtered.length === 1 ? 'MC Relationship Builder' : 'MC Relationship Builders'}`}
         actions={
           canManage ? (
             <Button onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" /> Create Team
+              <Plus className="h-4 w-4" /> Create Relationship Builder
             </Button>
           ) : undefined
         }
@@ -128,7 +128,7 @@ export default function VolunteerTeams() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Search teams by name or location…"
+          placeholder="Search relationship builders by name or location…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9"
@@ -136,7 +136,7 @@ export default function VolunteerTeams() {
       </div>
 
       {loading ? (
-        <div className="py-20 text-center text-muted-foreground">Loading Volunteer Teams…</div>
+        <div className="py-20 text-center text-muted-foreground">Loading MC Relationship Builders…</div>
       ) : (
         <>
           {/* Desktop table */}
@@ -144,7 +144,7 @@ export default function VolunteerTeams() {
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Team</th>
+                  <th className="px-4 py-3 font-medium">Relationship Builder</th>
                   <th className="px-4 py-3 font-medium">Members</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Location</th>
@@ -176,7 +176,7 @@ export default function VolunteerTeams() {
                   <tr>
                     <td colSpan={6} className="px-4 py-16 text-center text-muted-foreground">
                       <UsersIcon className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                      {isVolunteer ? 'You are not a member of a Volunteer Team yet.' : 'No Volunteer Teams found.'}
+                      {isVolunteer ? 'You are not a member of an MC Relationship Builder yet.' : 'No MC Relationship Builders found.'}
                     </td>
                   </tr>
                 )}
@@ -226,9 +226,9 @@ export default function VolunteerTeams() {
             {!filtered.length && (
               <EmptyState
                 icon={UsersIcon}
-                title={isVolunteer ? 'You are not on a team yet' : 'No Volunteer Teams yet'}
-                description={isVolunteer ? 'Ask a director to add you to a Volunteer Team.' : 'Create your first Volunteer Team to begin managing Champion relationships.'}
-                actionLabel={canManage ? 'Create Team' : undefined}
+                title={isVolunteer ? 'You are not on a Relationship Builder yet' : 'No MC Relationship Builders yet'}
+                description={isVolunteer ? 'Ask a director to add you to an MC Relationship Builder.' : 'Create your first MC Relationship Builder to begin managing Champion relationships.'}
+                actionLabel={canManage ? 'Create Relationship Builder' : undefined}
                 onAction={canManage ? () => setCreateOpen(true) : undefined}
               />
             )}

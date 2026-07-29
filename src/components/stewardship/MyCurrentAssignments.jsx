@@ -29,7 +29,7 @@ export default function MyCurrentAssignments({ assignments, households }) {
           <EmptyState
             icon={ClipboardList}
             title="No active assignments"
-            description="Your team has no active assignments right now. New assignments will appear here."
+            description="Your Relationship Builder has no active assignments right now. New assignments will appear here."
           />
         </div>
       </div>
@@ -41,7 +41,7 @@ export default function MyCurrentAssignments({ assignments, households }) {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold text-foreground">My Current Assignments</h2>
-          <p className="text-sm text-muted-foreground">Active assignments your team is stewarding.</p>
+          <p className="text-sm text-muted-foreground">Active assignments your Relationship Builder is stewarding.</p>
         </div>
         <ClipboardList className="h-5 w-5 text-muted-foreground" />
       </div>

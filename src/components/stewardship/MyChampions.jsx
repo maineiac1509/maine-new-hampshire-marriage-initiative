@@ -20,7 +20,7 @@ export default function MyChampions({ households, assignments, activities }) {
         <div className="mt-3">
           <EmptyState
             icon={Users}
-            title="No Champions have been assigned to your Volunteer Team yet."
+            title="No Champions have been assigned to your MC Relationship Builder yet."
             description="Continue exploring the Champion Directory and stay ready to serve when new assignments are made."
             actionLabel="Browse Champion Directory"
             onAction={() => { window.location.href = '/champions'; }}

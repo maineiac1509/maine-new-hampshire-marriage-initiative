@@ -14,7 +14,7 @@ export default function AssignmentContextCard({ assignment, form, editing, onFie
         <div className="space-y-1">
           <label className="text-xs uppercase tracking-wide text-muted-foreground">Assignment Reason</label>
           {editing ? (
-            <Input value={a?.assignment_reason ?? ''} onChange={(e) => onField('assignment_reason', e.target.value)} placeholder="Why was this Champion assigned to this team?" />
+            <Input value={a?.assignment_reason ?? ''} onChange={(e) => onField('assignment_reason', e.target.value)} placeholder="Why was this Champion assigned to this Relationship Builder?" />
           ) : (
             <p className="text-sm text-foreground">{a?.assignment_reason || '—'}</p>
           )}

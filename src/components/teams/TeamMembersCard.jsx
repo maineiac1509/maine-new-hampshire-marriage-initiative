@@ -12,12 +12,12 @@ export default function TeamMembersCard({ members, users, canManage, newMember, 
   return (
     <TeamSection
       icon={UsersIcon}
-      title="Team Members"
+      title="Members"
       action={<span className="text-xs text-muted-foreground">{members.length} {members.length === 1 ? 'member' : 'members'}</span>}
     >
       <div className="space-y-3">
         {members.length === 0 && !canManage && (
-          <p className="text-sm text-muted-foreground">No members on this team yet.</p>
+          <p className="text-sm text-muted-foreground">No members on this Relationship Builder yet.</p>
         )}
         {members.map((m) => (
           <div key={m.id} className="rounded-lg border p-4">

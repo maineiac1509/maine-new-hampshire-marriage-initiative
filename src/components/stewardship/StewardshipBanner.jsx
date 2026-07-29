@@ -16,8 +16,8 @@ export default function StewardshipBanner({ user, team, isAdmin }) {
           {isAdmin
             ? `${firstName}, you are overseeing the whole ministry.`
             : team
-              ? `Serving through Volunteer Team: ${team.team_name}`
-              : `${firstName}, you are not yet assigned to a Volunteer Team.`}
+              ? `Serving through MC Relationship Builder: ${team.team_name}`
+              : `${firstName}, you are not yet assigned to an MC Relationship Builder.`}
         </p>
       </div>
     </div>

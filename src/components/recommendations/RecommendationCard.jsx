@@ -31,7 +31,7 @@ function RecommendationCard({ rec, onSelect, onDismiss }) {
   const last = relativeDate(rec.lastActivityDate);
 
   const contextFields = [
-    { label: 'Volunteer Team', value: rec.teamName },
+    { label: 'MC Relationship Builder', value: rec.teamName },
     { label: 'Assigned Volunteer', value: rec.assignedVolunteer },
     { label: 'Last Activity', value: last ? last.label : null },
     { label: 'Health', value: rec.healthLabel },
