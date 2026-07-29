@@ -303,30 +303,34 @@ export default function ChampionProfile() {
   return (
     <div className="space-y-5">
       <DoNotContactBanner household={household} />
-      <div className="flex items-center justify-between gap-2">
-        <Button variant="ghost" size="sm" asChild>
-          <Link to="/champions"><ArrowLeft className="h-4 w-4" /> Back to Champions</Link>
-        </Button>
-        {editing ? (
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={cancelEdit} disabled={saving}>
-              <X className="h-4 w-4" /> Cancel
-            </Button>
-            <Button size="sm" onClick={handleSave} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Save
-            </Button>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={startEdit}>
-              <Save className="h-4 w-4" /> Edit Champion
-            </Button>
-            <Button size="sm" variant="destructive" onClick={() => setDeleteOpen(true)}>
-              <Trash2 className="h-4 w-4" /> Delete
-            </Button>
-          </div>
-        )}
+      <div className="sticky top-16 lg:top-0 z-20 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 bg-background/95 backdrop-blur py-3 border-b">
+        <div className="flex items-center justify-between gap-2">
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/champions"><ArrowLeft className="h-4 w-4" /> Back to Champions</Link>
+          </Button>
+          {editing ? (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={cancelEdit} disabled={saving}>
+                <X className="h-4 w-4" /> Cancel
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Save
+              </Button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={startEdit}>
+                <Save className="h-4 w-4" /> Edit Champion
+              </Button>
+              {currentUser?.role === 'admin' && (
+                <Button size="sm" variant="destructive" onClick={() => setDeleteOpen(true)}>
+                  <Trash2 className="h-4 w-4" /> Delete
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Header */}
