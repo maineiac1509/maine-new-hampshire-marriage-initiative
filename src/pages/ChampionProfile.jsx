@@ -494,9 +494,7 @@ export default function ChampionProfile() {
             <FieldRow label="Marriage Conference Priority" value={h.marriage_conference_priority} editing={editing} type="select" options={PRIORITY_OPTIONS} onChange={(v) => setField('marriage_conference_priority', v)} />
             <FieldRow label="Registration Date" value={h.registration_date} editing={editing} type="date" onChange={(v) => setField('registration_date', v)} />
             <FieldRow label="Registration Type" value={h.registration_type} editing={editing} type="select" options={REGISTRATION_TYPE_OPTIONS} onChange={(v) => setField('registration_type', v)} />
-            <FieldRow label="Group Name" value={h.group_name} editing={editing} onChange={(v) => setField('group_name', v)} />
             <FieldRow label="Area" value={h.area} editing={editing} onChange={(v) => setField('area', v)} />
-            <FieldRow label="Status" value={h.status} editing={editing} type="select" options={STATUS_OPTIONS} onChange={(v) => setField('status', v)} />
           </dl>
         </Section>
 
@@ -530,9 +528,13 @@ export default function ChampionProfile() {
           </div>
         </Section>
 
-        {/* Event Participation */}
-        <Section icon={Ticket} title="Event Participation">
+        {/* Group Information */}
+        <Section icon={Ticket} title="Group Information">
           <dl className="grid grid-cols-2 gap-4">
+            <FieldRow label="Group Name" value={h.group_name} editing={editing} onChange={(v) => setField('group_name', v)} />
+            <FieldRow label="Status" value={h.status} editing={editing} type="select" options={STATUS_OPTIONS} onChange={(v) => setField('status', v)} />
+            <FieldRow label="Group Start Date" value={h.group_start_date} editing={editing} type="date" onChange={(v) => setField('group_start_date', v)} />
+            <FieldRow label="Group Renewal Date" value={h.group_renewal_date} editing={editing} type="date" onChange={(v) => setField('group_renewal_date', v)} />
             <FieldRow label="Cumulative Registrations" value={h.cumulative_registrations} editing={editing} type="number" onChange={(v) => setField('cumulative_registrations', v)} />
             <FieldRow label="Free Couple Registrations Used" value={h.free_couple_registrations_used} editing={editing} type="number" onChange={(v) => setField('free_couple_registrations_used', v)} />
             <FieldRow label="Free Couple Registrations Available" value={h.free_couple_registrations_available} editing={editing} type="number" onChange={(v) => setField('free_couple_registrations_available', v)} />

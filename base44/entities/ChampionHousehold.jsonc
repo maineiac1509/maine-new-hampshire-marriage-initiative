@@ -142,6 +142,16 @@
       "type": "string",
       "title": "Group Name"
     },
+    "group_start_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Group Start Date"
+    },
+    "group_renewal_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Group Renewal Date"
+    },
     "status": {
       "type": "string",
       "title": "Status",
