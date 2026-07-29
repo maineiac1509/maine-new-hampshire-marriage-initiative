@@ -16,6 +16,7 @@ import ChampionAssignmentCard from '@/components/assignments/ChampionAssignmentC
 import StewardshipTimeline from '@/components/champions/StewardshipTimeline';
 import StewardshipHealthBadge from '@/components/champions/StewardshipHealthBadge';
 import RelationshipIntelligenceCard from '@/components/champions/RelationshipIntelligenceCard';
+import ReflectionsPanel from '@/components/reflections/ReflectionsPanel';
 import RecommendedGuidesPanel from '@/components/stewardship/RecommendedGuidesPanel';
 import CommunicationPanel from '@/components/communication/CommunicationPanel';
 import ResourceRecommendationPanel from '@/components/resources/ResourceRecommendationPanel';
@@ -400,6 +401,9 @@ export default function ChampionProfile() {
         activities={activities}
         assignments={assignments}
       />
+
+      {/* Reflections */}
+      <ReflectionsPanel householdId={id} currentUser={currentUser} />
 
       {/* Record Details */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

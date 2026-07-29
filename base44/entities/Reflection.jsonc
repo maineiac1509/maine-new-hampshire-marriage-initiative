@@ -1,0 +1,195 @@
+{
+  "name": "Reflection",
+  "type": "object",
+  "properties": {
+    "household_id": {
+      "type": "string",
+      "title": "Champion"
+    },
+    "reflection_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Reflection Date"
+    },
+    "original_notes": {
+      "type": "string",
+      "title": "Original Notes",
+      "description": "The raw, unstructured notes as entered by the ministry volunteer. Never lost \u2014 preserved exactly as written."
+    },
+    "summary": {
+      "type": "string",
+      "title": "Reflection Summary",
+      "description": "Approved concise ministry summary suitable for the timeline."
+    },
+    "prayer_requests": {
+      "type": "array",
+      "title": "Prayer Requests",
+      "items": {
+        "type": "object",
+        "properties": {
+          "request": {
+            "type": "string",
+            "title": "Request"
+          },
+          "evidence": {
+            "type": "string",
+            "title": "Evidence"
+          }
+        }
+      }
+    },
+    "action_items": {
+      "type": "array",
+      "title": "Action Items",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "type": "string",
+            "title": "Action"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          },
+          "evidence": {
+            "type": "string",
+            "title": "Evidence"
+          }
+        }
+      }
+    },
+    "relationship_signals": {
+      "type": "array",
+      "title": "Relationship Signals",
+      "items": {
+        "type": "object",
+        "properties": {
+          "signal": {
+            "type": "string",
+            "title": "Signal"
+          },
+          "evidence": {
+            "type": "string",
+            "title": "Evidence"
+          }
+        }
+      }
+    },
+    "leadership_observations": {
+      "type": "array",
+      "title": "Leadership Observations",
+      "items": {
+        "type": "object",
+        "properties": {
+          "observation": {
+            "type": "string",
+            "title": "Observation"
+          },
+          "evidence": {
+            "type": "string",
+            "title": "Evidence"
+          }
+        }
+      }
+    },
+    "resource_recommendations": {
+      "type": "array",
+      "title": "Resource Recommendations",
+      "items": {
+        "type": "object",
+        "properties": {
+          "resource": {
+            "type": "string",
+            "title": "Resource"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "evidence": {
+            "type": "string",
+            "title": "Evidence"
+          }
+        }
+      }
+    },
+    "timeline_entry": {
+      "type": "string",
+      "title": "Timeline Entry",
+      "description": "Approved polished timeline entry for future Relationship Intelligence context."
+    },
+    "sentiment": {
+      "type": "string",
+      "title": "Sentiment"
+    },
+    "sentiment_explanation": {
+      "type": "string",
+      "title": "Sentiment Explanation"
+    },
+    "confidence": {
+      "type": "string",
+      "title": "Confidence"
+    },
+    "confidence_explanation": {
+      "type": "string",
+      "title": "Confidence Explanation"
+    },
+    "analysis_generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Analysis Generated At"
+    },
+    "saved_by_user_id": {
+      "type": "string",
+      "title": "Saved By User ID"
+    },
+    "saved_by_name": {
+      "type": "string",
+      "title": "Saved By Name"
+    }
+  },
+  "required": [
+    "household_id",
+    "original_notes",
+    "reflection_date"
+  ],
+  "rls": {
+    "read": {},
+    "create": {},
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "director"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "director"
+          }
+        }
+      ]
+    }
+  }
+}

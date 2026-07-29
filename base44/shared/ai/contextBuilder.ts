@@ -200,6 +200,26 @@ const CONTEXT_SOURCES = {
     return (notes || []).map(normalizeNote);
   },
 
+  reflections: async (base44, { householdId }) => {
+    if (!householdId) return [];
+    const reflections = await base44.entities.Reflection.filter(
+      { household_id: householdId },
+      '-reflection_date',
+      10
+    );
+    return (reflections || []).map((r) => ({
+      type: 'reflection',
+      reflection_date: r.reflection_date || null,
+      summary: r.summary || null,
+      timeline_entry: r.timeline_entry || null,
+      sentiment: r.sentiment || null,
+      prayer_requests: (r.prayer_requests || []).map((p) => p.request || p),
+      action_items: (r.action_items || []).map((a) => a.item || a),
+      relationship_signals: (r.relationship_signals || []).map((s) => s.signal || s),
+      leadership_observations: (r.leadership_observations || []).map((o) => o.observation || o),
+    }));
+  },
+
   prayer_history: async (base44, { householdId }) => {
     if (!householdId) return [];
     const prayers = await base44.entities.ChampionActivity.filter(
