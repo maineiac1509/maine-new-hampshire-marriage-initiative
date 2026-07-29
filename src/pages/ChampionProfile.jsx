@@ -15,6 +15,7 @@ import DoNotContactBanner from '@/components/champions/DoNotContactBanner';
 import ChampionAssignmentCard from '@/components/assignments/ChampionAssignmentCard';
 import StewardshipTimeline from '@/components/champions/StewardshipTimeline';
 import StewardshipHealthBadge from '@/components/champions/StewardshipHealthBadge';
+import RelationshipIntelligenceCard from '@/components/champions/RelationshipIntelligenceCard';
 import RecommendedGuidesPanel from '@/components/stewardship/RecommendedGuidesPanel';
 import CommunicationPanel from '@/components/communication/CommunicationPanel';
 import ResourceRecommendationPanel from '@/components/resources/ResourceRecommendationPanel';
@@ -386,6 +387,14 @@ export default function ChampionProfile() {
         onRefresh={loadActivities}
         onStatusChanged={handleStatusChanged}
         currentUser={currentUser}
+      />
+
+      {/* Relationship Intelligence */}
+      <RelationshipIntelligenceCard
+        householdId={id}
+        household={household}
+        activities={activities}
+        assignments={assignments}
       />
 
       {/* Record Details */}
