@@ -11,8 +11,15 @@
 
 export const DEFAULT_CONFIG = {
   ai_enabled: false,
+  capabilities: {
+    relationship_intelligence: true,
+    reflection_intelligence: true,
+    communication_coach: true,
+    resource_intelligence: true,
+  },
   provider: 'base44',
   model: 'automatic',
+  endpoint: '',
   temperature: 0.3,
   max_tokens: 2000,
   timeout_ms: 30000,
@@ -43,6 +50,10 @@ export async function loadConfig(base44) {
     return {
       ...DEFAULT_CONFIG,
       ...stored,
+      capabilities: {
+        ...DEFAULT_CONFIG.capabilities,
+        ...(stored.capabilities || {}),
+      },
       context_reduction: {
         ...DEFAULT_CONFIG.context_reduction,
         ...(stored.context_reduction || {}),

@@ -85,6 +85,17 @@ export async function processAIRequest(base44, request) {
       );
     }
 
+    // 3b. Check if the specific capability is enabled (per-capability toggle).
+    if (request.capability) {
+      const caps = config.capabilities || {};
+      if (caps[request.capability] === false) {
+        throw new AIError(
+          AI_ERROR_CATEGORIES.FEATURE_DISABLED,
+          `The '${request.capability}' capability is not enabled.`
+        );
+      }
+    }
+
     // 4. Enforce security boundaries — verify the user can access this champion.
     if (request.householdId) {
       await authorizeChampionAccess(base44, user, request.householdId);

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Users, Settings, Upload, ListChecks, UsersRound, ArrowRight, SlidersHorizontal, UserCheck } from 'lucide-react';
+import { Users, Settings, Upload, ListChecks, UsersRound, ArrowRight, SlidersHorizontal, UserCheck, Sparkles } from 'lucide-react';
 import { RECOMMENDATION_CONFIG } from '@/lib/recommendationEngine';
 import { STEWARDSHIP_HEALTH_CONFIG } from '@/lib/stewardshipHealth';
 import IntelligenceConfigSection from '@/components/admin/IntelligenceConfigSection';
@@ -86,6 +86,22 @@ export default function Administration() {
               <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
             </div>
             <p className="mt-1 text-xs text-muted-foreground">Assign, reassign, and close Champion stewardship. Review workload and Relationship Builder capacity.</p>
+          </div>
+        </Link>
+
+        <Link
+          to="/administration/ministry-coach"
+          className="group flex items-start gap-4 rounded-xl border bg-card p-5 shadow-sm transition-colors hover:bg-muted/40"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+            <Sparkles className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Ministry Coach</h3>
+              <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Configure AI providers, Ministry Coach capabilities, feature flags, connection status, and operational settings.</p>
           </div>
         </Link>
 

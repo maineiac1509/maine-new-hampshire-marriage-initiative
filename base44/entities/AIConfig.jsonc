@@ -7,6 +7,34 @@
       "title": "AI Enabled (Global Master Switch)",
       "default": false
     },
+    "capabilities": {
+      "type": "object",
+      "title": "Capability Settings",
+      "description": "Individual enable/disable for each Ministry Coach capability. When the global switch is ON, these determine which capabilities are active. When the global switch is OFF, all capabilities are silent regardless of these settings.",
+      "properties": {
+        "relationship_intelligence": {
+          "type": "boolean",
+          "title": "Relationship Intelligence",
+          "default": true
+        },
+        "reflection_intelligence": {
+          "type": "boolean",
+          "title": "Reflection Intelligence",
+          "default": true
+        },
+        "communication_coach": {
+          "type": "boolean",
+          "title": "Communication Coach",
+          "default": true
+        },
+        "resource_intelligence": {
+          "type": "boolean",
+          "title": "Resource Intelligence",
+          "default": true
+        }
+      },
+      "default": {}
+    },
     "provider": {
       "type": "string",
       "title": "AI Provider",
@@ -17,6 +45,11 @@
       "type": "string",
       "title": "Model Identifier",
       "default": "automatic"
+    },
+    "endpoint": {
+      "type": "string",
+      "title": "Provider Endpoint",
+      "description": "Optional custom endpoint URL for providers that require it. Not required for the built-in Base44 provider."
     },
     "temperature": {
       "type": "number",

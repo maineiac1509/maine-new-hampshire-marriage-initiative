@@ -37,6 +37,7 @@ import CommunicationAdmin from '@/pages/CommunicationAdmin';
 import ResourceLibrary from '@/pages/ResourceLibrary';
 import ResourceDetail from '@/pages/ResourceDetail';
 import ResourceAdmin from '@/pages/ResourceAdmin';
+import MinistryCoachAdmin from '@/pages/MinistryCoachAdmin';
 // Add page imports here
 
 const AuthenticatedApp = () => {
@@ -91,6 +92,7 @@ const AuthenticatedApp = () => {
             <Route path="/users" element={<Users />} />
             <Route path="/users/:id" element={<UserDetail />} />
             <Route path="/administration" element={<Administration />} />
+            <Route path="/administration/ministry-coach" element={<MinistryCoachAdmin />} />
             <Route path="/assignments" element={<Assignments />} />
             <Route path="/assignments/:id" element={<AssignmentDetail />} />
             <Route path="/stewardship-guides/admin" element={<StewardshipGuideAdmin />} />
