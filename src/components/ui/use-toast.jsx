@@ -18,7 +18,10 @@ function genId() {
   return count.toString();
 }
 
+const TOAST_DURATION = 5000; // Auto-dismiss after 5 seconds
+
 const toastTimeouts = new Map();
+const autoDismissTimers = new Map();
 
 const addToRemoveQueue = (toastId) => {
   if (toastTimeouts.has(toastId)) {
@@ -119,8 +122,15 @@ function toast({ ...props }) {
       toast: { ...props, id },
     });
 
-  const dismiss = () =>
+  const dismiss = () => {
+    // Clear the auto-dismiss timer so we don't double-fire
+    const timer = autoDismissTimers.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      autoDismissTimers.delete(id);
+    }
     dispatch({ type: actionTypes.DISMISS_TOAST, toastId: id });
+  };
 
   dispatch({
     type: actionTypes.ADD_TOAST,
@@ -133,6 +143,10 @@ function toast({ ...props }) {
       },
     },
   });
+
+  // Auto-dismiss after a few seconds — no need to click the X
+  const autoTimer = setTimeout(() => dismiss(), TOAST_DURATION);
+  autoDismissTimers.set(id, autoTimer);
 
   return {
     id,
