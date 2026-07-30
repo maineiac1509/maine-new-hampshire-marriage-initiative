@@ -12,6 +12,7 @@ import TestConnectionSection from '@/components/admin/TestConnectionSection';
 import VersionInfoSection from '@/components/admin/VersionInfoSection';
 import OperationalInfoSection from '@/components/admin/OperationalInfoSection';
 import PrivacySafetySection from '@/components/admin/PrivacySafetySection';
+import AmbientIntelligenceSection from '@/components/admin/AmbientIntelligenceSection';
 
 export default function MinistryCoachAdmin() {
   const { toast } = useToast();
@@ -82,6 +83,7 @@ export default function MinistryCoachAdmin() {
       <VersionInfoSection config={config} />
       <OperationalInfoSection config={config} />
       <PrivacySafetySection config={config} />
+      <AmbientIntelligenceSection config={config} />
     </div>
   );
 }

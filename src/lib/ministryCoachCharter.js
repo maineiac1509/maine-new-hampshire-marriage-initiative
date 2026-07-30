@@ -134,6 +134,19 @@ export const MINISTRY_COACH_CHARTER = {
       wouldChampionOfferHelp:
         'An experienced Marriage Champion who remembers conversations over months or years would quietly think "You know what? I think this might really encourage them right now." The Ministry Coach surfaces only in that same moment — when the ministry relationship has reached a point where a wise leader would naturally think of a resource. If communication occurred yesterday and nothing has changed, or if the AI has only weak confidence and minimal context, a wise champion would continue observing and praying — so the Ministry Coach remains silent.',
     },
+    {
+      name: 'Ambient Intelligence',
+      contextualTrigger:
+        'The Ambient Intelligence Engine continuously evaluates ministry context — activities, reflections, communications, prayer requests, assignments, milestones, and stewardship health — and coordinates all Ministry Coach capabilities into a single, unified suggestion.',
+      whyValuable:
+        'Ensures the Marriage Champion experiences one thoughtful companion rather than several competing AI systems. Surfaces only the single most meaningful guidance at any moment, with natural, human language. Prevents overwhelming the user with stacked suggestions.',
+      whyAIAppropriate:
+        'The engine itself is deterministic — it never generates AI content. It orchestrates existing capabilities, applying deterministic rules, the Ministry Coach Charter, and a priority model to decide what surfaces and what remains silent. The AI only enters when the user acts on a suggestion.',
+      whenSilent:
+        'The engine remains silent when no meaningful ministry moment exists, when all qualifying moments have been dismissed or snoozed within their cooling periods, when the required capability is disabled, or when the Ministry Coach Charter would not permit surfacing. Silence is the default and the desired behavior.',
+      wouldChampionOfferHelp:
+        'An experienced Marriage Champion does not think independently about communication, resources, reflections, and leadership as separate tasks. They instinctively recognize the single next step that would best serve the relationship. The Ambient Intelligence Engine emulates that same discernment — surfacing only the one thing that would most help right now, or remaining silent when no action would naturally be taken.',
+    },
   ],
 
   // ============================================================

@@ -21,8 +21,10 @@ function todayStr() {
 
 const MIN_NOTES_LENGTH = 10;
 
-export default function NewReflectionDialog({ householdId, currentUser, onSaved }) {
+export default function NewReflectionDialog({ householdId, currentUser, onSaved, open: controlledOpen, onOpenChange }) {
   const [open, setOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const closeDialog = () => { if (isControlled) onOpenChange?.(false); else setOpen(false); };
   const [step, setStep] = useState('input'); // 'input' | 'analyzing' | 'review'
   const [reflectionDate, setReflectionDate] = useState(todayStr());
   const [notes, setNotes] = useState('');
@@ -87,7 +89,7 @@ export default function NewReflectionDialog({ householdId, currentUser, onSaved 
     try {
       await base44.entities.Reflection.create(buildPayload(approved));
       setSaving(false);
-      setOpen(false);
+      closeDialog();
       reset();
       onSaved?.();
     } catch {
@@ -106,7 +108,7 @@ export default function NewReflectionDialog({ householdId, currentUser, onSaved 
         saved_by_name: currentUser?.full_name || null,
       });
       setSaving(false);
-      setOpen(false);
+      closeDialog();
       reset();
       onSaved?.();
     } catch {
@@ -125,19 +127,21 @@ export default function NewReflectionDialog({ householdId, currentUser, onSaved 
   };
 
   const handleOpenChange = (v) => {
-    setOpen(v);
+    if (isControlled) onOpenChange?.(v); else setOpen(v);
     if (!v) setTimeout(reset, 150);
   };
 
   const isFeatureDisabled = errorCategory === 'feature_disabled';
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <PenLine className="h-4 w-4" /> New Reflection
-        </Button>
-      </DialogTrigger>
+    <Dialog open={isControlled ? controlledOpen : open} onOpenChange={handleOpenChange}>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <Button size="sm">
+            <PenLine className="h-4 w-4" /> New Reflection
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         {step === 'input' && (
           <>
