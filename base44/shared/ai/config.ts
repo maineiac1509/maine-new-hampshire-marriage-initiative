@@ -32,7 +32,6 @@ export const DEFAULT_CONFIG = {
     hard_truncate_enabled: true,
   },
   feature_flags: {
-    global: false,
     organizations: {},
     regions: {},
     churches: {},

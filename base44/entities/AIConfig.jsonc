@@ -111,12 +111,8 @@
     "feature_flags": {
       "type": "object",
       "title": "Feature Flags (scoped overrides)",
+      "description": "Optional scope-level overrides (user > church > region > organization) that can grant or revoke AI access for a specific scope. The global master switch is ai_enabled above.",
       "properties": {
-        "global": {
-          "type": "boolean",
-          "title": "Global AI Enabled",
-          "default": false
-        },
         "organizations": {
           "type": "object",
           "title": "Organization-level Overrides",

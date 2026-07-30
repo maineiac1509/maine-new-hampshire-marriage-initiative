@@ -81,7 +81,6 @@ export const DEFAULT_AI_CONFIG = {
     hard_truncate_enabled: true,
   },
   feature_flags: {
-    global: false,
     organizations: {},
     regions: {},
     churches: {},

@@ -9,10 +9,17 @@
 // ============================================================
 
 // Evaluates whether AI is enabled for a given user and context.
+//
+// The authoritative global switch is `config.ai_enabled` — the master
+// toggle set on the Ministry Coach Administration page. The
+// `feature_flags` object contains optional scope-level overrides
+// (user > church > region > organization) that can grant or revoke
+// access for a specific scope regardless of the global setting.
+//
 // context shape: { organizationId, regionId, churchId }
 export function isAIEnabled(config, user, context = {}) {
+  const globalEnabled = config.ai_enabled ?? false;
   const flags = config.feature_flags || {};
-  const globalEnabled = flags.global ?? config.ai_enabled ?? false;
 
   const orgEnabled = context.organizationId ? flags.organizations?.[context.organizationId] : undefined;
   const regionEnabled = context.regionId ? flags.regions?.[context.regionId] : undefined;
