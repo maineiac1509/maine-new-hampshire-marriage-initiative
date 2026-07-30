@@ -42,6 +42,7 @@ export default function CommunicationComposer() {
   const templateId = params.get('templateId');
   const championId = params.get('championId');
   const typeHint = params.get('type');
+  const bodyParam = params.get('body');
 
   const [user, setUser] = useState(null);
   const [template, setTemplate] = useState(null);
@@ -102,11 +103,13 @@ export default function CommunicationComposer() {
   useEffect(() => {
     if (template?.body) {
       setWorkingBody(resolveTemplate(template.body, ctx));
+    } else if (bodyParam) {
+      setWorkingBody(bodyParam);
     } else {
       setWorkingBody('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [template?.id, household?.id, user?.id]);
+  }, [template?.id, household?.id, user?.id, bodyParam]);
 
   const remainingFields = useMemo(() => {
     const found = findMergeFields(workingBody);
