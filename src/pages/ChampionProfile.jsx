@@ -17,6 +17,7 @@ import StewardshipTimeline from '@/components/champions/StewardshipTimeline';
 import StewardshipHealthBadge from '@/components/champions/StewardshipHealthBadge';
 import RelationshipIntelligenceCard from '@/components/champions/RelationshipIntelligenceCard';
 import ReflectionsPanel from '@/components/reflections/ReflectionsPanel';
+import CommunicationSuggestionCard from '@/components/communication/CommunicationSuggestionCard';
 import RecommendedGuidesPanel from '@/components/stewardship/RecommendedGuidesPanel';
 import CommunicationPanel from '@/components/communication/CommunicationPanel';
 import ResourceRecommendationPanel from '@/components/resources/ResourceRecommendationPanel';
@@ -554,6 +555,9 @@ export default function ChampionProfile() {
 
       {/* Recommended Stewardship Guides */}
       <RecommendedGuidesPanel champion={household} activities={activities} hasActiveAssignment={!!activeAssignment} />
+
+      {/* Communication Suggestions (ambient — appears when context indicates a communication opportunity) */}
+      <CommunicationSuggestionCard householdId={id} household={household} activities={activities} assignments={assignments} />
 
       {/* Communication Center */}
       <CommunicationPanel champion={household} activities={activities} currentUser={currentUser} hasActiveAssignment={!!activeAssignment} />

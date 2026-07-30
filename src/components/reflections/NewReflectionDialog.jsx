@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle, PenLine } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -135,7 +135,7 @@ export default function NewReflectionDialog({ householdId, currentUser, onSaved 
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button size="sm">
-          <Sparkles className="h-4 w-4" /> New Reflection
+          <PenLine className="h-4 w-4" /> New Reflection
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -144,9 +144,9 @@ export default function NewReflectionDialog({ householdId, currentUser, onSaved 
             <DialogHeader>
               <DialogTitle>New Reflection</DialogTitle>
               <DialogDescription>
-                Type or paste rough meeting notes. The Ministry Coach will organize them into
-                structured suggestions for your review. Nothing is saved automatically — you approve
-                every section before anything is committed.
+                Type or paste rough meeting notes. We'll organize them into structured sections
+                for your review. Nothing is saved automatically — you approve every section
+                before anything is committed.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
@@ -208,7 +208,7 @@ export default function NewReflectionDialog({ householdId, currentUser, onSaved 
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
                 <Button onClick={handleAnalyze} disabled={!canAnalyze || saving}>
-                  <Sparkles className="h-4 w-4" /> Analyze with AI
+                  <Sparkles className="h-4 w-4" /> Organize Notes
                 </Button>
               </div>
             </DialogFooter>
@@ -221,8 +221,7 @@ export default function NewReflectionDialog({ householdId, currentUser, onSaved 
             <DialogHeader>
               <DialogTitle>Analyzing Reflection</DialogTitle>
               <DialogDescription>
-                The Ministry Coach is organizing your notes into structured suggestions.
-                This usually takes a few seconds.
+                Organizing your notes into structured sections. This usually takes a few seconds.
               </DialogDescription>
             </DialogHeader>
           </div>

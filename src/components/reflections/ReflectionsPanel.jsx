@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Sparkles, ChevronDown, ChevronUp, Calendar, Heart, ClipboardList,
+  ChevronDown, ChevronUp, Calendar, Heart, ClipboardList,
   Activity, Users, BookOpen, Clock, FileText,
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
@@ -44,7 +44,7 @@ export default function ReflectionsPanel({ householdId, currentUser }) {
     <section className="rounded-xl border bg-card p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          <Sparkles className="h-4 w-4" />
+          <BookOpen className="h-4 w-4" />
           Reflections
         </div>
         <NewReflectionDialog householdId={householdId} currentUser={currentUser} onSaved={load} />
