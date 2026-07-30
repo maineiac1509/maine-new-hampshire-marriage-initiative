@@ -121,6 +121,19 @@ export const MINISTRY_COACH_CHARTER = {
       wouldChampionOfferHelp:
         'An experienced Marriage Champion reviewing their own rough notes would naturally look for the key themes — prayer needs, follow-up tasks, relationship shifts. The Ministry Coach mirrors that quiet organizing instinct. It does not interpret or judge; it simply helps structure what the human already wrote.',
     },
+    {
+      name: 'Resource Intelligence',
+      contextualTrigger:
+        'Ministry context indicates a meaningful moment for a specific resource — communication themes in recent reflections, parenting challenges, recurring prayer requests for spiritual growth, marriage enrichment readiness, leadership development signals, or life transitions (new child, career change, retirement, empty nest, caregiving).',
+      whyValuable:
+        'Places the right encouragement, study, devotional, or FamilyLife resource into the hands of a Marriage Champion when it would naturally benefit the Champion they are serving. Not to increase resource consumption — to ensure the right resource reaches the right person at the right time.',
+      whyAIAppropriate:
+        'Matching a specific ministry moment to a specific resource from the library requires synthesizing reflections, prayer requests, communication themes, and relationship health — then evaluating fit against available resources. This pattern recognition is a natural AI task, grounded by the available resource library so the AI never invents resources.',
+      whenSilent:
+        'No meaningful ministry context exists (no reflections, activities, or communications). AI is disabled, unavailable, or times out. The AI determines has_recommendation is false. The recommended resource does not match any real resource in the library (hallucination guardrail). The recommendation has been dismissed. Silence is the desired behavior — no placeholder recommendations are ever shown.',
+      wouldChampionOfferHelp:
+        'An experienced Marriage Champion who remembers conversations over months or years would quietly think "You know what? I think this might really encourage them right now." The Ministry Coach surfaces only in that same moment — when the ministry relationship has reached a point where a wise leader would naturally think of a resource. If communication occurred yesterday and nothing has changed, or if the AI has only weak confidence and minimal context, a wise champion would continue observing and praying — so the Ministry Coach remains silent.',
+    },
   ],
 
   // ============================================================
