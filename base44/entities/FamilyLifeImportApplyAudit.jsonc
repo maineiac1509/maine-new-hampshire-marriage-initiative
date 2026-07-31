@@ -1,0 +1,170 @@
+{
+  "name": "FamilyLifeImportApplyAudit",
+  "type": "object",
+  "title": "FamilyLife Import Apply Audit",
+  "description": "Immutable audit trail for every event during the production apply engine lifecycle. Includes batch-level events (APPLY_STARTED, PREVALIDATION_PASSED/FAILED, APPLY_COMPLETED) and per-field events (FIELD_APPLIED, FIELD_SKIPPED, FIELD_BLOCKED, RESTRICTION_APPLIED, RECORD_CREATED, RECORD_UPDATED). Sensitive values are stored only in this admin-only audit record, never in console logs.",
+  "properties": {
+    "import_batch_id": {
+      "type": "string",
+      "title": "Import Batch"
+    },
+    "apply_execution_id": {
+      "type": "string",
+      "title": "Apply Execution ID"
+    },
+    "import_row_id": {
+      "type": "string",
+      "title": "Import Row",
+      "description": "Null for batch-level events."
+    },
+    "comparison_id": {
+      "type": "string",
+      "title": "Field Comparison",
+      "description": "Null for batch-level events."
+    },
+    "resolution_id": {
+      "type": "string",
+      "title": "Resolution",
+      "description": "The resolution this event concerns, if applicable."
+    },
+    "operation_key": {
+      "type": "string",
+      "title": "Operation Key",
+      "description": "References the FamilyLifeImportApplyOperation record, if applicable."
+    },
+    "entity_type": {
+      "type": "string",
+      "title": "Entity Type",
+      "enum": [
+        "ChampionHousehold",
+        "HouseholdMember"
+      ]
+    },
+    "entity_id": {
+      "type": "string",
+      "title": "Entity ID",
+      "description": "Production record ID affected by this event, if applicable."
+    },
+    "canonical_field_name": {
+      "type": "string",
+      "title": "Canonical Field Name"
+    },
+    "operation_type": {
+      "type": "string",
+      "title": "Operation Type",
+      "enum": [
+        "UPDATE_HOUSEHOLD_FIELD",
+        "UPDATE_MEMBER_FIELD",
+        "CREATE_HOUSEHOLD",
+        "CREATE_MEMBER",
+        "ADD_RESTRICTION",
+        "SKIP_FIELD",
+        "BLOCK_FIELD",
+        "KEEP_CURRENT",
+        "SYNC_METADATA_UPDATE"
+      ]
+    },
+    "prior_value": {
+      "type": "string",
+      "title": "Prior Value",
+      "description": "Production value before the apply. May be omitted for sensitive fields at the engine's discretion, but always stored for admin audit access."
+    },
+    "resolved_value": {
+      "type": "string",
+      "title": "Resolved Value",
+      "description": "The value the administrator approved."
+    },
+    "applied_value": {
+      "type": "string",
+      "title": "Applied Value",
+      "description": "The sanitized value actually written to production."
+    },
+    "resolution_type": {
+      "type": "string",
+      "title": "Resolution Type"
+    },
+    "resolution_source": {
+      "type": "string",
+      "title": "Resolution Source",
+      "enum": [
+        "DEFAULT",
+        "MANUAL",
+        "BULK"
+      ]
+    },
+    "ownership_category": {
+      "type": "string",
+      "title": "Ownership Category"
+    },
+    "apply_result": {
+      "type": "string",
+      "title": "Apply Result",
+      "enum": [
+        "APPLIED",
+        "SKIPPED",
+        "BLOCKED",
+        "CREATED",
+        "UPDATED",
+        "RESTRICTION_ADDED",
+        "NO_CHANGE",
+        "FAILED",
+        "DRIFT_BLOCKED",
+        "VERIFIED"
+      ]
+    },
+    "drift_status": {
+      "type": "string",
+      "title": "Drift Status",
+      "enum": [
+        "NOT_CHECKED",
+        "NO_DRIFT",
+        "NORMALIZATION_ONLY_DRIFT",
+        "MATERIAL_DRIFT",
+        "TARGET_RECORD_MISSING",
+        "TARGET_RELATION_CHANGED",
+        "PROVENANCE_CHANGED"
+      ]
+    },
+    "error_message": {
+      "type": "string",
+      "title": "Error Message"
+    },
+    "applied_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Applied At"
+    },
+    "applied_by": {
+      "type": "string",
+      "title": "Applied By",
+      "description": "User ID of the administrator who executed the apply."
+    }
+  },
+  "required": [
+    "import_batch_id",
+    "apply_execution_id",
+    "apply_result"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

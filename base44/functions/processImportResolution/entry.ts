@@ -26,6 +26,7 @@ import {
   computeReadiness, getBulkResolutionType,
 } from '../../shared/import/resolver.ts';
 import { compareAllFields, COMPARISON_RESULT } from '../../shared/import/comparator.ts';
+import { bulkCreateSafe, bulkUpdateSafe, loadBatchData } from '../../shared/import/backendHelpers.ts';
 
 const BULK_LIMIT = 500;
 
@@ -49,7 +50,7 @@ export default async function(req) {
     // Verify the batch exists and is in a reviewable state
     const batch = await base44.asServiceRole.entities.FamilyLifeImportBatch.get(batch_id);
     if (!batch) return Response.json({ error: 'Batch not found.' }, { status: 404 });
-    if (batch.status === 'DISCARDED' || batch.status === 'APPLIED') {
+    if (['DISCARDED', 'APPLIED', 'APPLYING'].includes(batch.status)) {
       return Response.json({ error: `Batch is ${batch.status} — resolution is locked.` }, { status: 409 });
     }
 
@@ -81,38 +82,6 @@ export default async function(req) {
 // ============================================================
 // Helpers
 // ============================================================
-async function loadBatchData(base44, batchId) {
-  const [comparisons, resolutions, rows, issues] = await Promise.all([
-    base44.asServiceRole.entities.FamilyLifeImportFieldComparison.filter({ import_batch_id: batchId }, undefined, 5000),
-    base44.asServiceRole.entities.FamilyLifeImportResolution.filter({ import_batch_id: batchId }, undefined, 5000),
-    base44.asServiceRole.entities.FamilyLifeImportRow.filter({ import_batch_id: batchId }, 'row_number', 5000),
-    base44.asServiceRole.entities.FamilyLifeImportIssue.filter({ import_batch_id: batchId }, undefined, 5000),
-  ]);
-  return {
-    comparisons: comparisons || [],
-    resolutions: resolutions || [],
-    rows: rows || [],
-    issues: issues || [],
-  };
-}
-
-async function bulkCreateSafe(base44, entity, records) {
-  const created = [];
-  for (let i = 0; i < records.length; i += BULK_LIMIT) {
-    const chunk = records.slice(i, i + BULK_LIMIT);
-    const res = await base44.asServiceRole.entities[entity].bulkCreate(chunk);
-    if (Array.isArray(res)) created.push(...res);
-  }
-  return created;
-}
-
-async function bulkUpdateSafe(base44, entity, records) {
-  for (let i = 0; i < records.length; i += BULK_LIMIT) {
-    const chunk = records.slice(i, i + BULK_LIMIT);
-    await base44.asServiceRole.entities[entity].bulkUpdate(chunk);
-  }
-}
-
 async function createAudit(base44, entry) {
   await base44.asServiceRole.entities.FamilyLifeImportResolutionAudit.create({
     event_at: new Date().toISOString(),

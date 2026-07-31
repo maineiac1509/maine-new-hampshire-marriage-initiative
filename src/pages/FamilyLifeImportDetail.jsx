@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, FileSpreadsheet, Trash2, Loader2, AlertCircle, Copy, Check,
-  Zap, CheckCircle2, RefreshCw,
+  Zap, CheckCircle2, RefreshCw, Rocket,
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -15,9 +15,13 @@ import ResolutionSummary from '@/components/imports/ResolutionSummary';
 import BulkActionBar from '@/components/imports/BulkActionBar';
 import RowDetailDialog from '@/components/imports/RowDetailDialog';
 import ResolutionAuditList from '@/components/imports/ResolutionAuditList';
+import ApplyImportDialog from '@/components/imports/ApplyImportDialog';
+import ApplyResultSummary from '@/components/imports/ApplyResultSummary';
+import ApplyAuditList from '@/components/imports/ApplyAuditList';
 import {
   BATCH_STATUS_VARIANT, BATCH_STATUS_LABEL,
   READINESS_STATUS_VARIANT, READINESS_STATUS_LABEL,
+  APPLY_STATUS_VARIANT, APPLY_STATUS_LABEL,
 } from '@/lib/importLabels';
 import {
   generateDefaults, saveResolution, bulkResolve, manualMatch,
@@ -28,7 +32,8 @@ const TABS = [
   { key: 'comparisons', label: 'Comparisons' },
   { key: 'rows', label: 'Rows' },
   { key: 'issues', label: 'Issues' },
-  { key: 'audit', label: 'Audit' },
+  { key: 'audit', label: 'Resolution Audit' },
+  { key: 'apply_audit', label: 'Apply Audit' },
 ];
 
 export default function FamilyLifeImportDetail() {
@@ -49,6 +54,8 @@ export default function FamilyLifeImportDetail() {
   const [rowDetailIndex, setRowDetailIndex] = useState(null);
   const [filteredComparisonIds, setFilteredComparisonIds] = useState([]);
   const [toast, setToast] = useState(null);
+  const [applyDialogOpen, setApplyDialogOpen] = useState(false);
+  const [applyAudits, setApplyAudits] = useState([]);
 
   const showToast = (msg, tone = 'info') => {
     setToast({ msg, tone });
@@ -59,13 +66,14 @@ export default function FamilyLifeImportDetail() {
     setLoading(true);
     setError(null);
     try {
-      const [b, r, c, res, i, aud] = await Promise.all([
+      const [b, r, c, res, i, aud, appAudits] = await Promise.all([
         base44.entities.FamilyLifeImportBatch.get(id),
         base44.entities.FamilyLifeImportRow.filter({ import_batch_id: id }, 'row_number', 5000),
         base44.entities.FamilyLifeImportFieldComparison.filter({ import_batch_id: id }, undefined, 5000),
         base44.entities.FamilyLifeImportResolution.filter({ import_batch_id: id }, undefined, 5000),
         base44.entities.FamilyLifeImportIssue.filter({ import_batch_id: id }, undefined, 5000),
         base44.entities.FamilyLifeImportResolutionAudit.filter({ import_batch_id: id }, '-created_date', 200),
+        base44.entities.FamilyLifeImportApplyAudit.filter({ import_batch_id: id }, '-created_date', 200),
       ]);
       setBatch(b);
       setRows(r || []);
@@ -73,6 +81,7 @@ export default function FamilyLifeImportDetail() {
       setResolutions(res || []);
       setIssues(i || []);
       setAudits(aud || []);
+      setApplyAudits(appAudits || []);
     } catch (err) {
       setError(err?.message || 'Could not load this batch.');
     } finally {
@@ -87,7 +96,7 @@ export default function FamilyLifeImportDetail() {
     if (batch && comparisons.length > 0 && resolutions.length === 0 && batch.status === 'READY_FOR_REVIEW') {
       handleGenerateDefaults();
     }
-  }, [batch, comparisons, resolutions]);
+  }, [batch, comparisons, resolutions, batch?.status]);
 
   async function handleGenerateDefaults() {
     setActionLoading(true);
@@ -223,7 +232,9 @@ export default function FamilyLifeImportDetail() {
 
   const isDiscarded = batch.status === 'DISCARDED';
   const isReadyToApply = batch.status === 'READY_TO_APPLY';
-  const readOnly = isDiscarded || isReadyToApply;
+  const isApplied = batch.status === 'APPLIED';
+  const isApplying = batch.status === 'APPLYING';
+  const readOnly = isDiscarded || isReadyToApply || isApplied || isApplying;
 
   return (
     <div className="space-y-6">
@@ -265,7 +276,13 @@ export default function FamilyLifeImportDetail() {
               </Button>
             </>
           )}
-          {!isDiscarded && (
+          {isReadyToApply && (
+            <Button onClick={() => setApplyDialogOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Rocket className="h-4 w-4" />
+              Apply to Production
+            </Button>
+          )}
+          {!isDiscarded && !isApplied && (
             <Button variant="outline" onClick={handleDiscard} disabled={discarding}>
               {discarding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               Discard Batch
@@ -319,7 +336,29 @@ export default function FamilyLifeImportDetail() {
           <CheckCircle2 className="h-5 w-5 shrink-0" />
           <div>
             <p className="font-medium">Ready to Apply</p>
-            <p className="mt-1 text-emerald-700">All required decisions are complete. This batch is awaiting the production apply engine.</p>
+            <p className="mt-1 text-emerald-700">All required decisions are complete. Click "Apply to Production" above to execute the approved resolutions.</p>
+          </div>
+        </div>
+      )}
+      {isApplying && (
+        <div className="flex gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+          <Loader2 className="h-5 w-5 shrink-0 animate-spin" />
+          <div>
+            <p className="font-medium">Applying to Production</p>
+            <p className="mt-1 text-blue-700">The apply engine is currently executing approved resolutions. Do not navigate away or submit again.</p>
+          </div>
+        </div>
+      )}
+      {isApplied && (
+        <div className="flex gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+          <CheckCircle2 className="h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-medium">Batch Applied</p>
+            <p className="mt-1 text-emerald-700">
+              This batch was successfully applied to production on{' '}
+              {batch.applied_at ? new Date(batch.applied_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}.
+              All resolutions and decisions are now read-only.
+            </p>
           </div>
         </div>
       )}
@@ -328,13 +367,22 @@ export default function FamilyLifeImportDetail() {
       <ImportBatchSummary batch={batch} />
 
       {/* Resolution summary */}
-      <div className="rounded-lg border p-4">
-        <ResolutionSummary
-          summary={batch.resolution_summary}
-          readinessStatus={batch.readiness_status}
-          readinessReason={batch.readiness_reason}
-        />
-      </div>
+      {!isApplied && !isApplying && (
+        <div className="rounded-lg border p-4">
+          <ResolutionSummary
+            summary={batch.resolution_summary}
+            readinessStatus={batch.readiness_status}
+            readinessReason={batch.readiness_reason}
+          />
+        </div>
+      )}
+
+      {/* Apply result summary (shown after apply) */}
+      {(isApplied || batch.apply_status === 'APPLIED' || batch.apply_status === 'FAILED' || batch.apply_status === 'PARTIALLY_FAILED') && (
+        <div className="rounded-lg border p-4">
+          <ApplyResultSummary batch={batch} />
+        </div>
+      )}
 
       {/* Bulk actions */}
       {!readOnly && (
@@ -379,6 +427,7 @@ export default function FamilyLifeImportDetail() {
         )}
         {activeTab === 'issues' && <IssueList issues={issues} />}
         {activeTab === 'audit' && <ResolutionAuditList audits={audits} />}
+        {activeTab === 'apply_audit' && <ApplyAuditList audits={applyAudits} />}
       </div>
 
       {/* Row detail dialog */}
@@ -398,6 +447,16 @@ export default function FamilyLifeImportDetail() {
           saving={actionLoading}
         />
       )}
+      {/* Apply dialog */}
+      <ApplyImportDialog
+        open={applyDialogOpen}
+        onOpenChange={(open) => {
+          setApplyDialogOpen(open);
+          if (!open) loadAll();
+        }}
+        batchId={id}
+        batchFileName={batch.file_name}
+      />
     </div>
   );
 }

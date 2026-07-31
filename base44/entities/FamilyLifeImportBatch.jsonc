@@ -2,7 +2,7 @@
   "name": "FamilyLifeImportBatch",
   "type": "object",
   "title": "FamilyLife Import Batch",
-  "description": "Represents one uploaded FamilyLife file and its complete staging lifecycle. No staged batch in this phase may apply updates to production ChampionHousehold or HouseholdMember records.",
+  "description": "Represents one uploaded FamilyLife file and its complete staging and apply lifecycle.",
   "properties": {
     "file_name": {
       "type": "string",
@@ -43,6 +43,7 @@
         "COMPARING",
         "READY_FOR_REVIEW",
         "READY_TO_APPLY",
+        "APPLYING",
         "PROCESSING_FAILED",
         "DISCARDED",
         "APPLIED"
@@ -265,6 +266,125 @@
         }
       },
       "default": {}
+    },
+    "applying_started_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Applying Started At",
+      "description": "Timestamp when the apply engine acquired the lock on this batch."
+    },
+    "applying_started_by": {
+      "type": "string",
+      "title": "Applying Started By",
+      "description": "User ID of the administrator who initiated the apply."
+    },
+    "apply_execution_id": {
+      "type": "string",
+      "title": "Apply Execution ID",
+      "description": "Unique identifier for the current or most recent apply execution. Prevents concurrent applies and enables idempotent resume."
+    },
+    "applied_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Applied At",
+      "description": "Timestamp when the batch was successfully applied to production (post-apply verification passed)."
+    },
+    "applied_by": {
+      "type": "string",
+      "title": "Applied By",
+      "description": "User ID of the administrator who completed the apply."
+    },
+    "apply_status": {
+      "type": "string",
+      "title": "Apply Status",
+      "enum": [
+        "PENDING",
+        "APPLYING",
+        "APPLIED",
+        "FAILED",
+        "PARTIALLY_FAILED"
+      ],
+      "default": "PENDING",
+      "description": "Status of the production apply engine for this batch. PENDING = not started. APPLYING = in progress. APPLIED = verified and complete. FAILED/PARTIALLY_FAILED = apply encountered errors."
+    },
+    "apply_error": {
+      "type": "string",
+      "title": "Apply Error",
+      "description": "If apply_status is FAILED or PARTIALLY_FAILED, the summary error description."
+    },
+    "apply_summary": {
+      "type": "object",
+      "title": "Apply Summary",
+      "description": "Post-apply production outcome statistics, populated after successful or partial application.",
+      "properties": {
+        "preflight_passed": {
+          "type": "boolean",
+          "default": false
+        },
+        "drift_blocked_count": {
+          "type": "number",
+          "default": 0
+        },
+        "restrictions_added": {
+          "type": "number",
+          "default": 0
+        },
+        "fields_skipped": {
+          "type": "number",
+          "default": 0
+        },
+        "fields_blocked": {
+          "type": "number",
+          "default": 0
+        },
+        "keep_current_count": {
+          "type": "number",
+          "default": 0
+        },
+        "custom_values_applied": {
+          "type": "number",
+          "default": 0
+        },
+        "verification_passed": {
+          "type": "boolean"
+        }
+      },
+      "default": {}
+    },
+    "created_household_count": {
+      "type": "number",
+      "title": "Created Household Count",
+      "default": 0
+    },
+    "updated_household_count": {
+      "type": "number",
+      "title": "Updated Household Count",
+      "default": 0
+    },
+    "created_member_count": {
+      "type": "number",
+      "title": "Created Member Count",
+      "default": 0
+    },
+    "updated_member_count": {
+      "type": "number",
+      "title": "Updated Member Count",
+      "default": 0
+    },
+    "skipped_row_count": {
+      "type": "number",
+      "title": "Skipped Row Count",
+      "default": 0
+    },
+    "failed_row_count": {
+      "type": "number",
+      "title": "Failed Row Count",
+      "default": 0
+    },
+    "applied_field_count": {
+      "type": "number",
+      "title": "Applied Field Count",
+      "default": 0
     }
   },
   "required": [

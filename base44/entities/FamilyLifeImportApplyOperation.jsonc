@@ -1,0 +1,181 @@
+{
+  "name": "FamilyLifeImportApplyOperation",
+  "type": "object",
+  "title": "FamilyLife Import Apply Operation",
+  "description": "Durable, idempotent checkpoint record for the production apply engine. Each operation represents a single write (or intentional skip) derived from an approved resolution. The operation_key is deterministic and unique, enabling safe resume after interruption without duplicate writes. Status transitions: PENDING \u2192 APPLIED \u2192 VERIFIED | FAILED.",
+  "properties": {
+    "import_batch_id": {
+      "type": "string",
+      "title": "Import Batch"
+    },
+    "apply_execution_id": {
+      "type": "string",
+      "title": "Apply Execution ID",
+      "description": "Unique identifier for this apply execution attempt. Groups all operations from a single apply invocation."
+    },
+    "import_row_id": {
+      "type": "string",
+      "title": "Import Row"
+    },
+    "comparison_id": {
+      "type": "string",
+      "title": "Field Comparison",
+      "description": "The immutable comparison record this operation is derived from."
+    },
+    "resolution_id": {
+      "type": "string",
+      "title": "Resolution",
+      "description": "The approved resolution this operation executes."
+    },
+    "operation_key": {
+      "type": "string",
+      "title": "Operation Key",
+      "description": "Deterministic unique key: batchId:resolutionId:entityType:fieldName:operationType. Used for idempotency \u2014 prevents duplicate writes on retry."
+    },
+    "operation_type": {
+      "type": "string",
+      "title": "Operation Type",
+      "enum": [
+        "UPDATE_HOUSEHOLD_FIELD",
+        "UPDATE_MEMBER_FIELD",
+        "CREATE_HOUSEHOLD",
+        "CREATE_MEMBER",
+        "ADD_RESTRICTION",
+        "SKIP_FIELD",
+        "BLOCK_FIELD",
+        "KEEP_CURRENT",
+        "SYNC_METADATA_UPDATE"
+      ]
+    },
+    "entity_type": {
+      "type": "string",
+      "title": "Entity Type",
+      "enum": [
+        "ChampionHousehold",
+        "HouseholdMember"
+      ]
+    },
+    "entity_id": {
+      "type": "string",
+      "title": "Target Entity ID",
+      "description": "Production record ID for existing-record updates. Empty for new-record creations."
+    },
+    "temporary_entity_key": {
+      "type": "string",
+      "title": "Temporary Entity Key",
+      "description": "For new-record creations, a temporary key linking member operations to their parent household creation operation."
+    },
+    "field_name": {
+      "type": "string",
+      "title": "Canonical Field Name"
+    },
+    "resolution_type": {
+      "type": "string",
+      "title": "Resolution Type"
+    },
+    "ownership_category": {
+      "type": "string",
+      "title": "Ownership Category"
+    },
+    "prior_value": {
+      "type": "string",
+      "title": "Prior Value",
+      "description": "Snapshot of the production value before the apply, for rollback support."
+    },
+    "applied_value": {
+      "type": "string",
+      "title": "Applied Value",
+      "description": "The sanitized final value written to production."
+    },
+    "expected_snapshot": {
+      "type": "string",
+      "title": "Expected Current Snapshot",
+      "description": "The current_value_snapshot stored in the resolution, used for drift detection."
+    },
+    "drift_status": {
+      "type": "string",
+      "title": "Drift Status",
+      "enum": [
+        "NOT_CHECKED",
+        "NO_DRIFT",
+        "NORMALIZATION_ONLY_DRIFT",
+        "MATERIAL_DRIFT",
+        "TARGET_RECORD_MISSING",
+        "TARGET_RELATION_CHANGED",
+        "PROVENANCE_CHANGED"
+      ],
+      "default": "NOT_CHECKED"
+    },
+    "status": {
+      "type": "string",
+      "title": "Operation Status",
+      "enum": [
+        "PENDING",
+        "APPLIED",
+        "VERIFIED",
+        "FAILED",
+        "SKIPPED"
+      ],
+      "default": "PENDING",
+      "description": "PENDING = created but not yet executed. APPLIED = production write completed. VERIFIED = post-apply verification passed. FAILED = write or verification failed. SKIPPED = intentionally not written (KEEP_CURRENT, SKIP_FIELD, BLOCK_FIELD)."
+    },
+    "attempted_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Attempted At"
+    },
+    "applied_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Applied At"
+    },
+    "verified_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Verified At"
+    },
+    "error_message": {
+      "type": "string",
+      "title": "Error Message",
+      "description": "If status is FAILED, the reason the operation failed."
+    },
+    "retry_count": {
+      "type": "number",
+      "title": "Retry Count",
+      "default": 0
+    },
+    "applied_by": {
+      "type": "string",
+      "title": "Applied By"
+    }
+  },
+  "required": [
+    "import_batch_id",
+    "apply_execution_id",
+    "operation_key",
+    "operation_type",
+    "status"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

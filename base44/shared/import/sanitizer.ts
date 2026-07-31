@@ -27,7 +27,7 @@ import {
   normalizeValue,
   normalizeForComparison,
   type FieldPolicy,
-} from './governance';
+} from './governance.ts';
 
 // ------------------------------------------------------------
 // Types

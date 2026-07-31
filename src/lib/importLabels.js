@@ -256,6 +256,67 @@ export const READINESS_STATUS_VARIANT = {
   STALE_MAPPING: 'danger',
 };
 
+// --- Apply status ---
+export const APPLY_STATUS_VARIANT = {
+  PENDING: 'neutral',
+  APPLYING: 'info',
+  APPLIED: 'success',
+  FAILED: 'danger',
+  PARTIALLY_FAILED: 'warning',
+};
+
+export const APPLY_STATUS_LABEL = {
+  PENDING: 'Pending',
+  APPLYING: 'Applying…',
+  APPLIED: 'Applied',
+  FAILED: 'Failed',
+  PARTIALLY_FAILED: 'Partially Failed',
+};
+
+// --- Apply operation status ---
+export const APPLY_OPERATION_STATUS_VARIANT = {
+  PENDING: 'neutral',
+  APPLIED: 'info',
+  VERIFIED: 'success',
+  FAILED: 'danger',
+  SKIPPED: 'neutral',
+};
+
+export const APPLY_OPERATION_STATUS_LABEL = {
+  PENDING: 'Pending',
+  APPLIED: 'Applied',
+  VERIFIED: 'Verified',
+  FAILED: 'Failed',
+  SKIPPED: 'Skipped',
+};
+
+// --- Apply audit result ---
+export const APPLY_RESULT_VARIANT = {
+  APPLIED: 'success',
+  SKIPPED: 'neutral',
+  BLOCKED: 'neutral',
+  CREATED: 'success',
+  UPDATED: 'info',
+  RESTRICTION_ADDED: 'warning',
+  NO_CHANGE: 'neutral',
+  FAILED: 'danger',
+  DRIFT_BLOCKED: 'danger',
+  VERIFIED: 'success',
+};
+
+export const APPLY_RESULT_LABEL = {
+  APPLIED: 'Applied',
+  SKIPPED: 'Skipped',
+  BLOCKED: 'Blocked',
+  CREATED: 'Created',
+  UPDATED: 'Updated',
+  RESTRICTION_ADDED: 'Restriction Added',
+  NO_CHANGE: 'No Change',
+  FAILED: 'Failed',
+  DRIFT_BLOCKED: 'Drift Blocked',
+  VERIFIED: 'Verified',
+};
+
 // --- Bulk action type ---
 export const BULK_ACTION_TYPE_LABEL = {
   ACCEPT_ALL_SAFE_UPDATES: 'Accept all safe FamilyLife updates',
