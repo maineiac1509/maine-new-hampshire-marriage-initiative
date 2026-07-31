@@ -1,362 +1,37 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Clipboard, Users,
+  Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, Clipboard,
+  ArrowRight,
 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import {
-  sanitizeImportRecord,
-  buildUpdatePayload,
-  IMPORT_OPERATIONS,
-} from '@/lib/importGovernance';
-import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
-// Full set of household-level fields the importer understands.
-const HOUSEHOLD_FIELDS = [
-  'household_name', 'address', 'address_line_2', 'city', 'state', 'zip_code',
-  'home_phone', 'email', 'area', 'registration_date', 'registration_type',
-  'group_name', 'status', 'champion_status',
-  'church_name', 'church_city', 'church_state', 'church_zip_code',
-  'church_priority', 'marriage_conference_priority',
-  'do_not_call', 'do_not_text', 'email_opt_out',
-  'cumulative_registrations', 'free_couple_registrations_used',
-  'free_couple_registrations_available',
-  'registrations_toward_next_free_registration',
-  'registrations_needed_for_next_free_registration',
-  'assigned_volunteer', 'assigned_director', 'notes',
+// ============================================================
+// Import Champions Dialog — Staging-Only Flow
+// ============================================================
+// This dialog uploads or accepts pasted FamilyLife data and sends
+// it to the processFamilyLifeImport backend function, which stages
+// the data for review WITHOUT modifying any production records.
+//
+// On success, the user is directed to the Reconciliation Dashboard
+// to review the staged batch before any changes are applied.
+//
+// The old flow (direct writes to ChampionHousehold / HouseholdMember)
+// has been replaced — all imports must pass through the staging and
+// governance pipeline.
+
+const COLUMNS_HINT = [
+  'household_name', 'first_name', 'last_name', 'email', 'mobile_phone',
+  'home_phone', 'address', 'city', 'state', 'zip_code', 'church_name',
+  'church_priority', 'champion_status', 'cumulative_registrations',
+  'do_not_call', 'familylife_external_id',
 ];
-
-const MEMBER_FIELDS = ['first_name', 'last_name', 'email', 'mobile_phone', 'work_phone', 'relationship'];
-
-const COLUMNS = [
-  'household_name', 'first_name', 'last_name', 'account_salutation', 'email',
-  'mobile_phone', 'home_phone', 'work_phone', 'relationship',
-  'address', 'address_line_2', 'city', 'state', 'zip_code', 'area', 'status',
-  'champion_status', 'church_name', 'church_city', 'church_state', 'church_zip_code',
-  'church_priority', 'marriage_conference_priority',
-  'do_not_call', 'do_not_text', 'email_opt_out',
-  'cumulative_registrations', 'free_couple_registrations_used',
-  'free_couple_registrations_available',
-  'registrations_toward_next_free_registration',
-  'registrations_needed_for_next_free_registration',
-  'registration_date', 'registration_type', 'group_name',
-  'assigned_volunteer', 'assigned_director', 'notes',
-];
-
-const RELATIONSHIP_BY_INDEX = ['Primary', 'Spouse', 'Member'];
-
-// Schema for the extractor — one row per person, carrying household fields too.
-const CHAMPION_SCHEMA = {
-  type: 'object',
-  properties: {
-    household_name: { type: 'string' },
-    first_name: { type: 'string' },
-    last_name: { type: 'string' },
-    account_salutation: { type: 'string' },
-    email: { type: 'string' },
-    mobile_phone: { type: 'string' },
-    home_phone: { type: 'string' },
-    work_phone: { type: 'string' },
-    relationship: { type: 'string' },
-    address: { type: 'string' },
-    address_line_2: { type: 'string' },
-    city: { type: 'string' },
-    state: { type: 'string' },
-    zip_code: { type: 'string' },
-    area: { type: 'string' },
-    status: { type: 'string' },
-    champion_status: { type: 'string' },
-    church_name: { type: 'string' },
-    church_city: { type: 'string' },
-    church_state: { type: 'string' },
-    church_zip_code: { type: 'string' },
-    church_priority: { type: 'string' },
-    marriage_conference_priority: { type: 'string' },
-    do_not_call: { type: 'string' },
-    do_not_text: { type: 'string' },
-    email_opt_out: { type: 'string' },
-    cumulative_registrations: { type: 'string' },
-    free_couple_registrations_used: { type: 'string' },
-    free_couple_registrations_available: { type: 'string' },
-    registrations_toward_next_free_registration: { type: 'string' },
-    registrations_needed_for_next_free_registration: { type: 'string' },
-    registration_date: { type: 'string' },
-    registration_type: { type: 'string' },
-    group_name: { type: 'string' },
-    assigned_volunteer: { type: 'string' },
-    assigned_director: { type: 'string' },
-    notes: { type: 'string' },
-  },
-  required: ['first_name', 'last_name'],
-};
-
-const HEADER_MAP = {
-  household_name: ['household', 'household name', 'family', 'family name'],
-  account_salutation: ['account salutation', 'salutation'],
-  first_name: ['first name', 'firstname', 'first', 'fname', 'given name'],
-  last_name: ['last name', 'lastname', 'last', 'lname', 'surname', 'family name'],
-  email: ['email', 'e-mail', 'email address', 'e-mail address'],
-  mobile_phone: ['mobile phone', 'mobile', 'cell', 'cell phone', 'cellphone', 'mobile number'],
-  home_phone: ['home phone', 'home', 'home number', 'phone', 'phone number', 'telephone'],
-  work_phone: ['work phone', 'work', 'work number', 'business phone'],
-  relationship: ['relationship', 'role', 'position', 'title'],
-  address: ['address', 'street', 'street address', 'address 1', 'address1'],
-  address_line_2: ['address 2', 'address2', 'address line 2', 'address line two'],
-  city: ['city', 'town'],
-  state: ['state', 'st', 'province'],
-  zip_code: ['zip', 'zip code', 'zip/postal', 'postal', 'postal code', 'postcode'],
-  area: ['area', 'region', 'territory'],
-  status: ['status'],
-  champion_status: ['champion status', 'champion'],
-  church_name: ['church name', 'church', 'home church', 'church attended'],
-  church_city: ['church city'],
-  church_state: ['church state'],
-  church_zip_code: ['church zip', 'church zip code', 'church postal', 'church postal code'],
-  church_priority: ['church priority', 'church prioritization', 'church prio'],
-  marriage_conference_priority: ['marriage conference priority', 'conference priority', 'weekend priority', 'marriage priority'],
-  do_not_call: ['do not call', 'dnc', 'do not call?', "don't call", 'no call'],
-  do_not_text: ['do not text', 'dnt', 'do not text?', "don't text", 'no text'],
-  email_opt_out: ['email opt out', 'email opt-out', 'opt out', 'opt-out', 'unsubscribe', 'email unsubscribe'],
-  cumulative_registrations: ['cumulative registrations', 'cumulative', 'total registrations', 'registrations cumulative'],
-  free_couple_registrations_used: ['free couple registrations used', 'free registrations used', 'free couple used', 'comp used'],
-  free_couple_registrations_available: ['free couple registrations available', 'free registrations available', 'free couple available', 'comp available'],
-  registrations_toward_next_free_registration: ['registrations toward next free registration', 'toward next free', 'toward next', 'registrations toward'],
-  registrations_needed_for_next_free_registration: ['registrations needed for next free registration', 'needed for next free', 'needed for next', 'registrations needed'],
-  registration_date: ['registration date', 'reg date', 'registration', 'date registered', 'registered'],
-  registration_type: ['registration type', 'reg type', 'type'],
-  group_name: ['group', 'group name', 'groupname', 'small group'],
-  assigned_volunteer: ['assigned volunteer', 'volunteer', 'volunteer name'],
-  assigned_director: ['assigned director', 'director', 'director name'],
-  notes: ['notes', 'note', 'comments', 'comment'],
-};
-
-const POSITIONAL_FALLBACK = [
-  'first_name', 'last_name', 'email', 'mobile_phone', 'home_phone',
-  'address', 'city', 'state', 'zip_code', 'area', 'status',
-  'registration_date', 'registration_type', 'group_name',
-  'assigned_volunteer', 'assigned_director', 'notes',
-];
-
-// --- value normalization for enum / boolean fields ---
-const TRUTHY = new Set([
-  'yes', 'y', 'true', '1', 'x', '✓', 'checked',
-  'opt out', 'opt-out', 'unsubscribe', 'email opt out', 'email opt-out',
-  'do not call', 'do not text', 'no call', 'no text', "don't call", "don't text",
-]);
-
-function parseBoolean(v) {
-  const s = (v ?? '').toString().trim().toLowerCase();
-  if (!s) return false;
-  return TRUTHY.has(s);
-}
-
-function normalizePriority(v) {
-  const s = (v ?? '').toString().trim().toLowerCase();
-  if (['high', 'h', 'urgent'].includes(s)) return 'High';
-  if (['medium', 'med', 'm', 'normal', 'mid'].includes(s)) return 'Medium';
-  if (['low', 'l'].includes(s)) return 'Low';
-  return null;
-}
-
-function parseNumber(v) {
-  const s = (v ?? '').toString().replace(/[^0-9.-]/g, '');
-  if (s === '' || s === '-' || s === '.') return null;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : null;
-}
-
-function normalizeChampionStatus(v) {
-  const s = (v ?? '').toString().trim().toLowerCase();
-  if (['active', 'a', 'current'].includes(s)) return 'Active';
-  if (['inactive', 'i', 'former'].includes(s)) return 'Inactive';
-  if (['prospect', 'p', 'potential', 'lead'].includes(s)) return 'Prospect';
-  if (['alumni', 'alumnus', 'alum', 'past'].includes(s)) return 'Alumni';
-  return null;
-}
-
-// Fields that need their values normalized before being written.
-const NORMALIZERS = {
-  church_priority: { fn: normalizePriority, label: 'Church Priority' },
-  marriage_conference_priority: { fn: normalizePriority, label: 'Marriage Conference Priority' },
-  champion_status: { fn: normalizeChampionStatus, label: 'Champion Status' },
-  do_not_call: { fn: parseBoolean, label: 'Do Not Call' },
-  do_not_text: { fn: parseBoolean, label: 'Do Not Text' },
-  email_opt_out: { fn: parseBoolean, label: 'Email Opt Out' },
-  cumulative_registrations: { fn: parseNumber, label: 'Cumulative Registrations' },
-  free_couple_registrations_used: { fn: parseNumber, label: 'Free Couple Registrations Used' },
-  free_couple_registrations_available: { fn: parseNumber, label: 'Free Couple Registrations Available' },
-  registrations_toward_next_free_registration: { fn: parseNumber, label: 'Registrations Toward Next Free Registration' },
-  registrations_needed_for_next_free_registration: { fn: parseNumber, label: 'Registrations Needed For Next Free Registration' },
-};
-
-function mapHeader(header) {
-  const h = (header || '').trim().toLowerCase();
-  for (const [field, variants] of Object.entries(HEADER_MAP)) {
-    if (variants.includes(h)) return field;
-  }
-  return null;
-}
-
-function normalizeOutput(output) {
-  if (!output) return [];
-  if (Array.isArray(output)) return output;
-  if (typeof output === 'object') {
-    const nested = Object.values(output).find((v) => Array.isArray(v));
-    return nested || [output];
-  }
-  return [];
-}
-
-// Parses tab-separated pasted data (as copied from Excel / Google Sheets).
-function parsePastedData(text) {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '');
-  if (!lines.length) return [];
-  const rows = lines.map((l) => l.split('\t'));
-  const mappedHeaders = rows[0].map(mapHeader);
-  const hasHeaderRow = mappedHeaders.some((h) => h !== null);
-  const headers = hasHeaderRow
-    ? mappedHeaders
-    : rows[0].map((_, idx) => POSITIONAL_FALLBACK[idx] || null);
-  const startIdx = hasHeaderRow ? 1 : 0;
-  const records = [];
-  for (let i = startIdx; i < rows.length; i++) {
-    const row = rows[i];
-    const rec = {};
-    headers.forEach((field, idx) => {
-      if (field && row[idx] != null && row[idx].trim() !== '') {
-        rec[field] = row[idx].trim();
-      }
-    });
-    if (rec.first_name || rec.last_name) records.push(rec);
-  }
-  return records;
-}
-
-// Groups flat person-rows into households with their member contacts.
-// Also collects diagnostics: which fields imported, which were skipped, and
-// any values that failed enum/boolean normalization.
-function buildHouseholds(rows) {
-  const groups = [];
-  const keyMap = new Map();
-  const fieldsImported = {};
-  const validationErrors = [];
-
-  // Track every non-blank value we see, so we can report coverage.
-  rows.forEach((row) => {
-    Object.entries(row).forEach(([f, v]) => {
-      if (v != null && v.toString().trim() !== '') {
-        fieldsImported[f] = (fieldsImported[f] || 0) + 1;
-      }
-    });
-  });
-
-  rows.forEach((row) => {
-    const name = (row.household_name || '').trim().toLowerCase();
-    const ln = (row.last_name || '').trim().toLowerCase();
-    const addr = (row.address || row.city || '').trim().toLowerCase();
-    const key = name || `${ln}|${addr}`;
-    let g = keyMap.get(key);
-    if (!g) {
-      g = { household: {}, members: [] };
-      keyMap.set(key, g);
-      groups.push(g);
-    }
-    // Merge household-level fields (first non-empty value wins).
-    HOUSEHOLD_FIELDS.forEach((f) => {
-      if (!g.household[f] && row[f] != null && row[f].toString().trim() !== '') {
-        let val = row[f];
-        // Normalize enum / boolean fields, capturing validation errors.
-        if (NORMALIZERS[f]) {
-          const resolved = NORMALIZERS[f].fn(val);
-          if (resolved === null) {
-            validationErrors.push({
-              household: name || `${ln} household`,
-              field: f,
-              label: NORMALIZERS[f].label,
-              value: val,
-              message: `Unrecognized "${NORMALIZERS[f].label}" value — skipped.`,
-            });
-            return; // skip invalid value
-          }
-          val = resolved;
-        }
-        g.household[f] = val;
-      }
-    });
-    g.members.push({
-      first_name: row.account_salutation || row.first_name,
-      last_name: row.last_name,
-      email: row.email,
-      mobile_phone: row.mobile_phone,
-      work_phone: row.work_phone,
-      relationship: row.relationship,
-    });
-  });
-
-  // Derive household name + relationships.
-  groups.forEach((g) => {
-    if (!g.household.household_name) {
-      const ln = (g.members.find((m) => m.last_name)?.last_name || '').trim();
-      g.household.household_name = ln ? `${ln} Household` : 'Household';
-    }
-    g.members.forEach((m, i) => {
-      if (!m.relationship) m.relationship = RELATIONSHIP_BY_INDEX[i] || 'Member';
-    });
-  });
-
-  // Fields in the expected set that never appeared with a value are "skipped".
-  const fieldsSkipped = {};
-  [...HOUSEHOLD_FIELDS, ...MEMBER_FIELDS, 'account_salutation'].forEach((f) => {
-    if (!fieldsImported[f]) fieldsSkipped[f] = 'no values found in source';
-  });
-
-  return { groups, diagnostics: { fieldsImported, fieldsSkipped, validationErrors } };
-}
-
-function norm(s) { return (s || '').toString().trim().toLowerCase(); }
-
-// Find an existing household that matches the incoming one.
-// Match priority: household name → address+city → member email → member name.
-function findExistingHousehold(incomingHH, incomingMembers, existingHHs, membersByHouse) {
-  const inName = norm(incomingHH.household_name);
-  const inAddr = `${norm(incomingHH.address)}|${norm(incomingHH.city)}`;
-  const inEmails = incomingMembers.map((m) => norm(m.email)).filter(Boolean);
-  const inKeys = incomingMembers
-    .map((m) => `${norm(m.first_name)}|${norm(m.last_name)}`)
-    .filter((k) => k !== '|');
-
-  if (inName) {
-    const m = existingHHs.find((h) => norm(h.household_name) === inName);
-    if (m) return m;
-  }
-  if (inAddr !== '|') {
-    const m = existingHHs.find((h) => `${norm(h.address)}|${norm(h.city)}` === inAddr);
-    if (m) return m;
-  }
-  for (const h of existingHHs) {
-    const ems = membersByHouse[h.id] || [];
-    if (inEmails.length && ems.some((em) => inEmails.includes(norm(em.email)))) return h;
-    if (inKeys.length && ems.some((em) => inKeys.includes(`${norm(em.first_name)}|${norm(em.last_name)}`))) return h;
-  }
-  return null;
-}
-
-// Find an existing member within a household by email, then by name.
-function findExistingMember(incoming, houseMembers) {
-  const inEmail = norm(incoming.email);
-  if (inEmail) {
-    const m = houseMembers.find((em) => norm(em.email) === inEmail);
-    if (m) return m;
-  }
-  const inKey = `${norm(incoming.first_name)}|${norm(incoming.last_name)}`;
-  if (inKey !== '|') {
-    const m = houseMembers.find((em) => `${norm(em.first_name)}|${norm(em.last_name)}` === inKey);
-    if (m) return m;
-  }
-  return null;
-}
 
 function SummaryStat({ label, value, tone = 'muted' }) {
   const tones = {
@@ -375,46 +50,23 @@ function SummaryStat({ label, value, tone = 'muted' }) {
 }
 
 export default function ImportChampionsDialog({ open, onOpenChange, onImported }) {
-  const [step, setStep] = useState('idle'); // idle | uploading | extracting | preview | importing | done | error
-  const [households, setHouseholds] = useState([]);
-  const [diagnostics, setDiagnostics] = useState(null);
+  const [step, setStep] = useState('idle'); // idle | staging | done | error
+  const [mode, setMode] = useState('upload');
+  const [pasteText, setPasteText] = useState('');
+  const [sourcePeriod, setSourcePeriod] = useState(String(new Date().getFullYear()));
   const [fileName, setFileName] = useState('');
   const [result, setResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
-  const [mode, setMode] = useState('upload'); // upload | paste
-  const [pasteText, setPasteText] = useState('');
   const inputRef = useRef(null);
-  const [existingData, setExistingData] = useState({ households: [], membersByHouse: {}, loaded: false });
-  const [dedupLoading, setDedupLoading] = useState(false);
-
-  async function loadExistingForDedup() {
-    setDedupLoading(true);
-    try {
-      const [existingHH, existingMembers] = await Promise.all([
-        base44.entities.ChampionHousehold.list(),
-        base44.entities.HouseholdMember.list(),
-      ]);
-      const membersByHouse = {};
-      (existingMembers || []).forEach((m) => {
-        (membersByHouse[m.household_id] = membersByHouse[m.household_id] || []).push(m);
-      });
-      setExistingData({ households: existingHH || [], membersByHouse, loaded: true });
-    } catch {
-      setExistingData({ households: [], membersByHouse: {}, loaded: true });
-    } finally {
-      setDedupLoading(false);
-    }
-  }
+  const navigate = useNavigate();
 
   function reset() {
     setStep('idle');
-    setHouseholds([]);
-    setDiagnostics(null);
+    setMode('upload');
+    setPasteText('');
     setFileName('');
     setResult(null);
     setErrorMsg('');
-    setPasteText('');
-    setMode('upload');
     if (inputRef.current) inputRef.current.value = '';
   }
 
@@ -423,204 +75,61 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
     onOpenChange(open);
   }
 
-  function applyRows(rows) {
-    const parsed = rows.filter((r) => r && (r.first_name || r.last_name));
-    if (!parsed.length) {
-      throw new Error('No records found. Include a header row and one person per line.');
+  // Stage the import via the backend function. No production writes.
+  async function stageImport(payload) {
+    setStep('staging');
+    setErrorMsg('');
+    try {
+      const res = await base44.functions.invoke('processFamilyLifeImport', payload);
+      const data = res.data || res;
+      if (data.error) throw new Error(data.error);
+      setResult(data);
+      setStep('done');
+      onImported?.();
+    } catch (err) {
+      setErrorMsg(err?.response?.data?.error || err?.message || 'Staging failed.');
+      setStep('error');
     }
-    const { groups, diagnostics: diag } = buildHouseholds(parsed);
-    setHouseholds(groups);
-    setDiagnostics(diag);
-    setStep('preview');
-    loadExistingForDedup();
   }
 
   async function handleFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
-    setStep('uploading');
+    setStep('staging');
     setErrorMsg('');
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      setStep('extracting');
-      const res = await base44.integrations.Core.ExtractDataFromUploadedFile({
+      await stageImport({
+        mode: 'file',
         file_url,
-        json_schema: CHAMPION_SCHEMA,
+        file_name: file.name,
+        file_size: file.size,
+        file_type: file.name.split('.').pop()?.toLowerCase() || 'unknown',
+        source_period: sourcePeriod || undefined,
       });
-      if (res?.status === 'error') {
-        throw new Error(res.details || 'Could not read the file.');
-      }
-      applyRows(normalizeOutput(res?.output));
     } catch (err) {
-      setErrorMsg(err?.message || 'Something went wrong reading the file.');
+      setErrorMsg(err?.message || 'Could not upload the file.');
       setStep('error');
     }
   }
 
-  function handleParse() {
-    setErrorMsg('');
-    try {
-      applyRows(parsePastedData(pasteText));
-      setFileName('pasted data');
-    } catch (err) {
-      setErrorMsg(err?.message || 'Could not parse the pasted data.');
-      setStep('error');
-    }
-  }
-
-  async function handleImport() {
-    setStep('importing');
-    try {
-      // Load existing records for de-duplication.
-      const [existingHH, existingMembers] = await Promise.all([
-        base44.entities.ChampionHousehold.list(),
-        base44.entities.HouseholdMember.list(),
-      ]);
-      const membersByHouse = {};
-      (existingMembers || []).forEach((m) => {
-        (membersByHouse[m.household_id] = membersByHouse[m.household_id] || []).push(m);
-      });
-
-      const summary = {
-        householdsCreated: 0,
-        householdsUpdated: 0,
-        contactsCreated: 0,
-        contactsUpdated: 0,
-        contactsLinked: 0,
-        fieldsImported: { ...(diagnostics?.fieldsImported || {}) },
-        fieldsSkipped: { ...(diagnostics?.fieldsSkipped || {}) },
-        validationErrors: [...(diagnostics?.validationErrors || [])],
-        governanceConflicts: 0,
-        governanceBlocked: 0,
-        governanceUnmapped: 0,
-        governanceRestrictiveApplied: 0,
-      };
-
-      // Partition into new vs. update groups to minimize API calls.
-      const newGroups = [];
-      const updateGroups = [];
-      households.forEach((g) => {
-        const match = findExistingHousehold(g.household, g.members, existingHH || [], membersByHouse);
-        if (match) updateGroups.push({ match, incoming: g.household, members: g.members });
-        else newGroups.push({ incoming: g.household, members: g.members });
-      });
-
-      // 1. Bulk-create all new households, then bulk-create their members.
-      //    Each record is sanitized through the governance contract first.
-      if (newGroups.length) {
-        const sanitizedHHs = newGroups.map((g) => {
-          const res = sanitizeImportRecord(g.incoming, IMPORT_OPERATIONS.NEW_RECORD_CREATE, null, 'ChampionHousehold');
-          summary.governanceUnmapped += res.unmapped.length;
-          summary.governanceBlocked += res.blocked.length;
-          return res.sanitized;
-        });
-        const createdHHs = await base44.entities.ChampionHousehold.bulkCreate(sanitizedHHs);
-        summary.householdsCreated = createdHHs.length;
-        const byName = {};
-        createdHHs.forEach((hh) => { byName[norm(hh.household_name)] = hh; });
-        const newMembers = [];
-        newGroups.forEach((g, i) => {
-          const hh = byName[norm(g.incoming.household_name)] || createdHHs[i];
-          (g.members || []).forEach((m) => {
-            const memRes = sanitizeImportRecord(m, IMPORT_OPERATIONS.NEW_RECORD_CREATE, null, 'HouseholdMember');
-            summary.governanceUnmapped += memRes.unmapped.length;
-            summary.governanceBlocked += memRes.blocked.length;
-            newMembers.push({ ...memRes.sanitized, household_id: hh.id });
-          });
-        });
-        if (newMembers.length) {
-          await base44.entities.HouseholdMember.bulkCreate(newMembers);
-          summary.contactsCreated += newMembers.length;
-        }
-      }
-
-      // 2. For matched households, batch updates + new members.
-      //    All updates pass through the governance sanitizer with
-      //    EXISTING_RECORD_SAFE_UPDATE — shared-field conflicts and
-      //    CC-managed fields are never auto-applied.
-      const hhUpdates = [];
-      const memberUpdates = [];
-      const matchedNewMembers = [];
-      updateGroups.forEach((g) => {
-        const hhRes = sanitizeImportRecord(g.incoming, IMPORT_OPERATIONS.EXISTING_RECORD_SAFE_UPDATE, g.match, 'ChampionHousehold');
-        summary.governanceConflicts += hhRes.conflicts.length;
-        summary.governanceBlocked += hhRes.blocked.length;
-        summary.governanceUnmapped += hhRes.unmapped.length;
-        summary.governanceRestrictiveApplied += hhRes.restrictiveApplied.length;
-        const hhUpdate = buildUpdatePayload(g.match.id, hhRes.sanitized);
-        if (hhUpdate) hhUpdates.push(hhUpdate);
-        else summary.contactsLinked++;
-
-        const houseMembers = membersByHouse[g.match.id] || [];
-        g.members.forEach((im) => {
-          const em = findExistingMember(im, houseMembers);
-          if (em) {
-            const memRes = sanitizeImportRecord(im, IMPORT_OPERATIONS.EXISTING_RECORD_SAFE_UPDATE, em, 'HouseholdMember');
-            summary.governanceConflicts += memRes.conflicts.length;
-            summary.governanceBlocked += memRes.blocked.length;
-            summary.governanceUnmapped += memRes.unmapped.length;
-            const memUpdate = buildUpdatePayload(em.id, memRes.sanitized);
-            if (memUpdate) memberUpdates.push(memUpdate);
-            else summary.contactsLinked++;
-          } else {
-            const memRes = sanitizeImportRecord(im, IMPORT_OPERATIONS.NEW_RECORD_CREATE, null, 'HouseholdMember');
-            summary.governanceUnmapped += memRes.unmapped.length;
-            matchedNewMembers.push({ ...memRes.sanitized, household_id: g.match.id });
-          }
-        });
-      });
-      if (hhUpdates.length) {
-        await base44.entities.ChampionHousehold.bulkUpdate(hhUpdates);
-        summary.householdsUpdated = hhUpdates.length;
-      }
-      if (memberUpdates.length) {
-        await base44.entities.HouseholdMember.bulkUpdate(memberUpdates);
-        summary.contactsUpdated = memberUpdates.length;
-      }
-      if (matchedNewMembers.length) {
-        await base44.entities.HouseholdMember.bulkCreate(matchedNewMembers);
-        summary.contactsCreated += matchedNewMembers.length;
-      }
-
-      setResult(summary);
-      setStep('done');
-      onImported?.();
-    } catch (err) {
-      setErrorMsg(err?.message || 'Could not import the records.');
-      setStep('error');
-    }
-  }
-
-  const memberCount = households.reduce((n, g) => n + g.members.length, 0);
-
-  const fieldLabel = (f) => f.replace(/_/g, ' ');
-
-  // Compute per-household de-dup status against existing records.
-  const dedup = useMemo(() => {
-    if (!existingData.loaded) return { statuses: [], newCount: 0, updateCount: 0, loaded: false };
-    const statuses = households.map((g) => {
-      const match = findExistingHousehold(g.household, g.members, existingData.households, existingData.membersByHouse);
-      if (!match) return { kind: 'new' };
-      const hhChanges = HOUSEHOLD_FIELDS.filter((f) => g.household[f] != null && g.household[f] !== '' && g.household[f] !== (match[f] ?? ''));
-      const houseMembers = existingData.membersByHouse[match.id] || [];
-      let newMembers = 0, updatedMembers = 0;
-      g.members.forEach((im) => {
-        const em = findExistingMember(im, houseMembers);
-        if (em) {
-          if (MEMBER_FIELDS.some((f) => im[f] && im[f] !== (em[f] ?? ''))) updatedMembers++;
-        } else {
-          newMembers++;
-        }
-      });
-      return { kind: 'update', hhChanges, newMembers, updatedMembers };
+  function handlePasteImport() {
+    if (!pasteText.trim()) return;
+    setFileName('pasted data');
+    stageImport({
+      mode: 'paste',
+      file_name: `pasted-${Date.now()}.tsv`,
+      file_type: 'pasted',
+      raw_text: pasteText,
+      source_period: sourcePeriod || undefined,
     });
-    const newCount = statuses.filter((s) => s.kind === 'new').length;
-    return { statuses, newCount, updateCount: statuses.length - newCount, loaded: true };
-  }, [households, existingData]);
+  }
 
-  const importedFieldCount = result ? Object.keys(result.fieldsImported).length : 0;
-  const skippedFieldCount = result ? Object.keys(result.fieldsSkipped).length : 0;
+  function handleReview() {
+    if (result?.batch_id) navigate(`/imports/familylife/${result.batch_id}`);
+    handleClose(false);
+  }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -628,54 +137,57 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5" />
-            Import Champion Households
+            Import FamilyLife Data
           </DialogTitle>
           <DialogDescription>
-            Each row is a contact. Rows sharing a Household (or the same last name + address)
-            are grouped into one household.
+            Stage a FamilyLife export for review. Nothing is applied to your champions
+            until you approve it in the Reconciliation Dashboard.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Idle / upload / extract */}
-        {(step === 'idle' || step === 'uploading' || step === 'extracting') && (
+        {/* Idle — input */}
+        {step === 'idle' && (
           <div className="space-y-4">
-            {step === 'idle' && (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMode('upload')}
-                  className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${mode === 'upload' ? 'border-primary bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
-                >
-                  <Upload className="h-4 w-4" /> Upload File
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode('paste')}
-                  className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${mode === 'paste' ? 'border-primary bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
-                >
-                  <Clipboard className="h-4 w-4" /> Paste Data
-                </button>
-              </div>
-            )}
+            {/* Source period */}
+            <div>
+              <Label htmlFor="source-period">Source Period / Year</Label>
+              <Input
+                id="source-period"
+                value={sourcePeriod}
+                onChange={(e) => setSourcePeriod(e.target.value)}
+                placeholder="e.g. 2025 or 2025-Q3"
+                className="mt-1"
+              />
+            </div>
+
+            {/* Mode tabs */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setMode('upload')}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${mode === 'upload' ? 'border-primary bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
+              >
+                <Upload className="h-4 w-4" /> Upload File
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('paste')}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${mode === 'paste' ? 'border-primary bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
+              >
+                <Clipboard className="h-4 w-4" /> Paste Data
+              </button>
+            </div>
 
             {mode === 'upload' && (
               <>
                 <button
                   type="button"
                   onClick={() => inputRef.current?.click()}
-                  disabled={step !== 'idle'}
-                  className="flex w-full flex-col items-center gap-3 rounded-xl border-2 border-dashed border-border bg-muted/30 p-10 text-center transition-colors hover:bg-muted/50 disabled:opacity-60"
+                  className="flex w-full flex-col items-center gap-3 rounded-xl border-2 border-dashed border-border bg-muted/30 p-10 text-center transition-colors hover:bg-muted/50"
                 >
-                  {step === 'idle' ? (
-                    <Upload className="h-8 w-8 text-muted-foreground" />
-                  ) : (
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                  )}
+                  <Upload className="h-8 w-8 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium">
-                      {step === 'idle' ? 'Click to choose a file' :
-                        step === 'uploading' ? 'Uploading file…' : 'Reading records…'}
-                    </p>
+                    <p className="text-sm font-medium">Click to choose a file</p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Supports .csv, .xlsx, and .xls files
                     </p>
@@ -691,194 +203,73 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
               </>
             )}
 
-            {mode === 'paste' && step === 'idle' && (
+            {mode === 'paste' && (
               <>
                 <textarea
                   value={pasteText}
                   onChange={(e) => setPasteText(e.target.value)}
-                  placeholder={'Household\tFirst Name\tLast Name\tEmail\tMobile\nSmith Family\tJohn\tSmith\tjohn@example.com\t555-0100\nSmith Family\tMary\tSmith\tmary@example.com\t555-0101'}
+                  placeholder={'FamilyLife ID\tHousehold\tFirst Name\tLast Name\tEmail\tMobile\tCity\tState\tZip\tChurch Name\tChurch Priority\tChampion Status\tCumulative Registrations\tDo Not Call\nFL-001\tSmith Family\tJohn\tSmith\tjohn@example.com\t555-0100\tBoston\tMA\t02115\tGrace Church\tHigh\tActive\t3\tNo'}
                   rows={8}
                   className="w-full rounded-lg border bg-background p-3 font-mono text-xs"
                 />
-                <Button onClick={handleParse} disabled={!pasteText.trim()} className="w-full">
-                  Parse Pasted Data
+                <Button onClick={handlePasteImport} disabled={!pasteText.trim()} className="w-full">
+                  Stage Pasted Data
                 </Button>
               </>
             )}
 
             <details className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
               <summary className="cursor-pointer font-medium">Expected columns</summary>
-              <p className="mt-2">{COLUMNS.join(', ')}</p>
+              <p className="mt-2">{COLUMNS_HINT.join(', ')}</p>
               <p className="mt-2">
-                Rows with the same <strong>Household</strong> value (or matching last name +
-                address) become one household with multiple contacts.
+                Rows with the same <strong>Household</strong> value (or the same
+                FamilyLife ID) are grouped into one household with multiple contacts.
               </p>
             </details>
           </div>
         )}
 
-        {/* Preview */}
-        {step === 'preview' && (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <Users className="h-4 w-4 text-emerald-500" />
-              <span>
-                <strong>{households.length}</strong> {households.length === 1 ? 'household' : 'households'}
-                {' · '}
-                <strong>{memberCount}</strong> {memberCount === 1 ? 'contact' : 'contacts'} from{' '}
-                <span className="text-muted-foreground">{fileName}</span>
-              </span>
-              {dedupLoading && <span className="text-xs text-muted-foreground">· checking for duplicates…</span>}
-              {dedup.loaded && (
-                <span className="text-xs text-muted-foreground">
-                  · <strong className="text-blue-600">{dedup.newCount}</strong> new
-                  {' · '}
-                  <strong className="text-amber-600">{dedup.updateCount}</strong> update
-                </span>
-              )}
-            </div>
-
-            {diagnostics?.validationErrors?.length > 0 && (
-              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
-                <p className="font-medium">
-                  {diagnostics.validationErrors.length} value(s) couldn't be normalized and will be skipped
-                </p>
-                <details className="mt-1">
-                  <summary className="cursor-pointer text-amber-700">View details</summary>
-                  <ul className="mt-1 max-h-40 space-y-0.5 overflow-y-auto">
-                    {diagnostics.validationErrors.map((e, i) => (
-                      <li key={i}>{e.household} · {e.label}: "{e.value}"</li>
-                    ))}
-                  </ul>
-                </details>
-              </div>
-            )}
-
-            <div className="max-h-64 overflow-auto rounded-lg border">
-              <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-muted/60 text-left text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">Household</th>
-                    <th className="px-3 py-2 font-medium">Contacts</th>
-                    <th className="px-3 py-2 font-medium">City</th>
-                    <th className="px-3 py-2 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {households.slice(0, 50).map((g, i) => (
-                    <tr key={i} className="border-t">
-                      <td className="px-3 py-2 font-medium">{g.household.household_name}</td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {g.members.map((m) => `${m.first_name} ${m.last_name}`.trim()).join(', ')}
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">{g.household.city || '—'}</td>
-                      <td className="px-3 py-2">
-                        {!dedup.loaded ? (
-                          <span className="text-xs text-muted-foreground">Checking…</span>
-                        ) : (() => {
-                          const st = dedup.statuses[i];
-                          if (!st || st.kind === 'new') {
-                            return <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">New</span>;
-                          }
-                          const parts = [];
-                          if (st.hhChanges.length) parts.push(st.hhChanges.map(fieldLabel).join(', '));
-                          if (st.newMembers) parts.push(`+${st.newMembers} contact${st.newMembers > 1 ? 's' : ''}`);
-                          if (st.updatedMembers) parts.push(`${st.updatedMembers} update${st.updatedMembers > 1 ? 's' : ''}`);
-                          return (
-                            <div className="flex flex-col gap-0.5">
-                              <span className="inline-flex w-fit rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Update existing</span>
-                              <span className="text-[10px] text-muted-foreground">{parts.length ? parts.join(' · ') : 'no changes'}</span>
-                            </div>
-                          );
-                        })()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {households.length > 50 && (
-              <p className="text-xs text-muted-foreground">
-                Showing first 50 of {households.length} households.
-              </p>
-            )}
+        {/* Staging */}
+        {step === 'staging' && (
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <p className="text-sm font-medium">Staging import…</p>
+            <p className="max-w-sm text-xs text-muted-foreground">
+              Parsing, normalizing, matching against existing champions, and comparing
+              field-by-field. This may take a moment for large files.
+            </p>
           </div>
         )}
 
-        {/* Done — Import Summary */}
+        {/* Done — staged successfully */}
         {step === 'done' && result && (
           <div className="space-y-4">
             <div className="flex flex-col items-center gap-2 py-2 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
                 <CheckCircle2 className="h-6 w-6 text-emerald-600" />
               </div>
-              <p className="text-sm font-medium">Import complete</p>
+              <p className="text-sm font-medium">Import staged for review</p>
+              <p className="max-w-sm text-xs text-muted-foreground">
+                <strong>{fileName}</strong> has been staged with {result.summary?.fields_imported ? Object.keys(result.summary.fields_imported).length : 0}{' '}
+                field types. No production records were modified.
+              </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              <SummaryStat label="Households created" value={result.householdsCreated} tone="emerald" />
-              <SummaryStat label="Households updated" value={result.householdsUpdated} tone="amber" />
-              <SummaryStat label="Contacts linked" value={result.contactsLinked} tone="blue" />
-              <SummaryStat label="Contacts created" value={result.contactsCreated} tone="emerald" />
-              <SummaryStat label="Contacts updated" value={result.contactsUpdated} tone="amber" />
-              <SummaryStat label="Validation issues" value={result.validationErrors.length} tone={result.validationErrors.length ? 'red' : 'muted'} />
-            </div>
-
-            {(result.governanceConflicts > 0 || result.governanceBlocked > 0 || result.governanceUnmapped > 0 || result.governanceRestrictiveApplied > 0) && (
-              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
-                <p className="font-medium">Governance protection applied</p>
+            {result.is_possible_duplicate && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+                <p className="font-medium">Possible duplicate detected</p>
                 <p className="mt-1">
-                  {result.governanceConflicts > 0 && <span>{result.governanceConflicts} shared-field conflict(s) held for reconciliation. </span>}
-                  {result.governanceBlocked > 0 && <span>{result.governanceBlocked} protected field(s) blocked. </span>}
-                  {result.governanceUnmapped > 0 && <span>{result.governanceUnmapped} unmapped field(s) skipped. </span>}
-                  {result.governanceRestrictiveApplied > 0 && <span>{result.governanceRestrictiveApplied} restrictive preference(s) enforced.</span>}
+                  A prior batch with the same content signature already exists.
+                  You can still review this batch, but check the original first.
                 </p>
               </div>
             )}
 
-            {importedFieldCount > 0 && (
-              <details className="rounded-lg border bg-muted/30 p-3 text-xs">
-                <summary className="cursor-pointer font-medium">Fields imported ({importedFieldCount})</summary>
-                <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
-                  {Object.entries(result.fieldsImported)
-                    .sort((a, b) => b[1] - a[1])
-                    .map(([f, c]) => (
-                      <div key={f} className="flex justify-between gap-2">
-                        <span className="text-muted-foreground">{fieldLabel(f)}</span>
-                        <span className="font-medium">{c}</span>
-                      </div>
-                    ))}
-                </div>
-              </details>
-            )}
-
-            {skippedFieldCount > 0 && (
-              <details className="rounded-lg border bg-muted/30 p-3 text-xs">
-                <summary className="cursor-pointer font-medium">Fields skipped ({skippedFieldCount})</summary>
-                <div className="mt-2 space-y-1">
-                  {Object.entries(result.fieldsSkipped).map(([f, reason]) => (
-                    <div key={f} className="flex justify-between gap-2">
-                      <span className="text-muted-foreground">{fieldLabel(f)}</span>
-                      <span className="text-amber-600">{reason}</span>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            )}
-
-            {result.validationErrors.length > 0 && (
-              <details className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs">
-                <summary className="cursor-pointer font-medium text-destructive">Validation errors ({result.validationErrors.length})</summary>
-                <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
-                  {result.validationErrors.map((e, i) => (
-                    <div key={i} className="flex flex-col">
-                      <span className="text-muted-foreground">{e.household} · {e.label}</span>
-                      <span className="text-red-600">&ldquo;{e.value}&rdquo; — {e.message}</span>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            )}
+            <div className="flex items-center justify-center">
+              <Button onClick={handleReview}>
+                Review Staged Import <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         )}
 
@@ -888,29 +279,22 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
               <AlertCircle className="h-6 w-6 text-destructive" />
             </div>
-            <p className="text-sm font-medium">Import failed</p>
+            <p className="text-sm font-medium">Staging failed</p>
             <p className="max-w-sm text-xs text-muted-foreground">{errorMsg}</p>
           </div>
         )}
 
         <DialogFooter>
-          {step === 'preview' && (
-            <>
-              <Button variant="outline" onClick={() => reset()}>Cancel</Button>
-              <Button onClick={handleImport} disabled={step !== 'preview' || dedupLoading}>
-                {dedupLoading ? 'Checking duplicates…' : (
-                  <>Import {dedup.loaded ? `${dedup.newCount} new` : households.length}{dedup.loaded && dedup.updateCount ? ` · ${dedup.updateCount} update` : ''}</>
-                )}
-              </Button>
-            </>
-          )}
-          {step === 'importing' && (
-            <Button disabled>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Importing…
-            </Button>
+          {step === 'idle' && (
+            <Button variant="outline" onClick={() => handleClose(false)}>Cancel</Button>
           )}
           {(step === 'done' || step === 'error') && (
-            <Button variant="outline" onClick={() => handleClose(false)}>Close</Button>
+            <div className="flex w-full justify-between gap-2">
+              <Button variant="outline" onClick={() => reset()}>
+                {step === 'done' ? 'Import Another' : 'Try Again'}
+              </Button>
+              <Button variant="ghost" onClick={() => handleClose(false)}>Close</Button>
+            </div>
           )}
         </DialogFooter>
       </DialogContent>

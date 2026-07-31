@@ -14,6 +14,7 @@ export const NAV_ITEMS = [
   { label: 'Intelligence', path: '/intelligence', icon: 'Activity' },
   { label: 'Resources', path: '/resources', icon: 'Library' },
   { label: 'Communication', path: '/communication', icon: 'MessagesSquare' },
+  { label: 'FamilyLife Imports', path: '/imports/familylife', icon: 'FileSpreadsheet', adminOnly: true },
   { label: 'Administration', path: '/administration', icon: 'Settings', adminOnly: true },
 ];
 
