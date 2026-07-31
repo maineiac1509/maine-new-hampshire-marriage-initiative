@@ -145,6 +145,20 @@
       ],
       "default": "pending"
     },
+    "row_resolution_status": {
+      "type": "string",
+      "title": "Row Resolution Status",
+      "enum": [
+        "PENDING",
+        "RESOLVED",
+        "DISCARDED",
+        "SKIPPED",
+        "BLOCKED",
+        "MANUALLY_MATCHED"
+      ],
+      "default": "PENDING",
+      "description": "Administrator's row-level decision. DISCARDED = proposed new record thrown out. SKIPPED = row excluded from this import. BLOCKED = row held back. MANUALLY_MATCHED = admin chose a specific production target."
+    },
     "source_external_id": {
       "type": "string",
       "title": "Source External ID",

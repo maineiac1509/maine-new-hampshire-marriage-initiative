@@ -1,0 +1,132 @@
+{
+  "name": "FamilyLifeImportResolutionAudit",
+  "type": "object",
+  "title": "FamilyLife Import Resolution Audit",
+  "description": "Immutable audit trail for every resolution lifecycle event: creation, change, bulk action, manual match, discard, skip, restriction reduction, and readiness changes. Each entry captures the prior and new decision for full traceability.",
+  "properties": {
+    "import_batch_id": {
+      "type": "string",
+      "title": "Import Batch"
+    },
+    "import_row_id": {
+      "type": "string",
+      "title": "Import Row",
+      "description": "Null for batch-level events (e.g. readiness change)."
+    },
+    "field_comparison_id": {
+      "type": "string",
+      "title": "Field Comparison",
+      "description": "Null for row-level events (e.g. manual match, discard)."
+    },
+    "resolution_id": {
+      "type": "string",
+      "title": "Resolution",
+      "description": "The FamilyLifeImportResolution record this event concerns, if applicable."
+    },
+    "canonical_field_name": {
+      "type": "string",
+      "title": "Canonical Field Name"
+    },
+    "event_type": {
+      "type": "string",
+      "title": "Event Type",
+      "enum": [
+        "RESOLUTION_CREATED",
+        "RESOLUTION_CHANGED",
+        "BULK_RESOLUTION_APPLIED",
+        "BULK_RESOLUTION_REVERSED",
+        "MANUAL_MATCH_SELECTED",
+        "NEW_RECORD_DISCARDED",
+        "ROW_SKIPPED",
+        "ROW_BLOCKED",
+        "RESTRICTION_REDUCTION_ATTEMPTED",
+        "RESTRICTION_REDUCTION_APPROVED",
+        "BATCH_READINESS_GRANTED",
+        "BATCH_READINESS_REVOKED",
+        "RESOLUTIONS_INVALIDATED"
+      ]
+    },
+    "prior_decision": {
+      "type": "string",
+      "title": "Prior Decision",
+      "description": "The previous resolution_type or state before this event."
+    },
+    "new_decision": {
+      "type": "string",
+      "title": "New Decision",
+      "description": "The new resolution_type or state after this event."
+    },
+    "prior_value": {
+      "type": "string",
+      "title": "Prior Resolved Value"
+    },
+    "new_value": {
+      "type": "string",
+      "title": "New Resolved Value"
+    },
+    "reason": {
+      "type": "string",
+      "title": "Reason",
+      "description": "Administrator reason when applicable (e.g. restriction removal)."
+    },
+    "bulk_resolution_id": {
+      "type": "string",
+      "title": "Bulk Resolution ID",
+      "description": "References the bulk operation if this event was triggered by a bulk action."
+    },
+    "manual_match_target_id": {
+      "type": "string",
+      "title": "Manual Match Target ID",
+      "description": "Production record ID selected during a manual match event."
+    },
+    "manual_match_target_type": {
+      "type": "string",
+      "title": "Manual Match Target Type",
+      "enum": [
+        "HOUSEHOLD",
+        "MEMBER",
+        "NEW_HOUSEHOLD",
+        "NEW_MEMBER_IN_EXISTING_HOUSEHOLD"
+      ]
+    },
+    "admin_user_id": {
+      "type": "string",
+      "title": "Administrator User ID"
+    },
+    "admin_user_name": {
+      "type": "string",
+      "title": "Administrator Name"
+    },
+    "event_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Event At"
+    }
+  },
+  "required": [
+    "import_batch_id",
+    "event_type"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

@@ -171,6 +171,102 @@ export const OWNERSHIP_LABEL = {
   BLOCKED_FROM_EXISTING_RECORD_UPDATE: 'Blocked',
 };
 
+// --- Resolution type ---
+export const RESOLUTION_TYPE_LABEL = {
+  KEEP_CURRENT: 'Keep Current',
+  USE_INCOMING: 'Use Incoming',
+  USE_CUSTOM_VALUE: 'Custom Value',
+  APPLY_SAFE_UPDATE: 'Apply Update',
+  APPLY_BLANK_FILL: 'Fill Blank',
+  APPLY_RESTRICTION: 'Apply Restriction',
+  CREATE_WITH_INCOMING_VALUE: 'Create with Value',
+  SKIP_FIELD: 'Skip Field',
+  BLOCK_FIELD: 'Block Field',
+};
+
+export const RESOLUTION_TYPE_VARIANT = {
+  KEEP_CURRENT: 'neutral',
+  USE_INCOMING: 'info',
+  USE_CUSTOM_VALUE: 'warning',
+  APPLY_SAFE_UPDATE: 'success',
+  APPLY_BLANK_FILL: 'success',
+  APPLY_RESTRICTION: 'warning',
+  CREATE_WITH_INCOMING_VALUE: 'success',
+  SKIP_FIELD: 'neutral',
+  BLOCK_FIELD: 'neutral',
+};
+
+// --- Resolution status ---
+export const RESOLUTION_STATUS_LABEL = {
+  PENDING: 'Pending',
+  RESOLVED: 'Resolved',
+  INVALIDATED: 'Invalidated',
+  APPLIED: 'Applied',
+  FAILED: 'Failed',
+};
+
+export const RESOLUTION_STATUS_VARIANT = {
+  PENDING: 'neutral',
+  RESOLVED: 'success',
+  INVALIDATED: 'neutral',
+  APPLIED: 'info',
+  FAILED: 'danger',
+};
+
+// --- Resolution source ---
+export const RESOLUTION_SOURCE_LABEL = {
+  DEFAULT: 'Default',
+  MANUAL: 'Manual',
+  BULK: 'Bulk',
+};
+
+// --- Row resolution status ---
+export const ROW_RESOLUTION_STATUS_LABEL = {
+  PENDING: 'Pending',
+  RESOLVED: 'Resolved',
+  DISCARDED: 'Discarded',
+  SKIPPED: 'Skipped',
+  BLOCKED: 'Blocked',
+  MANUALLY_MATCHED: 'Manually Matched',
+};
+
+export const ROW_RESOLUTION_STATUS_VARIANT = {
+  PENDING: 'neutral',
+  RESOLVED: 'success',
+  DISCARDED: 'neutral',
+  SKIPPED: 'neutral',
+  BLOCKED: 'danger',
+  MANUALLY_MATCHED: 'info',
+};
+
+// --- Readiness status ---
+export const READINESS_STATUS_LABEL = {
+  NOT_READY: 'Not Ready',
+  READY_TO_APPLY: 'Ready to Apply',
+  STALE_GOVERNANCE: 'Stale Governance',
+  STALE_MAPPING: 'Stale Mapping',
+};
+
+export const READINESS_STATUS_VARIANT = {
+  NOT_READY: 'warning',
+  READY_TO_APPLY: 'success',
+  STALE_GOVERNANCE: 'danger',
+  STALE_MAPPING: 'danger',
+};
+
+// --- Bulk action type ---
+export const BULK_ACTION_TYPE_LABEL = {
+  ACCEPT_ALL_SAFE_UPDATES: 'Accept all safe FamilyLife updates',
+  ACCEPT_ALL_BLANK_FILLS: 'Accept all blank fills',
+  ACCEPT_ALL_NEW_RESTRICTIONS: 'Accept all new restrictions',
+  KEEP_CURRENT_FOR_SHARED_CONFLICTS: 'Keep current for all shared conflicts',
+  USE_INCOMING_FOR_SELECTED_CONFLICTS: 'Use incoming for selected conflicts',
+  SKIP_SELECTED_FIELDS: 'Skip selected fields',
+  BLOCK_SELECTED_ROWS: 'Block selected rows',
+  ACCEPT_ALL_NEW_RECORD_FIELDS: 'Accept all proposed new-record fields',
+  DISCARD_SELECTED_NEW_RECORDS: 'Discard selected proposed new records',
+};
+
 // Convenience: human-readable field name from snake_case
 export function fieldLabel(field) {
   return (field || '').replace(/_/g, ' ');

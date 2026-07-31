@@ -1,0 +1,105 @@
+{
+  "name": "FamilyLifeImportBulkResolution",
+  "type": "object",
+  "title": "FamilyLife Import Bulk Resolution",
+  "description": "Tracks a single bulk resolution operation so all decisions made together can be audited as a group. Individual resolutions reference this record via bulk_resolution_id and can still be individually changed afterward.",
+  "properties": {
+    "import_batch_id": {
+      "type": "string",
+      "title": "Import Batch"
+    },
+    "action_type": {
+      "type": "string",
+      "title": "Bulk Action Type",
+      "enum": [
+        "ACCEPT_ALL_SAFE_UPDATES",
+        "ACCEPT_ALL_BLANK_FILLS",
+        "ACCEPT_ALL_NEW_RESTRICTIONS",
+        "KEEP_CURRENT_FOR_SHARED_CONFLICTS",
+        "USE_INCOMING_FOR_SELECTED_CONFLICTS",
+        "SKIP_SELECTED_FIELDS",
+        "BLOCK_SELECTED_ROWS",
+        "ACCEPT_ALL_NEW_RECORD_FIELDS",
+        "DISCARD_SELECTED_NEW_RECORDS"
+      ]
+    },
+    "filter_snapshot": {
+      "type": "object",
+      "title": "Filter Snapshot",
+      "description": "The active filter criteria when the bulk action was applied, for audit context.",
+      "additionalProperties": true,
+      "default": {}
+    },
+    "selected_comparison_ids": {
+      "type": "array",
+      "title": "Selected Comparison IDs",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "selected_row_ids": {
+      "type": "array",
+      "title": "Selected Row IDs",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "affected_resolution_count": {
+      "type": "number",
+      "title": "Affected Resolution Count",
+      "default": 0
+    },
+    "reason": {
+      "type": "string",
+      "title": "Reason",
+      "description": "Optional administrator reason for the bulk decision."
+    },
+    "status": {
+      "type": "string",
+      "title": "Bulk Action Status",
+      "enum": [
+        "COMPLETED",
+        "PARTIALLY_REVERSED",
+        "REVERSED"
+      ],
+      "default": "COMPLETED"
+    },
+    "created_by": {
+      "type": "string",
+      "title": "Created By",
+      "description": "User ID of the administrator who applied the bulk action."
+    },
+    "created_by_name": {
+      "type": "string",
+      "title": "Created By Name"
+    }
+  },
+  "required": [
+    "import_batch_id",
+    "action_type"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

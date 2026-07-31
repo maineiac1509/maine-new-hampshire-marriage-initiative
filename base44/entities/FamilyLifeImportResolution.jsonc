@@ -1,0 +1,189 @@
+{
+  "name": "FamilyLifeImportResolution",
+  "type": "object",
+  "title": "FamilyLife Import Resolution",
+  "description": "Durable administrator decision for a single actionable field comparison. This is the authoritative resolution layer between staged comparisons and the future production apply engine. Comparison records remain immutable; resolutions are a separate, updatable decision layer. One active resolution per comparison (idempotent).",
+  "properties": {
+    "import_batch_id": {
+      "type": "string",
+      "title": "Import Batch"
+    },
+    "import_row_id": {
+      "type": "string",
+      "title": "Import Row"
+    },
+    "field_comparison_id": {
+      "type": "string",
+      "title": "Field Comparison",
+      "description": "Reference to the immutable FamilyLifeImportFieldComparison record this resolution decides."
+    },
+    "entity_type": {
+      "type": "string",
+      "title": "Entity Type",
+      "enum": [
+        "ChampionHousehold",
+        "HouseholdMember"
+      ],
+      "default": "ChampionHousehold"
+    },
+    "target_entity_id": {
+      "type": "string",
+      "title": "Target Entity ID",
+      "description": "Production record ID if matched, empty for new-record resolutions."
+    },
+    "canonical_field_name": {
+      "type": "string",
+      "title": "Canonical Field Name"
+    },
+    "ownership_category": {
+      "type": "string",
+      "title": "Ownership Category",
+      "enum": [
+        "FAMILYLIFE_MANAGED",
+        "CHAMPION_CONNECT_MANAGED",
+        "SHARED_REVIEW",
+        "RESTRICTIVE_PREFERENCE",
+        "BLOCKED_FROM_EXISTING_RECORD_UPDATE"
+      ]
+    },
+    "resolution_type": {
+      "type": "string",
+      "title": "Resolution Type",
+      "enum": [
+        "KEEP_CURRENT",
+        "USE_INCOMING",
+        "USE_CUSTOM_VALUE",
+        "APPLY_SAFE_UPDATE",
+        "APPLY_BLANK_FILL",
+        "APPLY_RESTRICTION",
+        "CREATE_WITH_INCOMING_VALUE",
+        "SKIP_FIELD",
+        "BLOCK_FIELD"
+      ]
+    },
+    "current_value_snapshot": {
+      "type": "string",
+      "title": "Current Value Snapshot",
+      "description": "Snapshot of the current production value at comparison time. Never overwritten."
+    },
+    "incoming_value_snapshot": {
+      "type": "string",
+      "title": "Incoming Value Snapshot",
+      "description": "Snapshot of the incoming FamilyLife value at comparison time. Never overwritten."
+    },
+    "resolved_value": {
+      "type": "string",
+      "title": "Resolved Value",
+      "description": "The final value the apply engine should write. For KEEP_CURRENT this mirrors current_value_snapshot; for USE_INCOMING it mirrors incoming; for USE_CUSTOM_VALUE it holds the admin-entered value."
+    },
+    "resolution_source": {
+      "type": "string",
+      "title": "Resolution Source",
+      "enum": [
+        "DEFAULT",
+        "MANUAL",
+        "BULK"
+      ],
+      "default": "DEFAULT"
+    },
+    "resolution_reason": {
+      "type": "string",
+      "title": "Resolution Reason",
+      "description": "Optional administrator reason. Required when removing a restrictive preference."
+    },
+    "resolved_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Resolved At"
+    },
+    "resolved_by": {
+      "type": "string",
+      "title": "Resolved By",
+      "description": "User ID of the administrator who made the decision."
+    },
+    "resolved_by_name": {
+      "type": "string",
+      "title": "Resolved By Name"
+    },
+    "last_modified_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Modified At"
+    },
+    "last_modified_by": {
+      "type": "string",
+      "title": "Last Modified By"
+    },
+    "is_bulk_resolution": {
+      "type": "boolean",
+      "title": "Is Bulk Resolution",
+      "default": false
+    },
+    "bulk_resolution_id": {
+      "type": "string",
+      "title": "Bulk Resolution ID",
+      "description": "References the FamilyLifeImportBulkResolution record if this decision was made via a bulk action."
+    },
+    "status": {
+      "type": "string",
+      "title": "Resolution Status",
+      "enum": [
+        "PENDING",
+        "RESOLVED",
+        "INVALIDATED",
+        "APPLIED",
+        "FAILED"
+      ],
+      "default": "PENDING",
+      "description": "PENDING = default generated, not yet confirmed. RESOLVED = admin decision active. INVALIDATED = superseded by recomparison or stale governance. APPLIED and FAILED are reserved for the future apply engine and must not be used in this phase."
+    },
+    "row_discarded": {
+      "type": "boolean",
+      "title": "Row Discarded",
+      "default": false,
+      "description": "True if the parent row was discarded as a proposed new record."
+    },
+    "row_skipped": {
+      "type": "boolean",
+      "title": "Row Skipped",
+      "default": false,
+      "description": "True if the parent row was skipped by an administrator."
+    },
+    "row_blocked": {
+      "type": "boolean",
+      "title": "Row Blocked",
+      "default": false,
+      "description": "True if the parent row was blocked by an administrator."
+    }
+  },
+  "required": [
+    "import_batch_id",
+    "import_row_id",
+    "field_comparison_id",
+    "canonical_field_name",
+    "ownership_category",
+    "status"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

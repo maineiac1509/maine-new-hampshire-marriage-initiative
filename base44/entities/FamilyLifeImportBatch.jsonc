@@ -42,6 +42,7 @@
         "STAGED",
         "COMPARING",
         "READY_FOR_REVIEW",
+        "READY_TO_APPLY",
         "PROCESSING_FAILED",
         "DISCARDED",
         "APPLIED"
@@ -193,6 +194,77 @@
       "type": "string",
       "title": "Failure Reason",
       "description": "If status is PROCESSING_FAILED, the reason processing stopped."
+    },
+    "readiness_status": {
+      "type": "string",
+      "title": "Readiness Status",
+      "enum": [
+        "NOT_READY",
+        "READY_TO_APPLY",
+        "STALE_GOVERNANCE",
+        "STALE_MAPPING"
+      ],
+      "default": "NOT_READY",
+      "description": "Deterministic readiness check result. READY_TO_APPLY only when all required decisions are complete and governance/mapping versions still match."
+    },
+    "readiness_reason": {
+      "type": "string",
+      "title": "Readiness Reason",
+      "description": "Human-readable explanation of why the batch is not ready, or empty if ready."
+    },
+    "ready_to_apply_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Ready To Apply At"
+    },
+    "ready_to_apply_by": {
+      "type": "string",
+      "title": "Ready To Apply By",
+      "description": "User ID of the administrator who confirmed readiness."
+    },
+    "resolution_summary": {
+      "type": "object",
+      "title": "Resolution Summary",
+      "description": "Aggregate resolution progress statistics computed during the resolution workflow.",
+      "properties": {
+        "total_actionable": {
+          "type": "number",
+          "default": 0
+        },
+        "auto_resolved": {
+          "type": "number",
+          "default": 0
+        },
+        "manually_resolved": {
+          "type": "number",
+          "default": 0
+        },
+        "pending_conflicts": {
+          "type": "number",
+          "default": 0
+        },
+        "unresolved_matches": {
+          "type": "number",
+          "default": 0
+        },
+        "blocking_issues": {
+          "type": "number",
+          "default": 0
+        },
+        "proposed_new_records": {
+          "type": "number",
+          "default": 0
+        },
+        "discarded_records": {
+          "type": "number",
+          "default": 0
+        },
+        "completion_percentage": {
+          "type": "number",
+          "default": 0
+        }
+      },
+      "default": {}
     }
   },
   "required": [

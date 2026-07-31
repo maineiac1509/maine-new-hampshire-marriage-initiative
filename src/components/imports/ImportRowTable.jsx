@@ -5,6 +5,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import {
   MATCH_STATUS_VARIANT, MATCH_STATUS_LABEL,
   RECORD_CLASSIFICATION_VARIANT, RECORD_CLASSIFICATION_LABEL,
+  ROW_RESOLUTION_STATUS_VARIANT, ROW_RESOLUTION_STATUS_LABEL,
   fieldLabel,
 } from '@/lib/importLabels';
 
@@ -58,7 +59,7 @@ function RowExpansion({ row }) {
   );
 }
 
-export default function ImportRowTable({ rows }) {
+export default function ImportRowTable({ rows, onRowClick }) {
   const [expanded, setExpanded] = useState(null);
 
   if (!rows?.length) {
@@ -76,9 +77,9 @@ export default function ImportRowTable({ rows }) {
               <th className="px-3 py-2 font-medium">Member</th>
               <th className="px-3 py-2 font-medium">Household</th>
               <th className="px-3 py-2 font-medium">Match</th>
-              <th className="px-3 py-2 font-medium">Confidence</th>
               <th className="px-3 py-2 font-medium">Classification</th>
-              <th className="px-3 py-2 font-medium">Matched Record</th>
+              <th className="px-3 py-2 font-medium">Resolution</th>
+              <th className="px-3 py-2 font-medium"></th>
             </tr>
           </thead>
           <tbody>
@@ -90,7 +91,7 @@ export default function ImportRowTable({ rows }) {
                   <tr
                     className={`border-t transition-colors hover:bg-muted/30 ${isOpen ? 'bg-muted/40' : ''} ${
                       row.validation_status === 'invalid' ? 'bg-red-50/40' : ''
-                    }`}
+                    } ${row.row_resolution_status === 'DISCARDED' || row.row_resolution_status === 'SKIPPED' || row.row_resolution_status === 'BLOCKED' ? 'opacity-50' : ''}`}
                   >
                     <td className="px-2 py-2 text-center">
                       {hasDetail ? (
@@ -116,15 +117,24 @@ export default function ImportRowTable({ rows }) {
                       </StatusBadge>
                     </td>
                     <td className="px-3 py-2">
-                      <ConfidenceBadge confidence={row.match_confidence} />
-                    </td>
-                    <td className="px-3 py-2">
                       <StatusBadge variant={RECORD_CLASSIFICATION_VARIANT[row.record_classification] || 'neutral'}>
                         {RECORD_CLASSIFICATION_LABEL[row.record_classification] || row.record_classification}
                       </StatusBadge>
                     </td>
                     <td className="px-3 py-2">
-                      {row.matched_household_id ? (
+                      <StatusBadge variant={ROW_RESOLUTION_STATUS_VARIANT[row.row_resolution_status] || 'neutral'}>
+                        {ROW_RESOLUTION_STATUS_LABEL[row.row_resolution_status] || 'Pending'}
+                      </StatusBadge>
+                    </td>
+                    <td className="px-3 py-2">
+                      {onRowClick ? (
+                        <button
+                          onClick={() => onRowClick(row)}
+                          className="text-xs font-medium text-blue-600 hover:underline"
+                        >
+                          Review →
+                        </button>
+                      ) : row.matched_household_id ? (
                         <Link
                           to={`/champions/${row.matched_household_id}`}
                           className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
