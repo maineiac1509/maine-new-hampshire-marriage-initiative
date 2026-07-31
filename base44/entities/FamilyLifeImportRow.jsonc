@@ -1,0 +1,203 @@
+{
+  "name": "FamilyLifeImportRow",
+  "type": "object",
+  "title": "FamilyLife Import Row",
+  "description": "Stores each original imported source row alongside its normalized representation and matching results. One row per source person-row from the FamilyLife file.",
+  "properties": {
+    "import_batch_id": {
+      "type": "string",
+      "title": "Import Batch"
+    },
+    "row_number": {
+      "type": "number",
+      "title": "Source Row Number",
+      "default": 0
+    },
+    "household_group_key": {
+      "type": "string",
+      "title": "Household Group Key",
+      "description": "Deterministic key grouping source rows into a household. Rows sharing this key belong to the same household."
+    },
+    "is_household_representative": {
+      "type": "boolean",
+      "title": "Is Household Representative",
+      "default": false,
+      "description": "True for the first row in each household group. Household-level field comparisons are generated only for the representative row."
+    },
+    "raw_source_data": {
+      "type": "object",
+      "title": "Raw Source Data",
+      "description": "The original source row exactly as extracted from the file, before any mapping or normalization.",
+      "additionalProperties": true,
+      "default": {}
+    },
+    "mapped_source_data": {
+      "type": "object",
+      "title": "Mapped Source Data",
+      "description": "Source row after column headers were mapped to canonical field names, before normalization.",
+      "additionalProperties": true,
+      "default": {}
+    },
+    "normalized_source_data": {
+      "type": "object",
+      "title": "Normalized Source Data",
+      "description": "Source row after governance-contract normalization. Values here are the canonical comparison inputs.",
+      "additionalProperties": true,
+      "default": {}
+    },
+    "validation_status": {
+      "type": "string",
+      "title": "Validation Status",
+      "enum": [
+        "valid",
+        "warning",
+        "invalid"
+      ],
+      "default": "valid"
+    },
+    "validation_errors": {
+      "type": "array",
+      "title": "Validation Errors",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "validation_warnings": {
+      "type": "array",
+      "title": "Validation Warnings",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "match_status": {
+      "type": "string",
+      "title": "Match Status",
+      "enum": [
+        "EXACT_EXTERNAL_ID",
+        "EXACT_EMAIL",
+        "EXACT_MEMBER_EMAIL",
+        "EXACT_PHONE_AND_NAME",
+        "EXACT_ADDRESS",
+        "STRONG_COMPOSITE_MATCH",
+        "WEAK_POSSIBLE_MATCH",
+        "MULTIPLE_MATCHES",
+        "NO_MATCH",
+        "INVALID_MATCH_DATA"
+      ],
+      "default": "NO_MATCH"
+    },
+    "matched_household_id": {
+      "type": "string",
+      "title": "Matched Household"
+    },
+    "matched_member_id": {
+      "type": "string",
+      "title": "Matched Member"
+    },
+    "match_method": {
+      "type": "string",
+      "title": "Match Method",
+      "description": "Human-readable explanation of which matching criteria were used."
+    },
+    "match_confidence": {
+      "type": "string",
+      "title": "Match Confidence",
+      "enum": [
+        "high",
+        "medium",
+        "low",
+        "none"
+      ],
+      "default": "none"
+    },
+    "possible_match_ids": {
+      "type": "array",
+      "title": "Possible Match IDs",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "record_classification": {
+      "type": "string",
+      "title": "Record Classification",
+      "enum": [
+        "NEW_RECORD",
+        "MATCHED_NO_CHANGE",
+        "MATCHED_SAFE_CHANGES",
+        "MATCHED_WITH_CONFLICTS",
+        "POSSIBLE_DUPLICATE",
+        "UNMATCHED",
+        "INVALID",
+        "BLOCKED"
+      ],
+      "default": "UNMATCHED"
+    },
+    "processing_status": {
+      "type": "string",
+      "title": "Processing Status",
+      "enum": [
+        "pending",
+        "processed",
+        "failed"
+      ],
+      "default": "pending"
+    },
+    "source_external_id": {
+      "type": "string",
+      "title": "Source External ID",
+      "description": "FamilyLife external identifier extracted from the source row, if present."
+    },
+    "source_household_identifier": {
+      "type": "string",
+      "title": "Source Household Identifier",
+      "description": "Trusted source household identifier used for grouping and matching, if present."
+    },
+    "member_first_name": {
+      "type": "string",
+      "title": "Member First Name",
+      "description": "Display convenience field copied from normalized data for quick scanning."
+    },
+    "member_last_name": {
+      "type": "string",
+      "title": "Member Last Name"
+    },
+    "member_email": {
+      "type": "string",
+      "title": "Member Email"
+    },
+    "household_name": {
+      "type": "string",
+      "title": "Household Name",
+      "description": "Display convenience field copied from normalized data."
+    }
+  },
+  "required": [
+    "import_batch_id",
+    "row_number"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

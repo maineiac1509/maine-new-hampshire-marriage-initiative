@@ -1,0 +1,165 @@
+{
+  "name": "FamilyLifeImportFieldComparison",
+  "type": "object",
+  "title": "FamilyLife Import Field Comparison",
+  "description": "Stores each meaningful field-level comparison between a staged incoming value and the current production value. Resolution-related fields are defined for future use and must remain unused during the staging phase.",
+  "properties": {
+    "import_batch_id": {
+      "type": "string",
+      "title": "Import Batch"
+    },
+    "import_row_id": {
+      "type": "string",
+      "title": "Import Row"
+    },
+    "entity_type": {
+      "type": "string",
+      "title": "Entity Type",
+      "enum": [
+        "ChampionHousehold",
+        "HouseholdMember"
+      ],
+      "default": "ChampionHousehold"
+    },
+    "entity_id": {
+      "type": "string",
+      "title": "Entity ID",
+      "description": "Production record ID if matched, empty for new-record comparisons."
+    },
+    "canonical_field_name": {
+      "type": "string",
+      "title": "Canonical Field Name"
+    },
+    "ownership_category": {
+      "type": "string",
+      "title": "Ownership Category",
+      "enum": [
+        "FAMILYLIFE_MANAGED",
+        "CHAMPION_CONNECT_MANAGED",
+        "SHARED_REVIEW",
+        "RESTRICTIVE_PREFERENCE",
+        "BLOCKED_FROM_EXISTING_RECORD_UPDATE"
+      ]
+    },
+    "current_raw_value": {
+      "type": "string",
+      "title": "Current Raw Value"
+    },
+    "incoming_raw_value": {
+      "type": "string",
+      "title": "Incoming Raw Value"
+    },
+    "current_normalized_value": {
+      "type": "string",
+      "title": "Current Normalized Value"
+    },
+    "incoming_normalized_value": {
+      "type": "string",
+      "title": "Incoming Normalized Value"
+    },
+    "comparison_result": {
+      "type": "string",
+      "title": "Comparison Result",
+      "enum": [
+        "SAME_VALUE",
+        "BOTH_BLANK",
+        "INCOMING_VALUE_ONLY",
+        "CURRENT_VALUE_ONLY",
+        "FAMILYLIFE_VALUE_CHANGED",
+        "SHARED_VALUE_CONFLICT",
+        "RESTRICTIVE_VALUE_ADDED",
+        "RESTRICTIVE_VALUE_PRESERVED",
+        "PROTECTED_FIELD_IGNORED",
+        "UNKNOWN_FIELD_BLOCKED",
+        "INVALID_INCOMING_VALUE",
+        "NORMALIZATION_ONLY_DIFFERENCE",
+        "CREATE_NEW_RECORD_VALUE"
+      ]
+    },
+    "recommended_action": {
+      "type": "string",
+      "title": "Recommended Action",
+      "enum": [
+        "NO_ACTION",
+        "SAFE_FILL_BLANK",
+        "SAFE_FAMILYLIFE_UPDATE",
+        "APPLY_RESTRICTION",
+        "PRESERVE_CURRENT_VALUE",
+        "REQUIRE_ADMIN_REVIEW",
+        "BLOCK_UPDATE",
+        "CREATE_NEW_RECORD_VALUE"
+      ]
+    },
+    "reasoning": {
+      "type": "string",
+      "title": "Reasoning",
+      "description": "Human-readable explanation of why this comparison result and recommended action were chosen."
+    },
+    "is_sensitive": {
+      "type": "boolean",
+      "title": "Is Sensitive",
+      "default": false
+    },
+    "requires_review": {
+      "type": "boolean",
+      "title": "Requires Review",
+      "default": false
+    },
+    "can_auto_apply": {
+      "type": "boolean",
+      "title": "Can Auto Apply",
+      "default": false,
+      "description": "True only for safe FamilyLife-managed updates and restrictive-preference additions. Never true for shared-review conflicts or CC-managed fields."
+    },
+    "selected_resolution": {
+      "type": "string",
+      "title": "Selected Resolution",
+      "description": "Future use: the admin's chosen resolution. Unused during the staging phase."
+    },
+    "selected_value": {
+      "type": "string",
+      "title": "Selected Value",
+      "description": "Future use: the admin's chosen value. Unused during the staging phase."
+    },
+    "resolved_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Resolved At",
+      "description": "Future use. Unused during the staging phase."
+    },
+    "resolved_by": {
+      "type": "string",
+      "title": "Resolved By",
+      "description": "Future use. Unused during the staging phase."
+    }
+  },
+  "required": [
+    "import_batch_id",
+    "import_row_id",
+    "canonical_field_name",
+    "comparison_result",
+    "recommended_action"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

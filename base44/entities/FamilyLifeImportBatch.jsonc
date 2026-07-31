@@ -1,0 +1,224 @@
+{
+  "name": "FamilyLifeImportBatch",
+  "type": "object",
+  "title": "FamilyLife Import Batch",
+  "description": "Represents one uploaded FamilyLife file and its complete staging lifecycle. No staged batch in this phase may apply updates to production ChampionHousehold or HouseholdMember records.",
+  "properties": {
+    "file_name": {
+      "type": "string",
+      "title": "File Name"
+    },
+    "original_file_name": {
+      "type": "string",
+      "title": "Original File Name"
+    },
+    "file_type": {
+      "type": "string",
+      "title": "File Type",
+      "enum": [
+        "csv",
+        "xlsx",
+        "xls",
+        "pasted",
+        "unknown"
+      ],
+      "default": "unknown"
+    },
+    "file_size": {
+      "type": "number",
+      "title": "File Size (bytes)"
+    },
+    "file_hash": {
+      "type": "string",
+      "title": "Content Signature Hash",
+      "description": "Deterministic signature over filename, row count, source period, and normalized content. Used for duplicate-file detection."
+    },
+    "status": {
+      "type": "string",
+      "title": "Batch Status",
+      "enum": [
+        "UPLOADED",
+        "PARSING",
+        "STAGED",
+        "COMPARING",
+        "READY_FOR_REVIEW",
+        "PROCESSING_FAILED",
+        "DISCARDED",
+        "APPLIED"
+      ],
+      "default": "UPLOADED"
+    },
+    "source_period": {
+      "type": "string",
+      "title": "Source Period / Year",
+      "description": "e.g. '2025' or '2025-Q3'. Helps identify the annual import cycle."
+    },
+    "processing_started_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Processing Started At"
+    },
+    "processing_completed_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Processing Completed At"
+    },
+    "total_rows": {
+      "type": "number",
+      "title": "Total Source Rows",
+      "default": 0
+    },
+    "valid_rows": {
+      "type": "number",
+      "title": "Valid Rows",
+      "default": 0
+    },
+    "invalid_rows": {
+      "type": "number",
+      "title": "Invalid Rows",
+      "default": 0
+    },
+    "matched_rows": {
+      "type": "number",
+      "title": "Matched Rows",
+      "default": 0
+    },
+    "unmatched_rows": {
+      "type": "number",
+      "title": "Unmatched Rows",
+      "default": 0
+    },
+    "new_record_rows": {
+      "type": "number",
+      "title": "New Record Rows",
+      "default": 0
+    },
+    "possible_duplicate_rows": {
+      "type": "number",
+      "title": "Possible Duplicate Rows",
+      "default": 0
+    },
+    "no_change_rows": {
+      "type": "number",
+      "title": "No-Change Rows",
+      "default": 0
+    },
+    "safe_update_rows": {
+      "type": "number",
+      "title": "Safe Update Rows",
+      "default": 0
+    },
+    "conflict_rows": {
+      "type": "number",
+      "title": "Conflict Rows",
+      "default": 0
+    },
+    "blocked_field_count": {
+      "type": "number",
+      "title": "Blocked Field Count",
+      "default": 0
+    },
+    "warning_count": {
+      "type": "number",
+      "title": "Warning Count",
+      "default": 0
+    },
+    "error_count": {
+      "type": "number",
+      "title": "Error Count",
+      "default": 0
+    },
+    "blocking_error_count": {
+      "type": "number",
+      "title": "Blocking Error Count",
+      "default": 0
+    },
+    "governance_version": {
+      "type": "string",
+      "title": "Governance Version",
+      "description": "Version identifier of the field governance contract used during processing."
+    },
+    "mapping_version": {
+      "type": "string",
+      "title": "Mapping Version",
+      "description": "Version identifier of the source column mapping logic used."
+    },
+    "summary": {
+      "type": "object",
+      "title": "Batch Summary",
+      "description": "Aggregate statistics and administrator-readable summary of the staged import.",
+      "properties": {
+        "restrictive_preferences_added": {
+          "type": "number"
+        },
+        "protected_fields_ignored": {
+          "type": "number"
+        },
+        "unknown_fields_blocked": {
+          "type": "number"
+        },
+        "unmapped_columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fields_imported": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "default": {}
+    },
+    "possible_duplicate_batch_id": {
+      "type": "string",
+      "title": "Possible Duplicate Batch",
+      "description": "If a prior batch with the same content signature is detected, references that batch. Null otherwise."
+    },
+    "archived_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Archived At"
+    },
+    "archived_by": {
+      "type": "string",
+      "title": "Archived By"
+    },
+    "failure_reason": {
+      "type": "string",
+      "title": "Failure Reason",
+      "description": "If status is PROCESSING_FAILED, the reason processing stopped."
+    }
+  },
+  "required": [
+    "file_name",
+    "status"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

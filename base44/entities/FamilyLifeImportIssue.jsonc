@@ -1,0 +1,92 @@
+{
+  "name": "FamilyLifeImportIssue",
+  "type": "object",
+  "title": "FamilyLife Import Issue",
+  "description": "Validation and processing errors/warnings for an import batch, stored separately from rows to keep row records focused. Sensitive raw values are stored only when necessary for diagnosis.",
+  "properties": {
+    "import_batch_id": {
+      "type": "string",
+      "title": "Import Batch"
+    },
+    "import_row_id": {
+      "type": "string",
+      "title": "Import Row",
+      "description": "Null for batch-level issues not tied to a specific row."
+    },
+    "severity": {
+      "type": "string",
+      "title": "Severity",
+      "enum": [
+        "INFO",
+        "WARNING",
+        "ERROR",
+        "BLOCKING"
+      ],
+      "default": "INFO"
+    },
+    "issue_type": {
+      "type": "string",
+      "title": "Issue Type",
+      "enum": [
+        "UNMAPPED_COLUMN",
+        "INVALID_VALUE",
+        "MISSING_REQUIRED_FIELD",
+        "NORMALIZATION_FAILED",
+        "MATCH_AMBIGUOUS",
+        "MATCH_DATA_INVALID",
+        "DUPLICATE_FILE",
+        "PROCESSING_ERROR",
+        "PROTECTED_FIELD_IGNORED",
+        "UNKNOWN_FIELD_BLOCKED",
+        "RESTRICTIVE_PRESERVED",
+        "VALIDATION_WARNING"
+      ],
+      "default": "VALIDATION_WARNING"
+    },
+    "source_column": {
+      "type": "string",
+      "title": "Source Column"
+    },
+    "canonical_field_name": {
+      "type": "string",
+      "title": "Canonical Field Name"
+    },
+    "message": {
+      "type": "string",
+      "title": "Message"
+    },
+    "raw_value": {
+      "type": "string",
+      "title": "Raw Value",
+      "description": "The offending raw value, stored as a string for diagnosis. Omitted for sensitive fields where the value should not be persisted."
+    }
+  },
+  "required": [
+    "import_batch_id",
+    "severity",
+    "issue_type",
+    "message"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
