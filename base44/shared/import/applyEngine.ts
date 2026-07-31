@@ -193,6 +193,7 @@ export function preflightValidate(
   const householdIdsToUpdate = new Set<string>();
   const memberIdsToUpdate = new Set<string>();
   const newHouseholdRowIds = new Set<string>();
+  const newMemberRowIds = new Set<string>();
 
   // 8-10, 12-20: Check all actionable comparisons have valid resolutions
   for (const cmp of comparisons || []) {
@@ -272,13 +273,12 @@ export function preflightValidate(
       resolution.resolution_type !== RESOLUTION_TYPE.BLOCK_FIELD;
 
     if (isNewRecord) {
-      // New record creation
+      // New record creation — count unique rows, not per-field resolutions
       if (resolution.resolution_type === RESOLUTION_TYPE.CREATE_WITH_INCOMING_VALUE) {
         if (cmp.entity_type === 'ChampionHousehold') {
           newHouseholdRowIds.add(cmp.import_row_id);
-          newHouseholdsToCreate++;
         } else if (cmp.entity_type === 'HouseholdMember') {
-          newMembersToCreate++;
+          newMemberRowIds.add(cmp.import_row_id);
         }
       }
     } else {
@@ -320,6 +320,8 @@ export function preflightValidate(
 
   existingHouseholdsToUpdate = householdIdsToUpdate.size;
   existingMembersToUpdate = memberIdsToUpdate.size;
+  newHouseholdsToCreate = newHouseholdRowIds.size;
+  newMembersToCreate = newMemberRowIds.size;
 
   // 20. Batch counts should reconcile with staged data
   if (batch.total_rows !== totalRows && batch.total_rows > 0) {

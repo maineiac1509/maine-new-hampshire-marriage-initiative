@@ -549,6 +549,14 @@ async function executeApply(base44, user, batchId, batch, executionId) {
   }
 
   // 4c. Execute EXISTING HOUSEHOLD UPDATES (grouped by household)
+  // Build expected-snapshot lookup from plan operations (entityId+field → snapshot)
+  const householdSnapshots = new Map<string, string>();
+  for (const op of plan.operations) {
+    if (op.entity_type === 'ChampionHousehold' && op.entity_id) {
+      householdSnapshots.set(`${op.entity_id}:${op.field_name}`, op.expected_snapshot || '');
+    }
+  }
+
   for (const [householdId, fieldUpdates] of plan.householdUpdates) {
     // Load the current production record for drift detection
     const currentHousehold = await base44.asServiceRole.entities.ChampionHousehold.get(householdId);
@@ -574,7 +582,8 @@ async function executeApply(base44, user, batchId, batch, executionId) {
 
     for (const [fieldName, resolvedValue] of Object.entries(fieldUpdates)) {
       const policy = getFieldPolicy('ChampionHousehold', fieldName);
-      const drift = detectDrift(policy, currentHousehold[fieldName], String(resolvedValue));
+      const expectedSnapshot = householdSnapshots.get(`${householdId}:${fieldName}`) || '';
+      const drift = detectDrift(policy, currentHousehold[fieldName], expectedSnapshot);
 
       if (drift === DRIFT_STATUS.MATERIAL_DRIFT) {
         materialDrift = true;
@@ -701,6 +710,14 @@ async function executeApply(base44, user, batchId, batch, executionId) {
   }
 
   // 4d. Execute EXISTING MEMBER UPDATES (grouped by member)
+  // Build expected-snapshot lookup from plan operations (entityId+field → snapshot)
+  const memberSnapshots = new Map<string, string>();
+  for (const op of plan.operations) {
+    if (op.entity_type === 'HouseholdMember' && op.entity_id) {
+      memberSnapshots.set(`${op.entity_id}:${op.field_name}`, op.expected_snapshot || '');
+    }
+  }
+
   for (const [memberId, fieldUpdates] of plan.memberUpdates) {
     const currentMember = await base44.asServiceRole.entities.HouseholdMember.get(memberId);
 
@@ -723,7 +740,8 @@ async function executeApply(base44, user, batchId, batch, executionId) {
 
     for (const [fieldName, resolvedValue] of Object.entries(fieldUpdates)) {
       const policy = getFieldPolicy('HouseholdMember', fieldName);
-      const drift = detectDrift(policy, currentMember[fieldName], String(resolvedValue));
+      const expectedSnapshot = memberSnapshots.get(`${memberId}:${fieldName}`) || '';
+      const drift = detectDrift(policy, currentMember[fieldName], expectedSnapshot);
 
       if (drift === DRIFT_STATUS.MATERIAL_DRIFT) {
         materialDrift = true;
