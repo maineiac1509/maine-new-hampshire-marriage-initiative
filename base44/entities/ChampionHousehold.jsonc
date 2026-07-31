@@ -196,6 +196,56 @@
     "notes": {
       "type": "string",
       "title": "Notes"
+    },
+    "familylife_external_id": {
+      "type": "string",
+      "title": "FamilyLife External ID",
+      "description": "Stable external identifier from FamilyLife. Used as a matching key for annual synchronization. FamilyLife-managed."
+    },
+    "last_familylife_sync_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last FamilyLife Sync At",
+      "description": "System-managed timestamp of the last FamilyLife synchronization that touched this record. Not set by import source columns."
+    },
+    "last_familylife_import_batch_id": {
+      "type": "string",
+      "title": "Last FamilyLife Import Batch ID",
+      "description": "System-managed identifier of the last import batch that updated this record."
+    },
+    "last_manual_update_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Manual Update At",
+      "description": "System-managed timestamp of the last manual (non-import) update to this record."
+    },
+    "last_manual_update_by": {
+      "type": "string",
+      "title": "Last Manual Update By",
+      "description": "System-managed user identifier of the last person to manually update this record."
+    },
+    "sync_provenance": {
+      "type": "object",
+      "title": "Shared-Field Provenance",
+      "description": "Structured metadata tracking the source, timestamp, and last FamilyLife-provided value for each shared field. Keyed by canonical field name. Managed by the sync engine, never by import source columns.",
+      "properties": {
+        "last_source": {
+          "type": "string"
+        },
+        "last_updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "last_updated_by": {
+          "type": "string"
+        },
+        "last_familylife_value": {},
+        "last_familylife_timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "default": {}
     }
   },
   "required": []

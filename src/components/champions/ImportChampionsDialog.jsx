@@ -5,6 +5,11 @@ import {
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import {
+  sanitizeImportRecord,
+  buildUpdatePayload,
+  IMPORT_OPERATIONS,
+} from '@/lib/importGovernance';
+import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 
@@ -486,6 +491,10 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
         fieldsImported: { ...(diagnostics?.fieldsImported || {}) },
         fieldsSkipped: { ...(diagnostics?.fieldsSkipped || {}) },
         validationErrors: [...(diagnostics?.validationErrors || [])],
+        governanceConflicts: 0,
+        governanceBlocked: 0,
+        governanceUnmapped: 0,
+        governanceRestrictiveApplied: 0,
       };
 
       // Partition into new vs. update groups to minimize API calls.
@@ -498,17 +507,27 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
       });
 
       // 1. Bulk-create all new households, then bulk-create their members.
+      //    Each record is sanitized through the governance contract first.
       if (newGroups.length) {
-        const createdHHs = await base44.entities.ChampionHousehold.bulkCreate(
-          newGroups.map((g) => g.incoming)
-        );
+        const sanitizedHHs = newGroups.map((g) => {
+          const res = sanitizeImportRecord(g.incoming, IMPORT_OPERATIONS.NEW_RECORD_CREATE, null, 'ChampionHousehold');
+          summary.governanceUnmapped += res.unmapped.length;
+          summary.governanceBlocked += res.blocked.length;
+          return res.sanitized;
+        });
+        const createdHHs = await base44.entities.ChampionHousehold.bulkCreate(sanitizedHHs);
         summary.householdsCreated = createdHHs.length;
         const byName = {};
         createdHHs.forEach((hh) => { byName[norm(hh.household_name)] = hh; });
         const newMembers = [];
         newGroups.forEach((g, i) => {
           const hh = byName[norm(g.incoming.household_name)] || createdHHs[i];
-          (g.members || []).forEach((m) => newMembers.push({ ...m, household_id: hh.id }));
+          (g.members || []).forEach((m) => {
+            const memRes = sanitizeImportRecord(m, IMPORT_OPERATIONS.NEW_RECORD_CREATE, null, 'HouseholdMember');
+            summary.governanceUnmapped += memRes.unmapped.length;
+            summary.governanceBlocked += memRes.blocked.length;
+            newMembers.push({ ...memRes.sanitized, household_id: hh.id });
+          });
         });
         if (newMembers.length) {
           await base44.entities.HouseholdMember.bulkCreate(newMembers);
@@ -517,29 +536,37 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
       }
 
       // 2. For matched households, batch updates + new members.
+      //    All updates pass through the governance sanitizer with
+      //    EXISTING_RECORD_SAFE_UPDATE — shared-field conflicts and
+      //    CC-managed fields are never auto-applied.
       const hhUpdates = [];
       const memberUpdates = [];
       const matchedNewMembers = [];
       updateGroups.forEach((g) => {
-        const u = {};
-        HOUSEHOLD_FIELDS.forEach((f) => {
-          if (g.incoming[f] != null && g.incoming[f] !== '' && g.incoming[f] !== (g.match[f] ?? '')) u[f] = g.incoming[f];
-        });
-        if (Object.keys(u).length) hhUpdates.push({ id: g.match.id, ...u });
+        const hhRes = sanitizeImportRecord(g.incoming, IMPORT_OPERATIONS.EXISTING_RECORD_SAFE_UPDATE, g.match, 'ChampionHousehold');
+        summary.governanceConflicts += hhRes.conflicts.length;
+        summary.governanceBlocked += hhRes.blocked.length;
+        summary.governanceUnmapped += hhRes.unmapped.length;
+        summary.governanceRestrictiveApplied += hhRes.restrictiveApplied.length;
+        const hhUpdate = buildUpdatePayload(g.match.id, hhRes.sanitized);
+        if (hhUpdate) hhUpdates.push(hhUpdate);
         else summary.contactsLinked++;
 
         const houseMembers = membersByHouse[g.match.id] || [];
         g.members.forEach((im) => {
           const em = findExistingMember(im, houseMembers);
           if (em) {
-            const mu = {};
-            MEMBER_FIELDS.forEach((f) => {
-              if (im[f] && im[f] !== (em[f] ?? '')) mu[f] = im[f];
-            });
-            if (Object.keys(mu).length) memberUpdates.push({ id: em.id, ...mu });
+            const memRes = sanitizeImportRecord(im, IMPORT_OPERATIONS.EXISTING_RECORD_SAFE_UPDATE, em, 'HouseholdMember');
+            summary.governanceConflicts += memRes.conflicts.length;
+            summary.governanceBlocked += memRes.blocked.length;
+            summary.governanceUnmapped += memRes.unmapped.length;
+            const memUpdate = buildUpdatePayload(em.id, memRes.sanitized);
+            if (memUpdate) memberUpdates.push(memUpdate);
             else summary.contactsLinked++;
           } else {
-            matchedNewMembers.push({ ...im, household_id: g.match.id });
+            const memRes = sanitizeImportRecord(im, IMPORT_OPERATIONS.NEW_RECORD_CREATE, null, 'HouseholdMember');
+            summary.governanceUnmapped += memRes.unmapped.length;
+            matchedNewMembers.push({ ...memRes.sanitized, household_id: g.match.id });
           }
         });
       });
@@ -796,6 +823,18 @@ export default function ImportChampionsDialog({ open, onOpenChange, onImported }
               <SummaryStat label="Contacts updated" value={result.contactsUpdated} tone="amber" />
               <SummaryStat label="Validation issues" value={result.validationErrors.length} tone={result.validationErrors.length ? 'red' : 'muted'} />
             </div>
+
+            {(result.governanceConflicts > 0 || result.governanceBlocked > 0 || result.governanceUnmapped > 0 || result.governanceRestrictiveApplied > 0) && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
+                <p className="font-medium">Governance protection applied</p>
+                <p className="mt-1">
+                  {result.governanceConflicts > 0 && <span>{result.governanceConflicts} shared-field conflict(s) held for reconciliation. </span>}
+                  {result.governanceBlocked > 0 && <span>{result.governanceBlocked} protected field(s) blocked. </span>}
+                  {result.governanceUnmapped > 0 && <span>{result.governanceUnmapped} unmapped field(s) skipped. </span>}
+                  {result.governanceRestrictiveApplied > 0 && <span>{result.governanceRestrictiveApplied} restrictive preference(s) enforced.</span>}
+                </p>
+              </div>
+            )}
 
             {importedFieldCount > 0 && (
               <details className="rounded-lg border bg-muted/30 p-3 text-xs">
