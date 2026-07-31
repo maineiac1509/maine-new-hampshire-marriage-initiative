@@ -292,6 +292,87 @@ async function executeApply(base44, user, batchId, batch, executionId) {
   );
   const opMap = new Map(allOps.map((o) => [o.operation_key, o]));
 
+  // --- PHASE 3.5: PRE-WRITE DRIFT CHECK ---
+  // Verify NO existing record has drifted before ANY production writes.
+  // This prevents partial-apply orphaning: if drift is found here, zero
+  // records have been created or updated.
+  const preWriteSnapshots = new Map<string, string>();
+  for (const op of plan.operations) {
+    if (op.entity_id) {
+      preWriteSnapshots.set(`${op.entity_type}:${op.entity_id}:${op.field_name}`, op.expected_snapshot || '');
+    }
+  }
+
+  for (const [householdId, fieldUpdates] of plan.householdUpdates) {
+    const currentHousehold = await base44.asServiceRole.entities.ChampionHousehold.get(householdId);
+    if (!currentHousehold) {
+      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
+        status: 'READY_FOR_REVIEW', apply_status: 'FAILED',
+        apply_error: `Target household ${householdId} not found during pre-write drift check.`,
+      });
+      return Response.json({
+        error: `Target household ${householdId} was deleted since reconciliation.`,
+        needs_review: true, retry_safe: false,
+      }, { status: 409 });
+    }
+    const driftFields: string[] = [];
+    for (const [fieldName] of Object.entries(fieldUpdates)) {
+      const policy = getFieldPolicy('ChampionHousehold', fieldName);
+      const expected = preWriteSnapshots.get(`ChampionHousehold:${householdId}:${fieldName}`) || '';
+      if (detectDrift(policy, currentHousehold[fieldName], expected) === DRIFT_STATUS.MATERIAL_DRIFT) {
+        driftFields.push(fieldName);
+      }
+    }
+    if (driftFields.length > 0) {
+      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
+        status: 'READY_FOR_REVIEW', apply_status: 'FAILED',
+        apply_error: `Material drift on household ${householdId}: ${driftFields.join(', ')}`,
+        readiness_status: 'NOT_READY',
+        readiness_reason: `Production data changed on fields: ${driftFields.join(', ')}`,
+      });
+      return Response.json({
+        error: 'Production data changed since reconciliation.',
+        drift_fields: driftFields, household_id: householdId,
+        needs_review: true, retry_safe: false,
+      }, { status: 409 });
+    }
+  }
+
+  for (const [memberId, fieldUpdates] of plan.memberUpdates) {
+    const currentMember = await base44.asServiceRole.entities.HouseholdMember.get(memberId);
+    if (!currentMember) {
+      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
+        status: 'READY_FOR_REVIEW', apply_status: 'FAILED',
+        apply_error: `Target member ${memberId} not found during pre-write drift check.`,
+      });
+      return Response.json({
+        error: `Target member ${memberId} was deleted since reconciliation.`,
+        needs_review: true, retry_safe: false,
+      }, { status: 409 });
+    }
+    const driftFields: string[] = [];
+    for (const [fieldName] of Object.entries(fieldUpdates)) {
+      const policy = getFieldPolicy('HouseholdMember', fieldName);
+      const expected = preWriteSnapshots.get(`HouseholdMember:${memberId}:${fieldName}`) || '';
+      if (detectDrift(policy, currentMember[fieldName], expected) === DRIFT_STATUS.MATERIAL_DRIFT) {
+        driftFields.push(fieldName);
+      }
+    }
+    if (driftFields.length > 0) {
+      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
+        status: 'READY_FOR_REVIEW', apply_status: 'FAILED',
+        apply_error: `Material drift on member ${memberId}: ${driftFields.join(', ')}`,
+        readiness_status: 'NOT_READY',
+        readiness_reason: `Production data changed on member fields: ${driftFields.join(', ')}`,
+      });
+      return Response.json({
+        error: 'Production data changed since reconciliation.',
+        drift_fields: driftFields, member_id: memberId,
+        needs_review: true, retry_safe: false,
+      }, { status: 409 });
+    }
+  }
+
   // --- PHASE 4: EXECUTE WRITE PLAN ---
   let appliedFieldCount = 0;
   let createdHouseholdCount = 0;
@@ -389,8 +470,14 @@ async function executeApply(base44, user, batchId, batch, executionId) {
         }
       }
 
-      // Create the household
-      const created = await base44.asServiceRole.entities.ChampionHousehold.create(sanResult.sanitized);
+      // Create the household — use original resolved values for sanitizer-allowed fields
+      // (the sanitizer validates which fields are permitted, but the admin's resolved
+      // value is authoritative — normalization is for comparison, not for display)
+      const createPayload: Record<string, unknown> = {};
+      for (const field of Object.keys(sanResult.sanitized)) {
+        createPayload[field] = creation.fields[field];
+      }
+      const created = await base44.asServiceRole.entities.ChampionHousehold.create(createPayload);
       householdId = created.id;
       createdHouseholdIds.set(rowId, householdId);
       createdHouseholdCount++;
@@ -508,7 +595,7 @@ async function executeApply(base44, user, batchId, batch, executionId) {
       }
     }
 
-    // Sanitize member fields
+    // Sanitize member fields — use original values for sanitizer-allowed fields
     const memberPayload = { ...creation.fields, household_id: targetHouseholdId };
     const sanResult = sanitizeWritePayload(
       memberPayload,
@@ -517,11 +604,14 @@ async function executeApply(base44, user, batchId, batch, executionId) {
       'HouseholdMember',
     );
 
-    // Create the member
-    const createdMember = await base44.asServiceRole.entities.HouseholdMember.create({
-      ...sanResult.sanitized,
-      household_id: targetHouseholdId,
-    });
+    // Create the member with original resolved values
+    const memberCreatePayload: Record<string, unknown> = { household_id: targetHouseholdId };
+    for (const field of Object.keys(sanResult.sanitized)) {
+      if (field !== 'household_id') {
+        memberCreatePayload[field] = creation.fields[field];
+      }
+    }
+    const createdMember = await base44.asServiceRole.entities.HouseholdMember.create(memberCreatePayload);
     createdMemberCount++;
 
     // Audit: RECORD_CREATED
@@ -676,9 +766,10 @@ async function executeApply(base44, user, batchId, batch, executionId) {
       }, { status: 422 });
     }
 
-    // Apply the update
-    if (Object.keys(sanResult.sanitized).length > 0) {
-      await base44.asServiceRole.entities.ChampionHousehold.update(householdId, sanResult.sanitized);
+    // Apply the update — write the admin-resolved values (not sanitizer-normalized)
+    // The sanitizer validated which fields are allowed; the resolved value is authoritative.
+    if (Object.keys(sanitizedPayload).length > 0) {
+      await base44.asServiceRole.entities.ChampionHousehold.update(householdId, sanitizedPayload);
       updatedHouseholdCount++;
 
       // Audit: RECORD_UPDATED
@@ -776,8 +867,8 @@ async function executeApply(base44, user, batchId, batch, executionId) {
       'HouseholdMember',
     );
 
-    if (Object.keys(sanResult.sanitized).length > 0) {
-      await base44.asServiceRole.entities.HouseholdMember.update(memberId, sanResult.sanitized);
+    if (Object.keys(sanitizedPayload).length > 0) {
+      await base44.asServiceRole.entities.HouseholdMember.update(memberId, sanitizedPayload);
       updatedMemberCount++;
 
       await createApplyAudit(base44, {
@@ -997,8 +1088,12 @@ async function executeApply(base44, user, batchId, batch, executionId) {
     await bulkUpdateSafe(base44, 'FamilyLifeImportResolution', resolutionUpdates);
   }
 
-  // Mark all operations as VERIFIED
-  const opsToVerify = allOps.filter((o) => o.status === OPERATION_STATUS.APPLIED);
+  // Mark all operations as VERIFIED — reload to get current statuses
+  // (allOps was loaded before execution; operation statuses were updated in DB since)
+  const finalOps = await base44.asServiceRole.entities.FamilyLifeImportApplyOperation.filter(
+    { import_batch_id: batchId }, undefined, 5000,
+  );
+  const opsToVerify = finalOps.filter((o) => o.status === OPERATION_STATUS.APPLIED);
   const verifyUpdates = opsToVerify.map((o) => ({
     id: o.id,
     status: OPERATION_STATUS.VERIFIED,
