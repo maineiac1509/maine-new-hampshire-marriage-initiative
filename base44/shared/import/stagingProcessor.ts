@@ -18,9 +18,10 @@ import {
   FIELD_GOVERNANCE, OWNERSHIP,
 } from './governance.ts';
 import {
-  CHAMPION_EXTRACTION_SCHEMA, FL_RAW_EXTRACTION_SCHEMA, mapRawRows, groupRowsIntoHouseholds, normalizeExtractOutput,
+  CHAMPION_EXTRACTION_SCHEMA, groupRowsIntoHouseholds, normalizeExtractOutput,
   parsePastedData, mapHeader, findUnmappedColumns, HOUSEHOLD_FIELDS, MEMBER_FIELDS,
 } from './parser.ts';
+import { parseExcelFile } from './excelParser.ts';
 import { normalizeAndValidateField, normalizeMappedRow } from './normalizer.ts';
 import {
   buildMatchIndexes, matchHousehold, matchMember,
@@ -163,25 +164,20 @@ export async function processImportBatch(base44: any, params: ProcessParams): Pr
     let sourceRows: Record<string, any>[] = [];
     let rawUnmappedHeaders: string[] = [];
     if (params.mode === 'file' && params.file_url) {
-      // Try raw extraction with actual FamilyLife column names first.
-      // This is more reliable than expecting the AI to translate column names.
-      const rawRes = await base44.asServiceRole.integrations.Core.ExtractDataFromUploadedFile({
-        file_url: params.file_url,
-        json_schema: FL_RAW_EXTRACTION_SCHEMA,
-      });
-      if (rawRes?.status === 'success' && rawRes.output) {
-        const rawRows = normalizeExtractOutput(rawRes.output);
-        const { mappedRows, unmappedHeaders } = mapRawRows(rawRows);
-        sourceRows = mappedRows;
-        rawUnmappedHeaders = unmappedHeaders;
-      } else {
-        // Fall back to canonical schema with descriptions
+      // Parse the file directly with xlsx for deterministic, reliable extraction.
+      // Falls back to AI-based extraction only if the direct parser fails.
+      try {
+        const parseResult = await parseExcelFile(params.file_url);
+        sourceRows = parseResult.rows;
+        rawUnmappedHeaders = parseResult.unmappedHeaders;
+      } catch (parseError) {
+        // Fall back to AI extraction if direct parsing fails
         const res = await base44.asServiceRole.integrations.Core.ExtractDataFromUploadedFile({
           file_url: params.file_url,
           json_schema: CHAMPION_EXTRACTION_SCHEMA,
         });
         if (res?.status === 'error') {
-          throw new Error(res.details || rawRes?.details || 'Could not read the file.');
+          throw new Error(res.details || parseError.message || 'Could not read the file.');
         }
         sourceRows = normalizeExtractOutput(res?.output);
       }
