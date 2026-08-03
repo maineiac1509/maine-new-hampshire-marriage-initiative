@@ -6,9 +6,11 @@ import { base44 } from '@/api/base44Client';
 // never field values, entity IDs, or write instructions.
 
 export async function applyPreflight(batchId) {
+  // Cache-bust: append a unique nonce so every dialog open fetches fresh.
   const res = await base44.functions.invoke('applyFamilyLifeImport', {
     action: 'preflight',
     import_batch_id: batchId,
+    _t: Date.now(),
   });
   return res.data || res;
 }

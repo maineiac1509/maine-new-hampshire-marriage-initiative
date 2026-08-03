@@ -34,6 +34,7 @@ import {
 import {
   RESOLUTION_TYPE, RESOLUTION_STATUS,
   CURRENT_GOVERNANCE_VERSION, CURRENT_MAPPING_VERSION,
+  isResolutionTypeAllowed,
 } from '../../shared/import/resolver.ts';
 import { COMPARISON_RESULT } from '../../shared/import/comparator.ts';
 import { FIELD_GOVERNANCE, OWNERSHIP, IMPORT_OPERATIONS, getFieldPolicy, normalizeForComparison } from '../../shared/import/governance.ts';
@@ -106,6 +107,19 @@ async function handlePreflight(base44, user, batchId) {
   const { comparisons, resolutions, rows, issues } = await loadBatchData(base44, batchId);
   const result = preflightValidate(batch, rows, comparisons, resolutions, issues);
 
+  // Runtime diagnostic: verify the deployed resolver actually allows APPLY_BLANK_FILL for SHARED_REVIEW
+  const mockSharedReviewCmp = {
+    ownership_category: 'SHARED_REVIEW',
+    comparison_result: 'INCOMING_VALUE_ONLY', // existing record, not new
+  };
+  const runtimeBlankFillAllowed = isResolutionTypeAllowed(mockSharedReviewCmp, RESOLUTION_TYPE.APPLY_BLANK_FILL);
+
+  // Collect all allowed resolution types for SHARED_REVIEW at runtime
+  const allResTypes = Object.values(RESOLUTION_TYPE);
+  const allowedSharedReview = allResTypes.filter((t) =>
+    isResolutionTypeAllowed(mockSharedReviewCmp, t),
+  );
+
   return Response.json({
     passed: result.passed,
     errors: result.errors,
@@ -115,6 +129,15 @@ async function handlePreflight(base44, user, batchId) {
     file_name: batch.file_name,
     governance_version: batch.governance_version,
     mapping_version: batch.mapping_version,
+    // ── Diagnostic fields ──
+    _diagnostics: {
+      resolver_policy_version: CURRENT_GOVERNANCE_VERSION,
+      apply_engine_version: 'chunked-v2',
+      server_timestamp: new Date().toISOString(),
+      batch_id: batchId,
+      runtime_blank_fill_allowed_for_shared_review: runtimeBlankFillAllowed,
+      allowed_shared_review_resolutions: allowedSharedReview,
+    },
   });
 }
 
