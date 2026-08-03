@@ -351,16 +351,38 @@ async function handleChunk(base44, user, batchId) {
     return await processChunk(base44, user, batchId, batch);
   } catch (error) {
     const errorMsg = error?.message || 'Chunk processing failed.';
+    const errorStack = error?.stack || '';
+    const phase = batch.apply_phase || 'unknown';
+
     // Release lock back to PAUSED — progress is preserved
+    let progress = null;
     try {
+      // Re-load operations to compute current progress after partial writes
+      const opsAfterError = await base44.asServiceRole.entities.FamilyLifeImportApplyOperation.filter(
+        { import_batch_id: batchId }, undefined, 5000,
+      );
+      const appliedNow = opsAfterError.filter((o) => o.status === OPERATION_STATUS.APPLIED).length;
+      const verifiedNow = opsAfterError.filter((o) => o.status === OPERATION_STATUS.VERIFIED).length;
+      const failedNow = opsAfterError.filter((o) => o.status === OPERATION_STATUS.FAILED).length;
+      const skippedNow = opsAfterError.filter((o) => o.status === OPERATION_STATUS.SKIPPED).length;
+      progress = computeProgress(opsAfterError.length, appliedNow, verifiedNow, failedNow, skippedNow, batch.apply_progress?.chunk_index || 0);
+
       await updateCheckpoint(base44, batchId, {
         apply_status: 'PAUSED',
         apply_error: errorMsg,
+        apply_progress: progress,
       });
     } catch (_) { /* best-effort */ }
+
     return Response.json({
-      error: errorMsg,
-      can_resume: true,
+      retry_code: 'CHUNK_PROCESSING_ERROR',
+      phase,
+      error_message: errorMsg,
+      error_stack: errorStack.split('\n').slice(0, 5).join('\n'),
+      writes_occurred: progress ? progress.applied > (batch.apply_progress?.applied || 0) : false,
+      safe_to_resume: true,
+      progress,
+      message: 'Chunk failed but batch is paused safely. Resume to continue from the next chunk.',
     }, { status: 500 });
   }
 }
@@ -648,107 +670,147 @@ async function processCreateMembersChunk(base44, user, batchId, batch, allOps, p
     { import_batch_id: batchId }, 'row_number', 5000,
   );
 
+  const opUpdates: any[] = [];
+
   for (const [rowId, ops] of chunkGroups) {
-    const alreadyApplied = ops.find((o) => o.status === OPERATION_STATUS.APPLIED || o.status === OPERATION_STATUS.VERIFIED);
-    if (alreadyApplied) {
-      for (const op of ops) processedOpIds.add(op.id);
-      appliedCount += ops.length;
-      continue;
-    }
+    try {
+      const alreadyApplied = ops.find((o) => o.status === OPERATION_STATUS.APPLIED || o.status === OPERATION_STATUS.VERIFIED);
+      if (alreadyApplied) {
+        for (const op of ops) processedOpIds.add(op.id);
+        appliedCount += ops.length;
+        continue;
+      }
 
-    // Build deterministic creation key
-    const creationKey = buildCreationKey(batchId, rowId, 'HouseholdMember');
+      // Build deterministic creation key
+      const creationKey = buildCreationKey(batchId, rowId, 'HouseholdMember');
 
-    // STEP 1: Check if production record already exists (recovery from interrupted creation)
-    const existingByKey = await base44.asServiceRole.entities.HouseholdMember.filter(
-      { import_creation_key: creationKey }, undefined, 1,
-    );
-    if (existingByKey && existingByKey.length > 0) {
-      const existingId = existingByKey[0].id;
-      const opUpdates = ops.map((op) => ({
-        id: op.id, status: OPERATION_STATUS.APPLIED, entity_id: existingId,
+      // STEP 1: Check if production record already exists (recovery from interrupted creation)
+      const existingByKey = await base44.asServiceRole.entities.HouseholdMember.filter(
+        { import_creation_key: creationKey }, undefined, 1,
+      );
+      if (existingByKey && existingByKey.length > 0) {
+        const existingId = existingByKey[0].id;
+        opUpdates.push(...ops.map((op) => ({
+          id: op.id, status: OPERATION_STATUS.APPLIED, entity_id: existingId,
+          applied_at: now, drift_status: DRIFT_STATUS.NO_DRIFT,
+        })));
+        for (const op of ops) processedOpIds.add(op.id);
+        appliedCount += ops.length;
+        auditEntries.push({
+          import_batch_id: batchId, apply_execution_id: executionId, import_row_id: rowId,
+          entity_type: 'HouseholdMember', entity_id: existingId,
+          operation_type: OPERATION_TYPE.CREATE_MEMBER, apply_result: 'UPDATED', applied_by: user.id,
+        });
+        continue;
+      }
+
+      // STEP 2: Resolve target household ID
+      const row = rows.find((r) => r.id === rowId);
+      let targetHouseholdId = row?.matched_household_id || '';
+
+      if (!targetHouseholdId && row?.household_group_key) {
+        const householdOps = allOps.filter((o) =>
+          o.operation_type === OPERATION_TYPE.CREATE_HOUSEHOLD &&
+          (o.status === OPERATION_STATUS.APPLIED || o.status === OPERATION_STATUS.VERIFIED) &&
+          o.entity_id,
+        );
+        for (const hhOp of householdOps) {
+          const hhRow = rows.find((r) => r.id === hhOp.import_row_id);
+          if (hhRow?.household_group_key === row.household_group_key) {
+            targetHouseholdId = hhOp.entity_id;
+            break;
+          }
+        }
+      }
+
+      if (!targetHouseholdId) {
+        opUpdates.push(...ops.map((op) => ({
+          id: op.id, status: OPERATION_STATUS.FAILED,
+          error_message: 'No target household ID found for member creation.', applied_at: now,
+        })));
+        for (const op of ops) processedOpIds.add(op.id);
+        failedCount += ops.length;
+        continue;
+      }
+
+      // STEP 3: Build member payload from resolved values
+      const memberPayload: Record<string, unknown> = {};
+      for (const op of ops) {
+        if (op.applied_value) {
+          const policy = getFieldPolicy('HouseholdMember', op.field_name);
+          memberPayload[op.field_name] = coerceValue(policy, op.applied_value);
+        }
+      }
+
+      // Validate required fields before attempting creation
+      const firstName = String(memberPayload.first_name || '').trim();
+      const lastName = String(memberPayload.last_name || '').trim();
+      if (!firstName || !lastName) {
+        opUpdates.push(...ops.map((op) => ({
+          id: op.id, status: OPERATION_STATUS.FAILED,
+          error_message: `Missing required field: ${!firstName ? 'first_name' : ''}${!firstName && !lastName ? ', ' : ''}${!lastName ? 'last_name' : ''}`,
+          applied_at: now,
+        })));
+        for (const op of ops) processedOpIds.add(op.id);
+        failedCount += ops.length;
+        auditEntries.push({
+          import_batch_id: batchId, apply_execution_id: executionId, import_row_id: rowId,
+          entity_type: 'HouseholdMember',
+          operation_type: OPERATION_TYPE.CREATE_MEMBER,
+          apply_result: 'FAILED', applied_by: user.id,
+          error_message: 'Missing required name fields',
+        });
+        continue;
+      }
+
+      // STEP 4: Sanitize and create with deterministic creation key
+      const sanResult = sanitizeWritePayload(
+        { ...memberPayload, household_id: targetHouseholdId },
+        IMPORT_OPERATIONS.NEW_RECORD_CREATE, null, 'HouseholdMember',
+      );
+      const finalPayload: Record<string, unknown> = { household_id: targetHouseholdId };
+      for (const field of Object.keys(sanResult.sanitized)) {
+        if (field !== 'household_id') finalPayload[field] = memberPayload[field];
+      }
+      finalPayload.import_creation_key = creationKey;
+
+      // Create the member — production record carries the creation_key
+      const createdMember = await base44.asServiceRole.entities.HouseholdMember.create(finalPayload);
+
+      // STEP 5: Per-record durable checkpoint
+      opUpdates.push(...ops.map((op) => ({
+        id: op.id, status: OPERATION_STATUS.APPLIED, entity_id: createdMember.id,
         applied_at: now, drift_status: DRIFT_STATUS.NO_DRIFT,
-      }));
-      await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
+      })));
+
       for (const op of ops) processedOpIds.add(op.id);
       appliedCount += ops.length;
       auditEntries.push({
         import_batch_id: batchId, apply_execution_id: executionId, import_row_id: rowId,
-        entity_type: 'HouseholdMember', entity_id: existingId,
-        operation_type: OPERATION_TYPE.CREATE_MEMBER, apply_result: 'UPDATED', applied_by: user.id,
+        entity_type: 'HouseholdMember', entity_id: createdMember.id,
+        operation_type: OPERATION_TYPE.CREATE_MEMBER, apply_result: 'CREATED', applied_by: user.id,
       });
-      continue;
-    }
-
-    // STEP 2: Resolve target household ID
-    const row = rows.find((r) => r.id === rowId);
-    let targetHouseholdId = row?.matched_household_id || '';
-
-    if (!targetHouseholdId && row?.household_group_key) {
-      const householdOps = allOps.filter((o) =>
-        o.operation_type === OPERATION_TYPE.CREATE_HOUSEHOLD &&
-        (o.status === OPERATION_STATUS.APPLIED || o.status === OPERATION_STATUS.VERIFIED) &&
-        o.entity_id,
-      );
-      for (const hhOp of householdOps) {
-        const hhRow = rows.find((r) => r.id === hhOp.import_row_id);
-        if (hhRow?.household_group_key === row.household_group_key) {
-          targetHouseholdId = hhOp.entity_id;
-          break;
-        }
-      }
-    }
-
-    if (!targetHouseholdId) {
-      const opUpdates = ops.map((op) => ({
+    } catch (rowError) {
+      // Single-row failure — mark this row's ops as FAILED and continue processing other rows
+      const rowErrorMsg = rowError?.message || 'Unknown error during member creation';
+      opUpdates.push(...ops.map((op) => ({
         id: op.id, status: OPERATION_STATUS.FAILED,
-        error_message: 'No target household ID found for member creation.', applied_at: now,
-      }));
-      await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
+        error_message: rowErrorMsg, applied_at: now,
+      })));
       for (const op of ops) processedOpIds.add(op.id);
       failedCount += ops.length;
-      continue;
+      auditEntries.push({
+        import_batch_id: batchId, apply_execution_id: executionId, import_row_id: rowId,
+        entity_type: 'HouseholdMember',
+        operation_type: OPERATION_TYPE.CREATE_MEMBER,
+        apply_result: 'FAILED', applied_by: user.id,
+        error_message: rowErrorMsg,
+      });
     }
-
-    // STEP 3: Build member payload from resolved values
-    const memberPayload: Record<string, unknown> = {};
-    for (const op of ops) {
-      if (op.applied_value) {
-        const policy = getFieldPolicy('HouseholdMember', op.field_name);
-        memberPayload[op.field_name] = coerceValue(policy, op.applied_value);
-      }
-    }
-
-    // STEP 4: Sanitize and create with deterministic creation key
-    const sanResult = sanitizeWritePayload(
-      { ...memberPayload, household_id: targetHouseholdId },
-      IMPORT_OPERATIONS.NEW_RECORD_CREATE, null, 'HouseholdMember',
-    );
-    const finalPayload: Record<string, unknown> = { household_id: targetHouseholdId };
-    for (const field of Object.keys(sanResult.sanitized)) {
-      if (field !== 'household_id') finalPayload[field] = memberPayload[field];
-    }
-    finalPayload.import_creation_key = creationKey;
-
-    // Create the member — production record carries the creation_key
-    const createdMember = await base44.asServiceRole.entities.HouseholdMember.create(finalPayload);
-
-    // STEP 5: Per-record durable checkpoint
-    const opUpdates = ops.map((op) => ({
-      id: op.id, status: OPERATION_STATUS.APPLIED, entity_id: createdMember.id,
-      applied_at: now, drift_status: DRIFT_STATUS.NO_DRIFT,
-    }));
-    await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
-
-    for (const op of ops) processedOpIds.add(op.id);
-    appliedCount += ops.length;
-    auditEntries.push({
-      import_batch_id: batchId, apply_execution_id: executionId, import_row_id: rowId,
-      entity_type: 'HouseholdMember', entity_id: createdMember.id,
-      operation_type: OPERATION_TYPE.CREATE_MEMBER, apply_result: 'CREATED', applied_by: user.id,
-    });
   }
 
+  // Flush all accumulated op updates in one batch
+  if (opUpdates.length) await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
   if (auditEntries.length) await createApplyAudits(base44, auditEntries);
 
   const hasMore = groups.size > chunkGroups.length;
