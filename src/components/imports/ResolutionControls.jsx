@@ -18,12 +18,12 @@ function getAvailableOptions(comparison) {
     return ['BLOCK_FIELD', 'SKIP_FIELD'];
   }
   if (own === 'RESTRICTIVE_PREFERENCE') {
-    return isNew ? ['CREATE_WITH_INCOMING_VALUE', 'SKIP_FIELD'] : ['APPLY_RESTRICTION', 'KEEP_CURRENT', 'BLOCK_FIELD'];
+    return isNew ? ['CREATE_WITH_INCOMING_VALUE', 'SKIP_FIELD'] : ['APPLY_RESTRICTION', 'KEEP_CURRENT', 'SKIP_FIELD', 'BLOCK_FIELD'];
   }
   if (own === 'SHARED_REVIEW') {
     return isNew
       ? ['CREATE_WITH_INCOMING_VALUE', 'SKIP_FIELD']
-      : ['KEEP_CURRENT', 'USE_INCOMING', 'USE_CUSTOM_VALUE', 'SKIP_FIELD'];
+      : ['KEEP_CURRENT', 'USE_INCOMING', 'APPLY_BLANK_FILL', 'USE_CUSTOM_VALUE', 'SKIP_FIELD'];
   }
   if (own === 'FAMILYLIFE_MANAGED') {
     return isNew

@@ -206,8 +206,14 @@ export function preflightValidate(
       continue;
     }
 
-    // Skip non-actionable comparisons
-    if (cmp.recommended_action === 'NO_ACTION') continue;
+    // Skip non-actionable comparisons — system already determined the outcome.
+    // Must match computeReadiness in resolver.ts: NO_ACTION, PRESERVE_CURRENT_VALUE,
+    // and BLOCK_UPDATE require no admin input and must not count as actionable.
+    if (cmp.recommended_action === 'NO_ACTION' ||
+        cmp.recommended_action === 'PRESERVE_CURRENT_VALUE' ||
+        cmp.recommended_action === 'BLOCK_UPDATE') {
+      continue;
+    }
 
     // 8. Every actionable comparison must have an active resolution
     const resolution = resolutionByComparisonId.get(cmp.id);
@@ -513,8 +519,12 @@ export function generateWritePlan(
       continue;
     }
 
-    // Skip non-actionable comparisons
-    if (cmp.recommended_action === 'NO_ACTION') continue;
+    // Skip non-actionable comparisons — must match preflight and computeReadiness.
+    if (cmp.recommended_action === 'NO_ACTION' ||
+        cmp.recommended_action === 'PRESERVE_CURRENT_VALUE' ||
+        cmp.recommended_action === 'BLOCK_UPDATE') {
+      continue;
+    }
 
     const resolution = resolutionByComparisonId.get(cmp.id);
     if (!resolution) continue;
