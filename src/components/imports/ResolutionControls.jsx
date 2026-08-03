@@ -8,30 +8,7 @@ import {
   RESOLUTION_STATUS_VARIANT, RESOLUTION_STATUS_LABEL,
   OWNERSHIP_LABEL,
 } from '@/lib/importLabels';
-
-// Returns the resolution types the admin may choose for this comparison.
-function getAvailableOptions(comparison) {
-  const isNew = comparison.comparison_result === 'CREATE_NEW_RECORD_VALUE';
-  const own = comparison.ownership_category;
-
-  if (own === 'CHAMPION_CONNECT_MANAGED' || own === 'BLOCKED_FROM_EXISTING_RECORD_UPDATE') {
-    return ['BLOCK_FIELD', 'SKIP_FIELD'];
-  }
-  if (own === 'RESTRICTIVE_PREFERENCE') {
-    return isNew ? ['CREATE_WITH_INCOMING_VALUE', 'SKIP_FIELD'] : ['APPLY_RESTRICTION', 'KEEP_CURRENT', 'SKIP_FIELD', 'BLOCK_FIELD'];
-  }
-  if (own === 'SHARED_REVIEW') {
-    return isNew
-      ? ['CREATE_WITH_INCOMING_VALUE', 'SKIP_FIELD']
-      : ['KEEP_CURRENT', 'USE_INCOMING', 'APPLY_BLANK_FILL', 'USE_CUSTOM_VALUE', 'SKIP_FIELD'];
-  }
-  if (own === 'FAMILYLIFE_MANAGED') {
-    return isNew
-      ? ['CREATE_WITH_INCOMING_VALUE', 'SKIP_FIELD']
-      : ['KEEP_CURRENT', 'APPLY_SAFE_UPDATE', 'USE_CUSTOM_VALUE', 'SKIP_FIELD'];
-  }
-  return ['SKIP_FIELD'];
-}
+import { getAvailableResolutionOptions } from '@/lib/resolutionPolicy';
 
 // Inline resolution controls for a single field comparison.
 // Shows current/incoming/resolved values and lets the admin choose
@@ -40,7 +17,7 @@ export default function ResolutionControls({ comparison, resolution, onSave, dis
   const currentType = resolution?.resolution_type || '';
   const isResolved = resolution?.status === 'RESOLVED';
   const isPending = resolution?.status === 'PENDING';
-  const options = getAvailableOptions(comparison);
+  const options = getAvailableResolutionOptions(comparison);
 
   const [selectedType, setSelectedType] = useState(currentType);
   const [customValue, setCustomValue] = useState('');
