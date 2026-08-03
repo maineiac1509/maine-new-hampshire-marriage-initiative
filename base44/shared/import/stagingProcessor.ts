@@ -18,7 +18,7 @@ import {
   FIELD_GOVERNANCE, OWNERSHIP,
 } from './governance.ts';
 import {
-  CHAMPION_EXTRACTION_SCHEMA, groupRowsIntoHouseholds, normalizeExtractOutput,
+  CHAMPION_EXTRACTION_SCHEMA, FL_RAW_EXTRACTION_SCHEMA, mapRawRows, groupRowsIntoHouseholds, normalizeExtractOutput,
   parsePastedData, mapHeader, findUnmappedColumns, HOUSEHOLD_FIELDS, MEMBER_FIELDS,
 } from './parser.ts';
 import { normalizeAndValidateField, normalizeMappedRow } from './normalizer.ts';
@@ -161,15 +161,30 @@ export async function processImportBatch(base44: any, params: ProcessParams): Pr
   try {
     // 2. Extract / parse source rows
     let sourceRows: Record<string, any>[] = [];
+    let rawUnmappedHeaders: string[] = [];
     if (params.mode === 'file' && params.file_url) {
-      const res = await base44.asServiceRole.integrations.Core.ExtractDataFromUploadedFile({
+      // Try raw extraction with actual FamilyLife column names first.
+      // This is more reliable than expecting the AI to translate column names.
+      const rawRes = await base44.asServiceRole.integrations.Core.ExtractDataFromUploadedFile({
         file_url: params.file_url,
-        json_schema: CHAMPION_EXTRACTION_SCHEMA,
+        json_schema: FL_RAW_EXTRACTION_SCHEMA,
       });
-      if (res?.status === 'error') {
-        throw new Error(res.details || 'Could not read the file.');
+      if (rawRes?.status === 'success' && rawRes.output) {
+        const rawRows = normalizeExtractOutput(rawRes.output);
+        const { mappedRows, unmappedHeaders } = mapRawRows(rawRows);
+        sourceRows = mappedRows;
+        rawUnmappedHeaders = unmappedHeaders;
+      } else {
+        // Fall back to canonical schema with descriptions
+        const res = await base44.asServiceRole.integrations.Core.ExtractDataFromUploadedFile({
+          file_url: params.file_url,
+          json_schema: CHAMPION_EXTRACTION_SCHEMA,
+        });
+        if (res?.status === 'error') {
+          throw new Error(res.details || rawRes?.details || 'Could not read the file.');
+        }
+        sourceRows = normalizeExtractOutput(res?.output);
       }
-      sourceRows = normalizeExtractOutput(res?.output);
     } else if (params.mode === 'paste' && params.raw_text != null) {
       sourceRows = parsePastedData(params.raw_text);
     } else {
@@ -197,7 +212,7 @@ export async function processImportBatch(base44: any, params: ProcessParams): Pr
 
     // 4. Group into households
     const { groups, unmappedColumns: groupUnmapped } = groupRowsIntoHouseholds(sourceRows);
-    const allUnmapped = Array.from(new Set([...unmappedColumns, ...groupUnmapped]));
+    const allUnmapped = Array.from(new Set([...unmappedColumns, ...groupUnmapped, ...rawUnmappedHeaders]));
 
     // 5. Compute content signature + duplicate detection
     const signature = computeSignature(params.file_name, sourceRows.length, params.source_period || '', groups);

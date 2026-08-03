@@ -55,46 +55,122 @@ const RELATIONSHIP_BY_INDEX = ['Primary', 'Spouse', 'Member'];
 // ------------------------------------------------------------
 export const CHAMPION_EXTRACTION_SCHEMA = {
   type: 'object',
+  description: 'FamilyLife Ministry Group export. Extract ALL data rows from the sheet with column headers (typically the sheet named "All MCs" or similar — skip any metadata/title sheets). Each row is one household member.',
   properties: {
-    household_name: { type: 'string' },
-    first_name: { type: 'string' },
-    last_name: { type: 'string' },
-    account_salutation: { type: 'string' },
-    email: { type: 'string' },
-    mobile_phone: { type: 'string' },
-    home_phone: { type: 'string' },
+    household_name: { type: 'string', description: 'MC Household: Account Name' },
+    first_name: { type: 'string', description: 'First Name' },
+    last_name: { type: 'string', description: 'Last Name' },
+    account_salutation: { type: 'string', description: 'Salutation' },
+    email: { type: 'string', description: 'Group Email' },
+    mobile_phone: { type: 'string', description: 'Mobile Phone' },
+    home_phone: { type: 'string', description: 'MC Household: Phone' },
     work_phone: { type: 'string' },
     relationship: { type: 'string' },
-    address: { type: 'string' },
-    address_line_2: { type: 'string' },
-    city: { type: 'string' },
-    state: { type: 'string' },
-    zip_code: { type: 'string' },
+    address: { type: 'string', description: 'Address Line 1' },
+    address_line_2: { type: 'string', description: 'Address Line 2' },
+    city: { type: 'string', description: 'City' },
+    state: { type: 'string', description: 'State' },
+    zip_code: { type: 'string', description: 'Zip Code' },
     area: { type: 'string' },
-    champion_status: { type: 'string' },
-    church_name: { type: 'string' },
-    church_city: { type: 'string' },
-    church_state: { type: 'string' },
-    church_zip_code: { type: 'string' },
+    champion_status: { type: 'string', description: 'Status (Active, Inactive, Prospect, Alumni)' },
+    church_name: { type: 'string', description: 'Church Name' },
+    church_city: { type: 'string', description: 'Church City' },
+    church_state: { type: 'string', description: 'Church State' },
+    church_zip_code: { type: 'string', description: 'Church ZIP Code' },
     church_priority: { type: 'string' },
     marriage_conference_priority: { type: 'string' },
     do_not_call: { type: 'string' },
     do_not_text: { type: 'string' },
     email_opt_out: { type: 'string' },
-    cumulative_registrations: { type: 'string' },
-    free_couple_registrations_used: { type: 'string' },
-    free_couple_registrations_available: { type: 'string' },
-    registrations_toward_next_free_registration: { type: 'string' },
-    registrations_needed_for_next_free_registration: { type: 'string' },
+    cumulative_registrations: { type: 'string', description: 'All Regs' },
+    free_couple_registrations_used: { type: 'string', description: 'Free Couples Regs Used' },
+    free_couple_registrations_available: { type: 'string', description: 'Free Couple Regs Avail' },
+    registrations_toward_next_free_registration: { type: 'string', description: 'Redeemed Regs' },
+    registrations_needed_for_next_free_registration: { type: 'string', description: 'Couples Needed for next Free Reg' },
     registration_date: { type: 'string' },
     registration_type: { type: 'string' },
-    group_name: { type: 'string' },
+    group_name: { type: 'string', description: 'Ministry Group Name' },
+    group_start_date: { type: 'string', description: 'Start Date' },
+    group_renewal_date: { type: 'string', description: 'End Date' },
     familylife_external_id: { type: 'string' },
   },
   required: ['first_name', 'last_name'],
 };
 
 export const EXPECTED_COLUMNS = Object.keys(CHAMPION_EXTRACTION_SCHEMA.properties);
+
+// ------------------------------------------------------------
+// Raw extraction schema using actual FamilyLife export column names.
+// The AI extraction matches these exact column headers from the
+// spreadsheet, then mapRawRows() translates them to canonical field
+// names using the governance contract's sourceAliases.
+// ------------------------------------------------------------
+export const FL_RAW_EXTRACTION_SCHEMA = {
+  type: 'object',
+  description: 'FamilyLife Ministry Group export. Extract ALL data rows from the sheet with column headers (the sheet named "All MCs" or similar). Skip any metadata/title sheets at the top. Each row is one household member with their registration and household info.',
+  properties: {
+    'Status': { type: 'string' },
+    'Ministry Group Name': { type: 'string' },
+    'Start Date': { type: 'string' },
+    'End Date': { type: 'string' },
+    'MC Coach': { type: 'string' },
+    'Church Name': { type: 'string' },
+    'Church City': { type: 'string' },
+    'Church State': { type: 'string' },
+    'MC Household: Account Name': { type: 'string' },
+    'Last Name': { type: 'string' },
+    'First Name': { type: 'string' },
+    'Salutation': { type: 'string' },
+    'MC Household: Phone': { type: 'string' },
+    'Mobile Phone': { type: 'string' },
+    'Group Email': { type: 'string' },
+    'Address Line 1': { type: 'string' },
+    'City': { type: 'string' },
+    'State': { type: 'string' },
+    'Zip Code': { type: 'string' },
+    'All Regs': { type: 'string' },
+    'CY Regs': { type: 'string' },
+    'Eligible Regs': { type: 'string' },
+    'Free Couple Regs Avail': { type: 'string' },
+    'Free Couples Regs Used': { type: 'string' },
+    'Redeemed Regs': { type: 'string' },
+    'Couples Needed for next Free Reg': { type: 'string' },
+  },
+  required: ['Last Name', 'First Name'],
+};
+
+// ------------------------------------------------------------
+// Map raw FL rows (using actual column headers) to canonical field names.
+// Returns mapped rows plus any headers that did not map to any field.
+// ------------------------------------------------------------
+export function mapRawRows(rawRows: Record<string, any>[]): {
+  mappedRows: Record<string, any>[];
+  unmappedHeaders: string[];
+} {
+  const mappedRows: Record<string, any>[] = [];
+  const unmappedSet = new Set<string>();
+
+  for (const rawRow of rawRows) {
+    const mapped: Record<string, any> = {};
+    for (const [header, value] of Object.entries(rawRow)) {
+      if (value == null || value === '') continue;
+      const h = (header || '').trim().toLowerCase();
+      if (h === 'salutation') {
+        mapped.account_salutation = value;
+        continue;
+      }
+      const canonical = mapHeader(header);
+      if (canonical) {
+        mapped[canonical] = value;
+      } else if (h !== '') {
+        unmappedSet.add(header);
+      }
+    }
+    mappedRows.push(mapped);
+  }
+
+  return { mappedRows, unmappedHeaders: Array.from(unmappedSet) };
+}
 
 // ------------------------------------------------------------
 // Header mapping
