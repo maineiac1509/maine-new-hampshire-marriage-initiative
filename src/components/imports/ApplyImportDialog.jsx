@@ -26,6 +26,7 @@ export default function ApplyImportDialog({ open, onOpenChange, batchId, batchFi
   const [canReset, setCanReset] = useState(false);
   const [isStale, setIsStale] = useState(false);
   const pollRef = useRef(null);
+  const inFlightRef = useRef(false);
 
   // Load preflight on open
   useEffect(() => {
@@ -39,7 +40,7 @@ export default function ApplyImportDialog({ open, onOpenChange, batchId, batchFi
       loadPreflight();
       loadStatus();
     }
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    return () => { if (pollRef.current) clearTimeout(pollRef.current); inFlightRef.current = false; };
   }, [open, batchId]);
 
   // Check for existing in-progress execution
@@ -136,42 +137,54 @@ export default function ApplyImportDialog({ open, onOpenChange, batchId, batchFi
     }
   }
 
-  // Polling loop — call chunk repeatedly until complete
+  // Polling loop — call chunk repeatedly until complete.
+  // Uses recursive setTimeout (not setInterval) so the next chunk
+  // only fires AFTER the prior request fully completes, preventing
+  // overlapping 409s. An inFlightRef provides a second guard.
   const startChunkPolling = useCallback(() => {
-    if (pollRef.current) clearInterval(pollRef.current);
+    if (pollRef.current) clearTimeout(pollRef.current);
 
     const poll = async () => {
+      // Guard: never send a chunk if one is already in flight
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
       try {
         const res = await applyChunk(batchId);
         if (res.completed) {
-          // Done!
           setResult(res);
           setProgress({ ...res.progress, percent_complete: 100 });
           setPhase('COMPLETED');
           setExecuting(false);
-          if (pollRef.current) clearInterval(pollRef.current);
           onApplied?.(res);
+          return; // Stop polling
+        } else if (res.chunk_already_running) {
+          // Harmless duplicate — a prior chunk is still processing.
+          // Update progress and continue polling without error.
+          setProgress(res.progress);
+          setPhase(res.phase);
+          pollRef.current = setTimeout(poll, POLL_INTERVAL);
         } else if (res.error) {
           setError(res.error);
           setExecuting(false);
-          if (pollRef.current) clearInterval(pollRef.current);
-          // Reload status to update resume/reset flags
           await loadStatus();
+          return; // Stop polling
         } else {
           setProgress(res.progress);
           setPhase(res.phase || res.new_phase);
+          // Schedule next poll only after this one completes
+          pollRef.current = setTimeout(poll, POLL_INTERVAL);
         }
       } catch (err) {
         setError(err?.message || 'Chunk processing failed.');
         setExecuting(false);
-        if (pollRef.current) clearInterval(pollRef.current);
         await loadStatus();
+        return; // Stop polling on error
+      } finally {
+        inFlightRef.current = false;
       }
     };
 
-    // Call immediately, then poll
-    poll();
-    pollRef.current = setInterval(poll, POLL_INTERVAL);
+    poll(); // Start immediately
   }, [batchId, onApplied]);
 
   // Handle dialog close
@@ -182,7 +195,8 @@ export default function ApplyImportDialog({ open, onOpenChange, batchId, batchFi
         return;
       }
     }
-    if (pollRef.current) clearInterval(pollRef.current);
+    if (pollRef.current) clearTimeout(pollRef.current);
+    inFlightRef.current = false;
     setExecuting(false);
     onOpenChange(open);
     if (!open) {

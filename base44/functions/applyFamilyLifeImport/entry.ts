@@ -176,9 +176,9 @@ async function handleStart(base44, user, batchId, confirmationText) {
     return Response.json({ error: `Batch status is "${batch.status}", not READY_TO_APPLY.` }, { status: 409 });
   }
 
-  // Preflight validation
+  // Preflight validation (pass isResume=true for paused/stale resume)
   const { comparisons, resolutions, rows, issues } = await loadBatchData(base44, batchId);
-  const preflight = preflightValidate(batch, rows, comparisons, resolutions, issues);
+  const preflight = preflightValidate(batch, rows, comparisons, resolutions, issues, hasProgress);
   if (!preflight.passed) {
     return Response.json({
       error: 'Preflight validation failed.',
@@ -303,16 +303,39 @@ async function handleChunk(base44, user, batchId) {
   } else if (batch.apply_status === 'APPLYING') {
     // Check if stale — if so, auto-resume
     if (!isStale(batch.apply_progress?.last_checkpoint_at)) {
+      // A chunk is actively running (not stale). This is likely a harmless
+      // duplicate request from the frontend polling loop. Return current
+      // progress as a structured response so the UI can continue safely.
+      const [ops2] = await Promise.all([
+        base44.asServiceRole.entities.FamilyLifeImportApplyOperation.filter(
+          { import_batch_id: batchId }, undefined, 5000,
+        ),
+      ]);
+      const applied = ops2.filter((o) => o.status === OPERATION_STATUS.APPLIED).length;
+      const verified = ops2.filter((o) => o.status === OPERATION_STATUS.VERIFIED).length;
+      const failed = ops2.filter((o) => o.status === OPERATION_STATUS.FAILED).length;
+      const skipped = ops2.filter((o) => o.status === OPERATION_STATUS.SKIPPED).length;
+      const progress = computeProgress(ops2.length, applied, verified, failed, skipped, batch.apply_progress?.chunk_index || 0);
       return Response.json({
-        error: 'A chunk is currently being processed. Wait for it to complete.',
-        last_checkpoint: batch.apply_progress?.last_checkpoint_at,
-      }, { status: 409 });
+        chunk_already_running: true,
+        retry_code: 'CHUNK_ALREADY_RUNNING',
+        phase: batch.apply_phase,
+        progress,
+        completed: false,
+        has_more: true,
+        message: 'A chunk is currently being processed. Polling will continue automatically.',
+      }, { status: 200 });
     }
     // Stale — auto-resume by proceeding
   } else if (batch.apply_status === 'APPLIED') {
-    return Response.json({ error: 'Batch has already been applied.' }, { status: 409 });
+    return Response.json({
+      retry_code: 'BATCH_ALREADY_APPLIED',
+      error: 'Batch has already been applied.',
+      applied_at: batch.applied_at,
+    }, { status: 409 });
   } else {
     return Response.json({
+      retry_code: 'BATCH_NOT_PAUSED',
       error: `Cannot process chunk. Apply status is "${batch.apply_status}". Call "start" first.`,
     }, { status: 409 });
   }

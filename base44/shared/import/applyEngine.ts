@@ -159,17 +159,20 @@ export function preflightValidate(
   comparisons: any[],
   resolutions: any[],
   issues: any[],
+  isResume: boolean = false,
 ): PreflightResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  if (batch.status !== 'READY_TO_APPLY') {
+  // On resume, the batch status is APPLYING and apply_status is PAUSED —
+  // this is the expected state, not an error.
+  if (!isResume && batch.status !== 'READY_TO_APPLY') {
     errors.push(`Batch status is "${batch.status}", not READY_TO_APPLY.`);
   }
   if (batch.status === 'APPLIED' || batch.apply_status === 'APPLIED') {
     errors.push('Batch has already been applied.');
   }
-  if (batch.status === 'APPLYING' || batch.apply_status === 'APPLYING') {
+  if (!isResume && (batch.status === 'APPLYING' || batch.apply_status === 'APPLYING')) {
     errors.push('Batch is currently being applied by another execution.');
   }
   if (batch.governance_version && batch.governance_version !== CURRENT_GOVERNANCE_VERSION) {
