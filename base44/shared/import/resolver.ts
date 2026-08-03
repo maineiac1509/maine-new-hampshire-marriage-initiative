@@ -329,8 +329,16 @@ export function computeReadiness(
       continue;
     }
 
-    // Skip non-actionable comparisons (no change needed)
-    if (cmp.recommended_action === RECOMMENDED_ACTION.NO_ACTION) {
+    // Skip non-actionable comparisons — system already determined the outcome.
+    // NO_ACTION: values agree or both blank.
+    // PRESERVE_CURRENT_VALUE: system keeps current (covers RESTRICTIVE_VALUE_PRESERVED,
+    //   shared CURRENT_VALUE_ONLY, and INVALID_INCOMING_VALUE).
+    // BLOCK_UPDATE: field is protected or unknown — system blocks the update.
+    // None of these require admin input, so they must not count toward
+    // totalActionable or block READY_TO_APPLY.
+    if (cmp.recommended_action === RECOMMENDED_ACTION.NO_ACTION ||
+        cmp.recommended_action === RECOMMENDED_ACTION.PRESERVE_CURRENT_VALUE ||
+        cmp.recommended_action === RECOMMENDED_ACTION.BLOCK_UPDATE) {
       continue;
     }
 

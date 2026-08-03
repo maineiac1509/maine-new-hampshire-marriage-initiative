@@ -39,10 +39,16 @@ export function classifyComparison(comparison, resolution) {
     return 'auto_resolved';
   }
 
-  // 4. No action needed — both blank, same value, or NO_ACTION recommended
+  // 4. No action needed — both blank, same value, NO_ACTION, PRESERVE_CURRENT_VALUE,
+  //    or BLOCK_UPDATE. These are all deterministic outcomes where the system
+  //    has already decided what to do and no admin input is required.
+  //    Covers RESTRICTIVE_VALUE_PRESERVED ("Restriction Kept"), CURRENT_VALUE_ONLY
+  //    for shared fields, PROTECTED_FIELD_IGNORED, and UNKNOWN_FIELD_BLOCKED.
   if (comparison.comparison_result === 'BOTH_BLANK' ||
       comparison.comparison_result === 'SAME_VALUE' ||
-      comparison.recommended_action === 'NO_ACTION') {
+      comparison.recommended_action === 'NO_ACTION' ||
+      comparison.recommended_action === 'PRESERVE_CURRENT_VALUE' ||
+      comparison.recommended_action === 'BLOCK_UPDATE') {
     return 'hidden';
   }
 

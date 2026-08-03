@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Loader2, Lock, ShieldAlert } from 'lucide-react';
+import { Loader2, Lock, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +52,13 @@ export default function ResolutionControls({ comparison, resolution, onSave, dis
   const needsCustom = selectedType === 'USE_CUSTOM_VALUE';
   const isRestrictive = comparison.ownership_category === 'RESTRICTIVE_PREFERENCE';
   const showRestrictionNote = isRestrictive && comparison.current_normalized_value === 'true';
+
+  // Deterministic restrictive comparisons (e.g. "Restriction Kept") already have
+  // a system-generated default resolution. Hide manual controls so the admin
+  // isn't required to interact with them. The only restrictive scenario that
+  // needs admin action is restriction reduction, which is blocked elsewhere.
+  const isDefaultResolved = resolution?.resolution_source === 'DEFAULT' && resolution?.status === 'PENDING';
+  const isRestrictiveAutoResolved = isRestrictive && isDefaultResolved;
 
   function handleSelect(type) {
     setSelectedType(type);
@@ -107,6 +114,11 @@ export default function ResolutionControls({ comparison, resolution, onSave, dis
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
           <Lock className="h-3 w-3" />
           {RESOLUTION_TYPE_LABEL[options[0]] || options[0]}
+        </div>
+      ) : isRestrictiveAutoResolved && !disabled ? (
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <ShieldCheck className="h-3 w-3 text-emerald-500" />
+          Auto-resolved
         </div>
       ) : !disabled ? (
         <>
