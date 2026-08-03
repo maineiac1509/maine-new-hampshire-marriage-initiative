@@ -213,6 +213,11 @@
       "title": "Last FamilyLife Import Batch ID",
       "description": "System-managed identifier of the last import batch that updated this record."
     },
+    "import_creation_key": {
+      "type": "string",
+      "title": "Import Creation Key",
+      "description": "Deterministic key linking this production record to the import batch and row that created it. Used for idempotent recovery after interruption."
+    },
     "last_manual_update_at": {
       "type": "string",
       "format": "date-time",

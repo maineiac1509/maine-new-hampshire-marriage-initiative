@@ -25,7 +25,7 @@
     },
     "work_phone": {
       "type": "string",
-      "title": "Work Phone"
+      "title": "Work phone"
     },
     "relationship": {
       "type": "string",
@@ -36,6 +36,11 @@
         "Member"
       ],
       "default": "Primary"
+    },
+    "import_creation_key": {
+      "type": "string",
+      "title": "Import Creation Key",
+      "description": "Deterministic key linking this production member to the import batch and row that created it. Used for idempotent recovery after interruption."
     }
   },
   "required": [

@@ -566,6 +566,22 @@ export function generateWritePlan(
   };
 }
 
+/**
+ * Build a deterministic creation key for a new-record production entity.
+ * Derived from immutable import data: batch ID, import row ID, and entity type.
+ * This key is stored on the production record AND on the apply operation,
+ * enabling exact recovery after interruption without relying on email matching.
+ *
+ * Format: create:{batchId}:{importRowId}:{entityType}
+ */
+export function buildCreationKey(
+  batchId: string,
+  importRowId: string,
+  entityType: string,
+): string {
+  return `create:${batchId}:${importRowId}:${entityType}`;
+}
+
 export function buildOperationKey(
   batchId: string,
   resolutionId: string,

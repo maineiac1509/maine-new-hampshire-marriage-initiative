@@ -26,7 +26,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import {
   preflightValidate, generateWritePlan, detectDrift,
   sanitizeWritePayload, validateSanitization,
-  buildOperationKey, computeProgress, nextPhase, isStale,
+  buildOperationKey, buildCreationKey, computeProgress, nextPhase, isStale,
   DRIFT_STATUS, OPERATION_TYPE, OPERATION_STATUS, APPLY_RESULT,
   APPLY_PHASE, PHASE_ORDER, PHASE_OPERATION_TYPES,
   CHUNK_SIZE, STALE_THRESHOLD_SECONDS,
@@ -460,33 +460,50 @@ async function processCreateHouseholdsChunk(base44, user, batchId, batch, allOps
     groups.get(key).push(op);
   }
 
-  // Take CHUNK_SIZE groups
   const chunkGroups = Array.from(groups.entries()).slice(0, CHUNK_SIZE);
   const processedOpIds = new Set<string>();
-  const opUpdates: any[] = [];
   const auditEntries: any[] = [];
   let appliedCount = 0;
   let failedCount = 0;
 
-  // Load rows for household group key resolution
   const rows = await base44.asServiceRole.entities.FamilyLifeImportRow.filter(
     { import_batch_id: batchId }, 'row_number', 5000,
   );
 
   for (const [rowId, ops] of chunkGroups) {
-    // Check if any op is already APPLIED (from prior interrupted run)
+    // Skip if already APPLIED from prior interrupted run
     const alreadyApplied = ops.find((o) => o.status === OPERATION_STATUS.APPLIED || o.status === OPERATION_STATUS.VERIFIED);
     if (alreadyApplied) {
-      for (const op of ops) {
-        processedOpIds.add(op.id);
-        opUpdates.push({ id: op.id, status: OPERATION_STATUS.APPLIED, applied_at: now });
-      }
+      for (const op of ops) processedOpIds.add(op.id);
       appliedCount += ops.length;
       continue;
     }
 
-    // Build create payload from resolved values
-    const row = rows.find((r) => r.id === rowId);
+    // Build deterministic creation key for recovery
+    const creationKey = buildCreationKey(batchId, rowId, 'ChampionHousehold');
+
+    // STEP 1: Check if production record already exists (recovery from interrupted creation)
+    const existingByKey = await base44.asServiceRole.entities.ChampionHousehold.filter(
+      { import_creation_key: creationKey }, undefined, 1,
+    );
+    if (existingByKey && existingByKey.length > 0) {
+      const existingId = existingByKey[0].id;
+      const opUpdates = ops.map((op) => ({
+        id: op.id, status: OPERATION_STATUS.APPLIED, entity_id: existingId,
+        applied_at: now, drift_status: DRIFT_STATUS.NO_DRIFT,
+      }));
+      await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
+      for (const op of ops) processedOpIds.add(op.id);
+      appliedCount += ops.length;
+      auditEntries.push({
+        import_batch_id: batchId, apply_execution_id: executionId, import_row_id: rowId,
+        entity_type: 'ChampionHousehold', entity_id: existingId,
+        operation_type: OPERATION_TYPE.CREATE_HOUSEHOLD, apply_result: 'UPDATED', applied_by: user.id,
+      });
+      continue;
+    }
+
+    // STEP 2: Build create payload from resolved values
     const createPayload: Record<string, unknown> = {};
     for (const op of ops) {
       if (op.applied_value) {
@@ -495,91 +512,62 @@ async function processCreateHouseholdsChunk(base44, user, batchId, batch, allOps
       }
     }
 
-    // Check for duplicate FL external ID
+    // STEP 3: Secondary recovery — FL external ID (only if present and exactly 1 match)
     const flExtId = createPayload.familylife_external_id;
     if (flExtId) {
-      const existing = await base44.asServiceRole.entities.ChampionHousehold.filter(
-        { familylife_external_id: String(flExtId) }, undefined, 1,
+      const existingByFlId = await base44.asServiceRole.entities.ChampionHousehold.filter(
+        { familylife_external_id: String(flExtId) }, undefined, 5,
       );
-      if (existing && existing.length > 0) {
-        // A production record exists — link to it instead
-        const existingId = existing[0].id;
-        for (const op of ops) {
-          processedOpIds.add(op.id);
-          opUpdates.push({ id: op.id, status: OPERATION_STATUS.APPLIED, entity_id: existingId, applied_at: now, drift_status: DRIFT_STATUS.NO_DRIFT });
-        }
+      if (existingByFlId && existingByFlId.length === 1) {
+        const existingId = existingByFlId[0].id;
+        const opUpdates = ops.map((op) => ({
+          id: op.id, status: OPERATION_STATUS.APPLIED, entity_id: existingId,
+          applied_at: now, drift_status: DRIFT_STATUS.NO_DRIFT,
+        }));
+        await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
+        for (const op of ops) processedOpIds.add(op.id);
         appliedCount += ops.length;
         auditEntries.push({
           import_batch_id: batchId, apply_execution_id: executionId, import_row_id: rowId,
           entity_type: 'ChampionHousehold', entity_id: existingId,
-          operation_type: OPERATION_TYPE.CREATE_HOUSEHOLD,
-          apply_result: 'UPDATED', applied_by: user.id,
+          operation_type: OPERATION_TYPE.CREATE_HOUSEHOLD, apply_result: 'UPDATED', applied_by: user.id,
         });
         continue;
       }
+      // Multiple matches — ambiguous, proceed to creation (caught by verification)
     }
 
-    // Check for duplicate email
-    const email = createPayload.email;
-    if (email) {
-      const existingByEmail = await base44.asServiceRole.entities.ChampionHousehold.filter(
-        { email: String(email).toLowerCase() }, undefined, 1,
-      );
-      if (existingByEmail && existingByEmail.length > 0) {
-        const existingId = existingByEmail[0].id;
-        for (const op of ops) {
-          processedOpIds.add(op.id);
-          opUpdates.push({ id: op.id, status: OPERATION_STATUS.APPLIED, entity_id: existingId, applied_at: now, drift_status: DRIFT_STATUS.NO_DRIFT });
-        }
-        appliedCount += ops.length;
-        auditEntries.push({
-          import_batch_id: batchId, apply_execution_id: executionId, import_row_id: rowId,
-          entity_type: 'ChampionHousehold', entity_id: existingId,
-          operation_type: OPERATION_TYPE.CREATE_HOUSEHOLD,
-          apply_result: 'UPDATED', applied_by: user.id,
-        });
-        continue;
-      }
-    }
-
-    // Sanitize
+    // STEP 4: Sanitize and create with deterministic creation key
     const sanResult = sanitizeWritePayload(createPayload, IMPORT_OPERATIONS.NEW_RECORD_CREATE, null, 'ChampionHousehold');
-
-    // Build final payload with original values (sanitizer validates, resolved value is authoritative)
     const finalPayload: Record<string, unknown> = {};
     for (const field of Object.keys(sanResult.sanitized)) {
       finalPayload[field] = createPayload[field];
     }
     finalPayload.last_familylife_sync_at = now;
     finalPayload.last_familylife_import_batch_id = batchId;
+    finalPayload.import_creation_key = creationKey;
 
-    // Create the household
+    // Create the household — production record carries the creation_key
     const created = await base44.asServiceRole.entities.ChampionHousehold.create(finalPayload);
     const householdId = created.id;
 
-    // IMMEDIATELY persist entity_id on operations — checkpoint-safe
-    for (const op of ops) {
-      processedOpIds.add(op.id);
-      opUpdates.push({
-        id: op.id,
-        status: OPERATION_STATUS.APPLIED,
-        entity_id: householdId,
-        applied_at: now,
-        drift_status: DRIFT_STATUS.NO_DRIFT,
-      });
-    }
-    appliedCount += ops.length;
+    // STEP 5: Per-record durable checkpoint — immediately persist ops for THIS record
+    const opUpdates = ops.map((op) => ({
+      id: op.id, status: OPERATION_STATUS.APPLIED, entity_id: householdId,
+      applied_at: now, drift_status: DRIFT_STATUS.NO_DRIFT,
+    }));
+    await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
 
+    for (const op of ops) processedOpIds.add(op.id);
+    appliedCount += ops.length;
     auditEntries.push({
       import_batch_id: batchId, apply_execution_id: executionId, import_row_id: rowId,
       entity_type: 'ChampionHousehold', entity_id: householdId,
-      operation_type: OPERATION_TYPE.CREATE_HOUSEHOLD,
-      apply_result: 'CREATED', applied_by: user.id,
+      operation_type: OPERATION_TYPE.CREATE_HOUSEHOLD, apply_result: 'CREATED', applied_by: user.id,
     });
   }
 
-  // Batch write
-  if (opUpdates.length) await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
+  // Batch create audits (ops already checkpointed per-record)
   if (auditEntries.length) await createApplyAudits(base44, auditEntries);
 
   const hasMore = groups.size > chunkGroups.length;
@@ -606,12 +594,10 @@ async function processCreateMembersChunk(base44, user, batchId, batch, allOps, p
 
   const chunkGroups = Array.from(groups.entries()).slice(0, CHUNK_SIZE);
   const processedOpIds = new Set<string>();
-  const opUpdates: any[] = [];
   const auditEntries: any[] = [];
   let appliedCount = 0;
   let failedCount = 0;
 
-  // Load rows for household group key resolution
   const rows = await base44.asServiceRole.entities.FamilyLifeImportRow.filter(
     { import_batch_id: batchId }, 'row_number', 5000,
   );
@@ -619,21 +605,40 @@ async function processCreateMembersChunk(base44, user, batchId, batch, allOps, p
   for (const [rowId, ops] of chunkGroups) {
     const alreadyApplied = ops.find((o) => o.status === OPERATION_STATUS.APPLIED || o.status === OPERATION_STATUS.VERIFIED);
     if (alreadyApplied) {
-      for (const op of ops) {
-        processedOpIds.add(op.id);
-        opUpdates.push({ id: op.id, status: OPERATION_STATUS.APPLIED, applied_at: now });
-      }
+      for (const op of ops) processedOpIds.add(op.id);
       appliedCount += ops.length;
       continue;
     }
 
-    // Resolve target household ID
+    // Build deterministic creation key
+    const creationKey = buildCreationKey(batchId, rowId, 'HouseholdMember');
+
+    // STEP 1: Check if production record already exists (recovery from interrupted creation)
+    const existingByKey = await base44.asServiceRole.entities.HouseholdMember.filter(
+      { import_creation_key: creationKey }, undefined, 1,
+    );
+    if (existingByKey && existingByKey.length > 0) {
+      const existingId = existingByKey[0].id;
+      const opUpdates = ops.map((op) => ({
+        id: op.id, status: OPERATION_STATUS.APPLIED, entity_id: existingId,
+        applied_at: now, drift_status: DRIFT_STATUS.NO_DRIFT,
+      }));
+      await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
+      for (const op of ops) processedOpIds.add(op.id);
+      appliedCount += ops.length;
+      auditEntries.push({
+        import_batch_id: batchId, apply_execution_id: executionId, import_row_id: rowId,
+        entity_type: 'HouseholdMember', entity_id: existingId,
+        operation_type: OPERATION_TYPE.CREATE_MEMBER, apply_result: 'UPDATED', applied_by: user.id,
+      });
+      continue;
+    }
+
+    // STEP 2: Resolve target household ID
     const row = rows.find((r) => r.id === rowId);
     let targetHouseholdId = row?.matched_household_id || '';
 
-    // If no matched household, find from CREATE_HOUSEHOLD ops with same household_group_key
     if (!targetHouseholdId && row?.household_group_key) {
-      // Look for a CREATE_HOUSEHOLD operation that's already APPLIED with the same household group
       const householdOps = allOps.filter((o) =>
         o.operation_type === OPERATION_TYPE.CREATE_HOUSEHOLD &&
         (o.status === OPERATION_STATUS.APPLIED || o.status === OPERATION_STATUS.VERIFIED) &&
@@ -649,15 +654,17 @@ async function processCreateMembersChunk(base44, user, batchId, batch, allOps, p
     }
 
     if (!targetHouseholdId) {
-      for (const op of ops) {
-        processedOpIds.add(op.id);
-        opUpdates.push({ id: op.id, status: OPERATION_STATUS.FAILED, error_message: 'No target household ID found for member creation.', applied_at: now });
-      }
+      const opUpdates = ops.map((op) => ({
+        id: op.id, status: OPERATION_STATUS.FAILED,
+        error_message: 'No target household ID found for member creation.', applied_at: now,
+      }));
+      await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
+      for (const op of ops) processedOpIds.add(op.id);
       failedCount += ops.length;
       continue;
     }
 
-    // Build member payload
+    // STEP 3: Build member payload from resolved values
     const memberPayload: Record<string, unknown> = {};
     for (const op of ops) {
       if (op.applied_value) {
@@ -666,63 +673,36 @@ async function processCreateMembersChunk(base44, user, batchId, batch, allOps, p
       }
     }
 
-    // Check for duplicate member email in household
-    const memberEmail = memberPayload.email;
-    if (memberEmail) {
-      const existingMembers = await base44.asServiceRole.entities.HouseholdMember.filter(
-        { household_id: targetHouseholdId }, undefined, 500,
-      );
-      const dup = existingMembers.find((m) =>
-        m.email && m.email.toLowerCase() === String(memberEmail).toLowerCase(),
-      );
-      if (dup) {
-        // Link to existing member
-        for (const op of ops) {
-          processedOpIds.add(op.id);
-          opUpdates.push({ id: op.id, status: OPERATION_STATUS.APPLIED, entity_id: dup.id, applied_at: now, drift_status: DRIFT_STATUS.NO_DRIFT });
-        }
-        appliedCount += ops.length;
-        continue;
-      }
-    }
-
-    // Sanitize and create
+    // STEP 4: Sanitize and create with deterministic creation key
     const sanResult = sanitizeWritePayload(
       { ...memberPayload, household_id: targetHouseholdId },
       IMPORT_OPERATIONS.NEW_RECORD_CREATE, null, 'HouseholdMember',
     );
-
     const finalPayload: Record<string, unknown> = { household_id: targetHouseholdId };
     for (const field of Object.keys(sanResult.sanitized)) {
-      if (field !== 'household_id') {
-        finalPayload[field] = memberPayload[field];
-      }
+      if (field !== 'household_id') finalPayload[field] = memberPayload[field];
     }
+    finalPayload.import_creation_key = creationKey;
 
+    // Create the member — production record carries the creation_key
     const createdMember = await base44.asServiceRole.entities.HouseholdMember.create(finalPayload);
 
-    // IMMEDIATELY persist entity_id
-    for (const op of ops) {
-      processedOpIds.add(op.id);
-      opUpdates.push({
-        id: op.id,
-        status: OPERATION_STATUS.APPLIED,
-        entity_id: createdMember.id,
-        applied_at: now,
-        drift_status: DRIFT_STATUS.NO_DRIFT,
-      });
-    }
-    appliedCount += ops.length;
+    // STEP 5: Per-record durable checkpoint
+    const opUpdates = ops.map((op) => ({
+      id: op.id, status: OPERATION_STATUS.APPLIED, entity_id: createdMember.id,
+      applied_at: now, drift_status: DRIFT_STATUS.NO_DRIFT,
+    }));
+    await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
 
+    for (const op of ops) processedOpIds.add(op.id);
+    appliedCount += ops.length;
     auditEntries.push({
       import_batch_id: batchId, apply_execution_id: executionId, import_row_id: rowId,
       entity_type: 'HouseholdMember', entity_id: createdMember.id,
-      operation_type: OPERATION_TYPE.CREATE_MEMBER,
-      apply_result: 'CREATED', applied_by: user.id,
+      operation_type: OPERATION_TYPE.CREATE_MEMBER, apply_result: 'CREATED', applied_by: user.id,
     });
   }
 
-  if (opUpdates.length) await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
   if (auditEntries.length) await createApplyAudits(base44, auditEntries);
 
   const hasMore = groups.size > chunkGroups.length;
