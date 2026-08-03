@@ -300,12 +300,75 @@
       "enum": [
         "PENDING",
         "APPLYING",
+        "PAUSED",
         "APPLIED",
         "FAILED",
         "PARTIALLY_FAILED"
       ],
       "default": "PENDING",
-      "description": "Status of the production apply engine for this batch. PENDING = not started. APPLYING = in progress. APPLIED = verified and complete. FAILED/PARTIALLY_FAILED = apply encountered errors."
+      "description": "Status of the production apply engine for this batch. PENDING = not started. APPLYING = chunk in progress. PAUSED = between chunks, safe to resume. APPLIED = verified and complete. FAILED/PARTIALLY_FAILED = apply encountered errors."
+    },
+    "apply_phase": {
+      "type": "string",
+      "title": "Apply Phase",
+      "enum": [
+        "PREVALIDATED",
+        "CREATING_HOUSEHOLDS",
+        "CREATING_MEMBERS",
+        "UPDATING_HOUSEHOLDS",
+        "UPDATING_MEMBERS",
+        "APPLYING_RESTRICTIONS",
+        "RECORDING_DECISIONS",
+        "VERIFYING",
+        "FINALIZING",
+        "COMPLETED"
+      ],
+      "default": "PREVALIDATED",
+      "description": "Current execution phase in the chunked apply pipeline."
+    },
+    "apply_progress": {
+      "type": "object",
+      "title": "Apply Progress Checkpoint",
+      "description": "Running progress tracker for the chunked apply engine. Updated after every chunk.",
+      "properties": {
+        "total_operations": {
+          "type": "number",
+          "default": 0
+        },
+        "pending": {
+          "type": "number",
+          "default": 0
+        },
+        "applied": {
+          "type": "number",
+          "default": 0
+        },
+        "verified": {
+          "type": "number",
+          "default": 0
+        },
+        "failed": {
+          "type": "number",
+          "default": 0
+        },
+        "skipped": {
+          "type": "number",
+          "default": 0
+        },
+        "percent_complete": {
+          "type": "number",
+          "default": 0
+        },
+        "chunk_index": {
+          "type": "number",
+          "default": 0
+        },
+        "last_checkpoint_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "default": {}
     },
     "apply_error": {
       "type": "string",

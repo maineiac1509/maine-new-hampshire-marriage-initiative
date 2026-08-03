@@ -1,33 +1,67 @@
-import React, { useState, useEffect } from 'react';
-import { Loader2, AlertTriangle, CheckCircle2, ShieldAlert, FileSpreadsheet } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Loader2, AlertTriangle, CheckCircle2, ShieldAlert, FileSpreadsheet,
+  Play, Pause, RotateCcw, RefreshCw,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
-import { applyPreflight, applyImport } from '@/lib/applyApi';
+import { applyPreflight, applyStart, applyChunk, applyStatus, applyReset } from '@/lib/applyApi';
+import { APPLY_PHASE_LABEL } from '@/lib/importLabels';
 
-// Confirmation dialog for the production apply engine.
-// Shows backend-computed preflight counts and requires the admin
-// to type "APPLY" to confirm. The frontend never sends field values
-// or write instructions — only the batch ID and confirmation text.
+const POLL_INTERVAL = 2500; // 2.5 seconds between chunk calls
+
 export default function ApplyImportDialog({ open, onOpenChange, batchId, batchFileName, onApplied }) {
   const [loading, setLoading] = useState(false);
-  const [applying, setApplying] = useState(false);
   const [preflight, setPreflight] = useState(null);
   const [error, setError] = useState(null);
   const [confirmText, setConfirmText] = useState('');
+  const [progress, setProgress] = useState(null);
+  const [executing, setExecuting] = useState(false);
+  const [phase, setPhase] = useState(null);
   const [result, setResult] = useState(null);
+  const [canResume, setCanResume] = useState(false);
+  const [canReset, setCanReset] = useState(false);
+  const [isStale, setIsStale] = useState(false);
+  const pollRef = useRef(null);
 
+  // Load preflight on open
   useEffect(() => {
     if (open && batchId) {
       setPreflight(null);
       setError(null);
       setConfirmText('');
+      setProgress(null);
       setResult(null);
+      setExecuting(false);
       loadPreflight();
+      loadStatus();
     }
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [open, batchId]);
+
+  // Check for existing in-progress execution
+  async function loadStatus() {
+    try {
+      const res = await applyStatus(batchId);
+      if (res.apply_status === 'PAUSED' || res.apply_status === 'APPLYING') {
+        setProgress(res.apply_progress);
+        setPhase(res.apply_phase);
+        setCanResume(res.can_resume);
+        setCanReset(res.can_reset);
+        setIsStale(res.is_stale);
+        if (res.apply_status === 'PAUSED') {
+          setExecuting(false); // Ready to resume
+        }
+      } else if (res.apply_status === 'APPLIED') {
+        setResult({ completed: true, summary: res.apply_summary });
+        setProgress({ ...res.apply_progress, percent_complete: 100 });
+        setPhase('COMPLETED');
+      }
+    } catch (_) { /* ignore — may not have started yet */ }
+  }
 
   async function loadPreflight() {
     setLoading(true);
@@ -45,29 +79,125 @@ export default function ApplyImportDialog({ open, onOpenChange, batchId, batchFi
     }
   }
 
-  async function handleApply() {
-    setApplying(true);
+  // Start execution
+  async function handleStart() {
+    setExecuting(true);
     setError(null);
     try {
-      const res = await applyImport(batchId, 'APPLY');
-      setResult(res);
-      if (res.success) {
-        onApplied?.(res);
-      } else {
-        setError(res.error || 'Apply failed.');
-      }
+      const res = await applyStart(batchId, 'APPLY');
+      setProgress(res.progress);
+      setPhase(res.phase);
+      setResult(null);
+      // Start polling chunks
+      startChunkPolling();
     } catch (err) {
-      setError(err?.message || 'Apply failed.');
-    } finally {
-      setApplying(false);
+      setError(err?.message || 'Failed to start apply.');
+      setExecuting(false);
     }
   }
 
-  const canConfirm = preflight?.passed && confirmText === 'APPLY' && !applying;
-  const counts = preflight?.counts;
+  // Resume after interruption
+  async function handleResume() {
+    setExecuting(true);
+    setError(null);
+    try {
+      // Re-acquire lock via start (it detects existing ops)
+      const res = await applyStart(batchId, 'APPLY');
+      setProgress(res.progress);
+      setPhase(res.phase);
+      startChunkPolling();
+    } catch (err) {
+      setError(err?.message || 'Failed to resume.');
+      setExecuting(false);
+    }
+  }
+
+  // Reset execution
+  async function handleReset() {
+    if (!confirm('Reset the apply execution? This will delete all checkpoint data. No production records will be affected if none were written yet.')) return;
+    setExecuting(true);
+    setError(null);
+    try {
+      const res = await applyReset(batchId);
+      if (res.reset) {
+        setProgress(null);
+        setPhase(null);
+        setCanResume(false);
+        setCanReset(false);
+        setIsStale(false);
+        await loadPreflight();
+      } else {
+        setError(res.error || 'Reset failed.');
+      }
+    } catch (err) {
+      setError(err?.message || 'Reset failed.');
+    } finally {
+      setExecuting(false);
+    }
+  }
+
+  // Polling loop — call chunk repeatedly until complete
+  const startChunkPolling = useCallback(() => {
+    if (pollRef.current) clearInterval(pollRef.current);
+
+    const poll = async () => {
+      try {
+        const res = await applyChunk(batchId);
+        if (res.completed) {
+          // Done!
+          setResult(res);
+          setProgress({ ...res.progress, percent_complete: 100 });
+          setPhase('COMPLETED');
+          setExecuting(false);
+          if (pollRef.current) clearInterval(pollRef.current);
+          onApplied?.(res);
+        } else if (res.error) {
+          setError(res.error);
+          setExecuting(false);
+          if (pollRef.current) clearInterval(pollRef.current);
+          // Reload status to update resume/reset flags
+          await loadStatus();
+        } else {
+          setProgress(res.progress);
+          setPhase(res.phase || res.new_phase);
+        }
+      } catch (err) {
+        setError(err?.message || 'Chunk processing failed.');
+        setExecuting(false);
+        if (pollRef.current) clearInterval(pollRef.current);
+        await loadStatus();
+      }
+    };
+
+    // Call immediately, then poll
+    poll();
+    pollRef.current = setInterval(poll, POLL_INTERVAL);
+  }, [batchId, onApplied]);
+
+  // Handle dialog close
+  function handleClose(open) {
+    if (!open && executing) {
+      // Don't close while executing — user should wait or pause
+      if (!confirm('The apply is still running. Closing this dialog will not stop execution, but you will lose the live progress view. You can resume later. Close anyway?')) {
+        return;
+      }
+    }
+    if (pollRef.current) clearInterval(pollRef.current);
+    setExecuting(false);
+    onOpenChange(open);
+    if (!open) {
+      // Refresh parent data
+      window.location.reload();
+    }
+  }
+
+  const canConfirm = preflight?.passed && confirmText === 'APPLY' && !executing && !progress;
+  const hasInProgress = progress && !result?.completed;
+  const percent = progress?.percent_complete || 0;
+  const phaseLabel = phase ? (APPLY_PHASE_LABEL[phase] || phase) : null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -86,68 +216,126 @@ export default function ApplyImportDialog({ open, onOpenChange, batchId, batchFi
           </div>
         )}
 
-        {!loading && preflight && (
+        {!loading && (
           <div className="space-y-3">
             {/* Preflight status */}
-            {preflight.passed ? (
-              <div className="flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-                <CheckCircle2 className="h-4 w-4 shrink-0" />
-                <span>Preflight validation passed. All checks are ready.</span>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <span>Preflight validation failed. This batch cannot be applied.</span>
+            {preflight && !hasInProgress && !result?.completed && (
+              <>
+                {preflight.passed ? (
+                  <div className="flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    <span>Preflight validation passed. All checks are ready.</span>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      <span>Preflight validation failed. This batch cannot be applied.</span>
+                    </div>
+                    {preflight.errors?.length > 0 && (
+                      <ul className="ml-4 space-y-0.5 text-xs text-red-700">
+                        {preflight.errors.map((e, i) => <li key={i}>• {e}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Counts */}
+            {preflight?.counts && !hasInProgress && !result?.completed && (
+              <div className="rounded-lg border p-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Production Write Plan Summary</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <CountRow label="Total rows" value={preflight.counts.total_rows} />
+                  <CountRow label="Unresolved items" value={preflight.counts.unresolved_items} danger={preflight.counts.unresolved_items > 0} />
+                  <CountRow label="New households" value={preflight.counts.new_households_to_create} highlight />
+                  <CountRow label="New members" value={preflight.counts.new_members_to_create} highlight />
+                  <CountRow label="Update households" value={preflight.counts.existing_households_to_update} />
+                  <CountRow label="Update members" value={preflight.counts.existing_members_to_update} />
+                  <CountRow label="Safe FL updates" value={preflight.counts.safe_familylife_updates} />
+                  <CountRow label="Shared use incoming" value={preflight.counts.shared_use_incoming} />
+                  <CountRow label="Custom values" value={preflight.counts.custom_values} />
+                  <CountRow label="Restrictions" value={preflight.counts.restrictions_added} warning />
                 </div>
-                {preflight.errors?.length > 0 && (
-                  <ul className="ml-4 space-y-0.5 text-xs text-red-700">
-                    {preflight.errors.map((e, i) => <li key={i}>• {e}</li>)}
-                  </ul>
+              </div>
+            )}
+
+            {/* In-progress execution */}
+            {hasInProgress && (
+              <div className="space-y-3">
+                <div className="flex gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                  {executing ? (
+                    <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                  ) : (
+                    <Pause className="h-4 w-4 shrink-0" />
+                  )}
+                  <div className="flex-1">
+                    <p className="font-medium">
+                      {executing ? 'Applying to Production…' : 'Execution Paused'}
+                    </p>
+                    {phaseLabel && (
+                      <p className="mt-0.5 text-xs text-blue-700">
+                        Phase: {phaseLabel}
+                        {isStale && ' (stale — safe to resume)'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">
+                      {progress?.applied || 0} applied · {progress?.verified || 0} verified · {progress?.failed || 0} failed · {progress?.skipped || 0} skipped
+                    </span>
+                    <span className="font-medium">{percent}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 transition-all duration-500"
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {progress?.pending || 0} of {progress?.total_operations || 0} operations remaining
+                  </p>
+                </div>
+
+                {/* Resume/Reset controls (when paused) */}
+                {!executing && (canResume || isStale) && (
+                  <div className="flex gap-2">
+                    <Button onClick={handleResume} size="sm" className="flex-1">
+                      <Play className="h-3.5 w-3.5" />
+                      Resume Execution
+                    </Button>
+                    {canReset && (
+                      <Button onClick={handleReset} size="sm" variant="outline">
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Reset
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {/* Error during execution */}
+                {error && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                    <p className="font-medium">Chunk Error (safe to resume)</p>
+                    <p className="mt-1">{error}</p>
+                  </div>
                 )}
               </div>
             )}
 
-            {/* Counts */}
-            {counts && (
-              <div className="rounded-lg border p-3 space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Production Write Plan Summary</p>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <CountRow label="Total rows" value={counts.total_rows} />
-                  <CountRow label="Unresolved items" value={counts.unresolved_items} danger={counts.unresolved_items > 0} />
-                  <CountRow label="New households" value={counts.new_households_to_create} highlight />
-                  <CountRow label="New members" value={counts.new_members_to_create} highlight />
-                  <CountRow label="Update households" value={counts.existing_households_to_update} />
-                  <CountRow label="Update members" value={counts.existing_members_to_update} />
-                  <CountRow label="Safe FL updates" value={counts.safe_familylife_updates} />
-                  <CountRow label="Shared use incoming" value={counts.shared_use_incoming} />
-                  <CountRow label="Shared keep current" value={counts.shared_keep_current} />
-                  <CountRow label="Custom values" value={counts.custom_values} />
-                  <CountRow label="Restrictions added" value={counts.restrictions_added} warning />
-                  <CountRow label="Blocked fields" value={counts.blocked_fields} />
-                  <CountRow label="Skipped rows" value={counts.skipped_rows} />
-                  <CountRow label="Discarded rows" value={counts.discarded_rows} />
-                </div>
-              </div>
-            )}
-
-            {/* Warnings */}
-            {preflight.warnings?.length > 0 && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                <p className="font-medium">Warnings</p>
-                <ul className="mt-1 space-y-0.5">
-                  {preflight.warnings.map((w, i) => <li key={i}>• {w}</li>)}
-                </ul>
-              </div>
-            )}
-
-            {/* Confirmation */}
-            {preflight.passed && !result && (
+            {/* Confirmation (before start) */}
+            {preflight?.passed && !hasInProgress && !result?.completed && (
               <div className="space-y-2">
                 <div className="flex gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
                   <ShieldAlert className="h-4 w-4 shrink-0" />
                   <span>
-                    This action will permanently update production Champion records. It cannot be undone from this screen.
+                    This will permanently update production Champion records in bounded chunks.
+                    The execution is resumable — if interrupted, you can safely continue from where it left off.
                     Type <strong>APPLY</strong> to confirm.
                   </span>
                 </div>
@@ -155,14 +343,14 @@ export default function ApplyImportDialog({ open, onOpenChange, batchId, batchFi
                   value={confirmText}
                   onChange={(e) => setConfirmText(e.target.value)}
                   placeholder='Type "APPLY" to confirm'
-                  disabled={applying}
+                  disabled={executing}
                   className="font-mono"
                 />
               </div>
             )}
 
-            {/* Error */}
-            {error && (
+            {/* Preflight error */}
+            {error && !hasInProgress && !result?.completed && (
               <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
                 <p className="font-medium">Error</p>
                 <p className="mt-1 text-xs">{error}</p>
@@ -170,36 +358,54 @@ export default function ApplyImportDialog({ open, onOpenChange, batchId, batchFi
             )}
 
             {/* Success result */}
-            {result?.success && (
+            {result?.completed && (
               <div className="space-y-2">
                 <div className="flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
                   <span>Import applied successfully!</span>
                 </div>
-                <ApplyResultSummary result={result} />
+                {result.summary && (
+                  <div className="rounded-lg border p-3 space-y-1.5 text-sm">
+                    <p className="text-xs font-medium text-muted-foreground">Apply Results</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <CountRow label="Households created" value={result.summary.created_households} highlight />
+                      <CountRow label="Households updated" value={result.summary.updated_households} />
+                      <CountRow label="Members created" value={result.summary.created_members} highlight />
+                      <CountRow label="Members updated" value={result.summary.updated_members} />
+                      <CountRow label="Fields applied" value={result.summary.fields_applied} />
+                      <CountRow label="Restrictions added" value={result.summary.restrictions_added} warning />
+                      <CountRow label="Fields skipped" value={result.summary.fields_skipped} />
+                      <CountRow label="Fields blocked" value={result.summary.fields_blocked} />
+                      <CountRow label="Failed" value={result.summary.failed_count} danger={result.summary.failed_count > 0} />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
 
         <DialogFooter>
-          {!result?.success && (
+          {!result?.completed && !hasInProgress && (
             <>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={applying}>
+              <Button variant="outline" onClick={() => handleClose(false)} disabled={executing}>
                 Cancel
               </Button>
               <Button
-                onClick={handleApply}
+                onClick={handleStart}
                 disabled={!canConfirm}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >
-                {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                {applying ? 'Applying…' : 'Apply to Production'}
+                {executing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                {executing ? 'Starting…' : 'Start Apply'}
               </Button>
             </>
           )}
-          {result?.success && (
-            <Button onClick={() => onOpenChange(false)}>Done</Button>
+          {hasInProgress && !executing && !result?.completed && !canResume && !isStale && (
+            <Button onClick={() => handleClose(false)}>Close</Button>
+          )}
+          {result?.completed && (
+            <Button onClick={() => handleClose(false)}>Done</Button>
           )}
         </DialogFooter>
       </DialogContent>
@@ -213,26 +419,6 @@ function CountRow({ label, value, highlight, danger, warning }) {
     <div className="flex items-center justify-between">
       <span className="text-muted-foreground">{label}</span>
       <span className={`font-semibold ${tone}`}>{value ?? 0}</span>
-    </div>
-  );
-}
-
-function ApplyResultSummary({ result }) {
-  const s = result.summary;
-  if (!s) return null;
-  return (
-    <div className="rounded-lg border p-3 space-y-1.5 text-sm">
-      <p className="text-xs font-medium text-muted-foreground">Apply Results</p>
-      <div className="grid grid-cols-2 gap-1.5">
-        <CountRow label="Households created" value={s.created_households} highlight />
-        <CountRow label="Households updated" value={s.updated_households} />
-        <CountRow label="Members created" value={s.created_members} highlight />
-        <CountRow label="Members updated" value={s.updated_members} />
-        <CountRow label="Fields applied" value={s.fields_applied} />
-        <CountRow label="Restrictions added" value={s.restrictions_added} warning />
-        <CountRow label="Fields skipped" value={s.fields_skipped} />
-        <CountRow label="Fields blocked" value={s.fields_blocked} />
-      </div>
     </div>
   );
 }

@@ -260,6 +260,7 @@ export const READINESS_STATUS_VARIANT = {
 export const APPLY_STATUS_VARIANT = {
   PENDING: 'neutral',
   APPLYING: 'info',
+  PAUSED: 'warning',
   APPLIED: 'success',
   FAILED: 'danger',
   PARTIALLY_FAILED: 'warning',
@@ -268,9 +269,24 @@ export const APPLY_STATUS_VARIANT = {
 export const APPLY_STATUS_LABEL = {
   PENDING: 'Pending',
   APPLYING: 'Applying…',
+  PAUSED: 'Paused — Resumable',
   APPLIED: 'Applied',
   FAILED: 'Failed',
   PARTIALLY_FAILED: 'Partially Failed',
+};
+
+// --- Apply phase ---
+export const APPLY_PHASE_LABEL = {
+  PREVALIDATED: 'Pre-Validated',
+  CREATING_HOUSEHOLDS: 'Creating Households',
+  CREATING_MEMBERS: 'Creating Members',
+  UPDATING_HOUSEHOLDS: 'Updating Households',
+  UPDATING_MEMBERS: 'Updating Members',
+  APPLYING_RESTRICTIONS: 'Applying Restrictions',
+  RECORDING_DECISIONS: 'Recording Decisions',
+  VERIFYING: 'Verifying',
+  FINALIZING: 'Finalizing',
+  COMPLETED: 'Completed',
 };
 
 // --- Apply operation status ---

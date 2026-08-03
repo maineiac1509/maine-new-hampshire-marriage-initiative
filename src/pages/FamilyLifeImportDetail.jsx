@@ -241,6 +241,7 @@ export default function FamilyLifeImportDetail() {
   const isReadyToApply = batch.status === 'READY_TO_APPLY';
   const isApplied = batch.status === 'APPLIED';
   const isApplying = batch.status === 'APPLYING';
+  const isApplyPaused = batch.apply_status === 'PAUSED';
   const readOnly = isDiscarded || isReadyToApply || isApplied || isApplying;
 
   return (
@@ -283,10 +284,16 @@ export default function FamilyLifeImportDetail() {
               </Button>
             </>
           )}
-          {isReadyToApply && (
+          {isReadyToApply && !isApplyPaused && (
             <Button onClick={() => setApplyDialogOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
               <Rocket className="h-4 w-4" />
               Apply to Production
+            </Button>
+          )}
+          {isApplyPaused && (
+            <Button onClick={() => setApplyDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+              <RefreshCw className="h-4 w-4" />
+              Resume Apply ({batch.apply_progress?.percent_complete || 0}%)
             </Button>
           )}
           {!isDiscarded && !isApplied && (
@@ -347,12 +354,46 @@ export default function FamilyLifeImportDetail() {
           </div>
         </div>
       )}
-      {isApplying && (
+      {isApplying && !isApplyPaused && (
         <div className="flex gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
           <Loader2 className="h-5 w-5 shrink-0 animate-spin" />
-          <div>
+          <div className="flex-1">
             <p className="font-medium">Applying to Production</p>
-            <p className="mt-1 text-blue-700">The apply engine is currently executing approved resolutions. Do not navigate away or submit again.</p>
+            <p className="mt-1 text-blue-700">
+              The apply engine is executing chunk {batch.apply_progress?.chunk_index || 0}. Do not navigate away or submit again.
+            </p>
+            {batch.apply_progress && (
+              <div className="mt-2">
+                <div className="h-1.5 rounded-full bg-blue-200 overflow-hidden">
+                  <div className="h-full bg-blue-500" style={{ width: `${batch.apply_progress.percent_complete || 0}%` }} />
+                </div>
+                <p className="mt-1 text-xs text-blue-600">
+                  {batch.apply_progress.applied || 0} applied · {batch.apply_progress.verified || 0} verified · {batch.apply_progress.percent_complete || 0}%
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {isApplyPaused && (
+        <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <RefreshCw className="h-5 w-5 shrink-0" />
+          <div className="flex-1">
+            <p className="font-medium">Apply Execution Paused — Resumable</p>
+            <p className="mt-1 text-amber-700">
+              The apply execution was interrupted but all progress is saved.
+              Click "Resume Apply" above to continue from where it left off.
+            </p>
+            {batch.apply_progress && (
+              <div className="mt-2">
+                <div className="h-1.5 rounded-full bg-amber-200 overflow-hidden">
+                  <div className="h-full bg-amber-500" style={{ width: `${batch.apply_progress.percent_complete || 0}%` }} />
+                </div>
+                <p className="mt-1 text-xs text-amber-600">
+                  {batch.apply_progress.applied || 0} applied · {batch.apply_progress.pending || 0} pending · {batch.apply_progress.percent_complete || 0}%
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -374,7 +415,7 @@ export default function FamilyLifeImportDetail() {
       <ImportBatchSummary batch={batch} />
 
       {/* Resolution summary */}
-      {!isApplied && !isApplying && (
+      {!isApplied && !isApplying && !isApplyPaused && (
         <div className="rounded-lg border p-4">
           <ResolutionSummary
             summary={batch.resolution_summary}
@@ -386,14 +427,14 @@ export default function FamilyLifeImportDetail() {
       )}
 
       {/* Apply result summary (shown after apply) */}
-      {(isApplied || batch.apply_status === 'APPLIED' || batch.apply_status === 'FAILED' || batch.apply_status === 'PARTIALLY_FAILED') && (
+      {(isApplied || batch.apply_status === 'APPLIED' || batch.apply_status === 'FAILED' || batch.apply_status === 'PARTIALLY_FAILED') && !isApplyPaused && (
         <div className="rounded-lg border p-4">
           <ApplyResultSummary batch={batch} />
         </div>
       )}
 
       {/* Bulk actions */}
-      {!readOnly && (
+      {!readOnly && !isApplyPaused && (
         <div className="rounded-lg border p-4">
           <BulkActionBar
             batchId={id}

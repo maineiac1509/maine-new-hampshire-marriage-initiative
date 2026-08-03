@@ -13,11 +13,19 @@ export async function applyPreflight(batchId) {
   return res.data || res;
 }
 
-export async function applyImport(batchId, confirmationText) {
+export async function applyStart(batchId, confirmationText) {
   const res = await base44.functions.invoke('applyFamilyLifeImport', {
-    action: 'apply',
+    action: 'start',
     import_batch_id: batchId,
     confirmation_text: confirmationText,
+  });
+  return res.data || res;
+}
+
+export async function applyChunk(batchId) {
+  const res = await base44.functions.invoke('applyFamilyLifeImport', {
+    action: 'chunk',
+    import_batch_id: batchId,
   });
   return res.data || res;
 }
@@ -25,6 +33,14 @@ export async function applyImport(batchId, confirmationText) {
 export async function applyStatus(batchId) {
   const res = await base44.functions.invoke('applyFamilyLifeImport', {
     action: 'status',
+    import_batch_id: batchId,
+  });
+  return res.data || res;
+}
+
+export async function applyReset(batchId) {
+  const res = await base44.functions.invoke('applyFamilyLifeImport', {
+    action: 'reset',
     import_batch_id: batchId,
   });
   return res.data || res;

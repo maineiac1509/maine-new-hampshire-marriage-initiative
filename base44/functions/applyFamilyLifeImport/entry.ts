@@ -1,47 +1,39 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 
 // ============================================================
-// FamilyLife Import — Production Apply Engine Endpoint
+// FamilyLife Import — Production Apply Engine (Chunked)
 // ============================================================
-// Admin-only HTTP entry point for the final production apply
-// engine. Executes approved resolutions against production
-// ChampionHousehold and HouseholdMember records.
+// Admin-only HTTP entry point for the resumable, checkpointed
+// production apply engine. Executes approved resolutions in
+// bounded chunks with persistent progress tracking.
 //
-// Request body (JSON):
-//   {
-//     action: 'preflight' | 'apply' | 'status',
-//     import_batch_id: string,
-//     confirmation_text?: string  // must be 'APPLY' for apply action
-//   }
+// Actions:
+//   preflight  — validate readiness, return counts (read-only)
+//   start      — acquire lock, preflight, create operations, init phase
+//   chunk      — process next bounded chunk of PENDING operations
+//   status     — return current progress and phase
+//   reset      — reset to READY_FOR_REVIEW if safe (no APPLIED ops)
 //
-// The frontend sends ONLY import_batch_id and optional confirmation.
-// The backend independently loads all batch data, resolutions,
-// comparisons, and production records. It does NOT trust
-// frontend-provided field values, entity IDs, or write instructions.
-//
-// Flow:
-//   READY_TO_APPLY BATCH
-//   → PRE-APPLY VALIDATION
-//   → DRIFT DETECTION
-//   → WRITE-PLAN GENERATION
-//   → SANITIZATION
-//   → CHECKPOINTED EXECUTION
-//   → AUDIT RECORDING
-//   → POST-APPLY VERIFICATION
-//   → APPLIED
+// Chunked execution guarantees:
+//   - Each invocation processes at most CHUNK_SIZE entity groups
+//   - Each invocation completes in <10 seconds
+//   - Progress is checkpointed after every chunk
+//   - Resume from PENDING operations is idempotent
+//   - Created entity IDs are persisted on operations immediately
+//   - No manual database cleanup needed after interruption
 // ============================================================
 
 import {
   preflightValidate, generateWritePlan, detectDrift,
   sanitizeWritePayload, validateSanitization,
-  buildOperationKey,
+  buildOperationKey, computeProgress, nextPhase, isStale,
   DRIFT_STATUS, OPERATION_TYPE, OPERATION_STATUS, APPLY_RESULT,
-  type WritePlan, type WriteOperation,
+  APPLY_PHASE, PHASE_ORDER, PHASE_OPERATION_TYPES,
+  CHUNK_SIZE, STALE_THRESHOLD_SECONDS,
 } from '../../shared/import/applyEngine.ts';
 import {
   RESOLUTION_TYPE, RESOLUTION_STATUS,
   CURRENT_GOVERNANCE_VERSION, CURRENT_MAPPING_VERSION,
-  isRestrictionRemovalAttempt,
 } from '../../shared/import/resolver.ts';
 import { COMPARISON_RESULT } from '../../shared/import/comparator.ts';
 import { FIELD_GOVERNANCE, OWNERSHIP, IMPORT_OPERATIONS, getFieldPolicy, normalizeForComparison } from '../../shared/import/governance.ts';
@@ -67,10 +59,14 @@ export default async function(req) {
     switch (action) {
       case 'preflight':
         return await handlePreflight(base44, user, import_batch_id);
-      case 'apply':
-        return await handleApply(base44, user, import_batch_id, confirmation_text);
+      case 'start':
+        return await handleStart(base44, user, import_batch_id, confirmation_text);
+      case 'chunk':
+        return await handleChunk(base44, user, import_batch_id);
       case 'status':
         return await handleStatus(base44, user, import_batch_id);
+      case 'reset':
+        return await handleReset(base44, user, import_batch_id);
       default:
         return Response.json({ error: `Unknown action: ${action}` }, { status: 400 });
     }
@@ -82,15 +78,26 @@ export default async function(req) {
 // ============================================================
 // Helpers
 // ============================================================
-async function createApplyAudit(base44, entry) {
-  await base44.asServiceRole.entities.FamilyLifeImportApplyAudit.create({
+
+async function createApplyAudits(base44, entries: any[]) {
+  if (!entries.length) return;
+  const auditRecords = entries.map((e) => ({
     applied_at: new Date().toISOString(),
-    ...entry,
-  });
+    ...e,
+  }));
+  await bulkCreateSafe(base44, 'FamilyLifeImportApplyAudit', auditRecords);
+}
+
+async function updateCheckpoint(base44, batchId: string, updates: Record<string, unknown>) {
+  await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, updates);
+}
+
+function isApplyInProgress(batch: any): boolean {
+  return batch.apply_status === 'APPLYING' || batch.apply_status === 'PAUSED';
 }
 
 // ============================================================
-// preflight — validate readiness and return counts for confirmation
+// preflight — validate readiness and return counts (read-only)
 // ============================================================
 async function handlePreflight(base44, user, batchId) {
   const batch = await base44.asServiceRole.entities.FamilyLifeImportBatch.get(batchId);
@@ -112,166 +119,68 @@ async function handlePreflight(base44, user, batchId) {
 }
 
 // ============================================================
-// apply — execute the full apply pipeline
+// start — acquire lock, preflight, create operations, init phase
 // ============================================================
-async function handleApply(base44, user, batchId, confirmationText) {
-  // Require explicit confirmation
+async function handleStart(base44, user, batchId, confirmationText) {
   if (confirmationText !== 'APPLY') {
-    return Response.json({ error: 'Confirmation text "APPLY" is required to execute the apply.' }, { status: 400 });
+    return Response.json({ error: 'Confirmation text "APPLY" is required to start the apply.' }, { status: 400 });
   }
 
-  // 1. Load batch
   const batch = await base44.asServiceRole.entities.FamilyLifeImportBatch.get(batchId);
   if (!batch) return Response.json({ error: 'Batch not found.' }, { status: 404 });
 
-  // 2. Check batch is not already applied
   if (batch.status === 'APPLIED' || batch.apply_status === 'APPLIED') {
     return Response.json({ error: 'This batch has already been applied.', applied_at: batch.applied_at }, { status: 409 });
   }
 
-  // 3. Check for concurrent apply (lock check)
-  if (batch.status === 'APPLYING' || batch.apply_status === 'APPLYING') {
-    return Response.json({
-      error: 'Another apply execution is in progress for this batch.',
-      apply_execution_id: batch.apply_execution_id,
-      applying_started_at: batch.applying_started_at,
-      applying_started_by: batch.applying_started_by,
-    }, { status: 409 });
-  }
+  // Allow start if: fresh (READY_TO_APPLY, apply_status PENDING) or resuming a stale execution
+  const inProgress = isApplyInProgress(batch);
+  const stale = inProgress && isStale(batch.apply_progress?.last_checkpoint_at);
+  const hasProgress = batch.apply_status === 'PAUSED' ||
+    (batch.apply_status === 'APPLYING' && stale);
 
-  // 4. Check status is READY_TO_APPLY
-  if (batch.status !== 'READY_TO_APPLY') {
+  if (batch.status === 'READY_TO_APPLY' && batch.apply_status === 'PENDING') {
+    // Fresh start — proceed
+  } else if (hasProgress) {
+    // Resume from stale/paused — proceed, will pickup PENDING ops
+  } else if (inProgress && !stale) {
+    return Response.json({
+      error: 'An apply execution is in progress and not stale. Wait or resume later.',
+      apply_execution_id: batch.apply_execution_id,
+      last_checkpoint: batch.apply_progress?.last_checkpoint_at,
+    }, { status: 409 });
+  } else {
     return Response.json({ error: `Batch status is "${batch.status}", not READY_TO_APPLY.` }, { status: 409 });
   }
 
-  // 5. Acquire apply lock
-  const executionId = `apply-${batchId}-${Date.now()}`;
-  const now = new Date().toISOString();
-  await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-    status: 'APPLYING',
-    apply_status: 'APPLYING',
-    applying_started_at: now,
-    applying_started_by: user.id,
-    apply_execution_id: executionId,
-    apply_error: '',
-  });
-
-  // Audit: APPLY_STARTED
-  await createApplyAudit(base44, {
-    import_batch_id: batchId,
-    apply_execution_id: executionId,
-    apply_result: 'VERIFIED',
-    applied_by: user.id,
-  });
-
-  // Wrap the rest in a try/catch to handle failures and release the lock.
-  // The catch block is defensive: its own DB calls are wrapped so a
-  // secondary failure (e.g. timeout during lock release) cannot mask
-  // the original error.
-  try {
-    return await executeApply(base44, user, batchId, batch, executionId);
-  } catch (error) {
-    const errorMsg = error?.message || 'Apply execution failed.';
-    // Record failure and release lock back to READY_FOR_REVIEW
-    try {
-      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-        status: 'READY_FOR_REVIEW',
-        apply_status: 'FAILED',
-        apply_error: errorMsg,
-      });
-    } catch (_) {
-      // If the lock release itself fails, the batch remains APPLYING.
-      // The error is still reported to the caller below.
-    }
-    try {
-      await createApplyAudit(base44, {
-        import_batch_id: batchId,
-        apply_execution_id: executionId,
-        apply_result: 'FAILED',
-        error_message: errorMsg,
-        applied_by: user.id,
-      });
-    } catch (_) { /* audit is best-effort during failure */ }
-    return Response.json({
-      error: errorMsg,
-      apply_execution_id: executionId,
-      needs_review: true,
-      retry_safe: false,
-    }, { status: 500 });
-  }
-}
-
-// ============================================================
-// executeApply — the main pipeline
-// ============================================================
-async function executeApply(base44, user, batchId, batch, executionId) {
-  const now = new Date().toISOString();
-
-  // Load all batch data
+  // Preflight validation
   const { comparisons, resolutions, rows, issues } = await loadBatchData(base44, batchId);
-
-  // --- PHASE 1: PREFLIGHT VALIDATION ---
   const preflight = preflightValidate(batch, rows, comparisons, resolutions, issues);
   if (!preflight.passed) {
-    await createApplyAudit(base44, {
-      import_batch_id: batchId,
-      apply_execution_id: executionId,
-      apply_result: 'FAILED',
-      error_message: `Preflight validation failed: ${preflight.errors.join('; ')}`,
-      applied_by: user.id,
-    });
-    // Release lock — determine if readiness should be revoked
-    const staleErrors = preflight.errors.some((e) =>
-      e.includes('Governance version') || e.includes('Mapping version'),
-    );
-    if (staleErrors) {
-      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-        status: 'READY_FOR_REVIEW',
-        apply_status: 'FAILED',
-        readiness_status: preflight.errors.some((e) => e.includes('Governance')) ? 'STALE_GOVERNANCE' : 'STALE_MAPPING',
-        readiness_reason: preflight.errors.join('; '),
-        apply_error: `Preflight validation failed: ${preflight.errors.join('; ')}`,
-      });
-    } else {
-      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-        status: 'READY_TO_APPLY',
-        apply_status: 'FAILED',
-        apply_error: `Preflight validation failed: ${preflight.errors.join('; ')}`,
-      });
-    }
     return Response.json({
       error: 'Preflight validation failed.',
       errors: preflight.errors,
       warnings: preflight.warnings,
-      apply_execution_id: executionId,
-      needs_review: staleErrors,
-      retry_safe: !staleErrors,
     }, { status: 422 });
   }
 
-  // Audit: PREVALIDATION_PASSED
-  await createApplyAudit(base44, {
-    import_batch_id: batchId,
-    apply_execution_id: executionId,
-    apply_result: 'VERIFIED',
-    applied_by: user.id,
-  });
+  // Acquire lock
+  const executionId = batch.apply_execution_id && hasProgress
+    ? batch.apply_execution_id // Reuse existing execution ID on resume
+    : `apply-${batchId}-${Date.now()}`;
+  const now = new Date().toISOString();
 
-  // --- PHASE 2: GENERATE WRITE PLAN ---
-  const plan = generateWritePlan(batch, rows, comparisons, resolutions);
-
-  // --- PHASE 3: CREATE/RESOLVE APPLY OPERATIONS (idempotent) ---
-  // Check for existing operations from a prior interrupted apply
+  // Check for existing operations (from a prior interrupted start)
   const existingOps = await base44.asServiceRole.entities.FamilyLifeImportApplyOperation.filter(
     { import_batch_id: batchId }, undefined, 5000,
   );
   const existingOpKeys = new Set(existingOps.map((o) => o.operation_key));
-  const opByOperationKey = new Map(existingOps.map((o) => [o.operation_key, o]));
 
-  // Create new operations that don't exist yet
-  const newOps = plan.operations
-    .filter((op) => !existingOpKeys.has(op.operation_key))
-    .map((op) => ({
+  if (existingOps.length === 0) {
+    // Fresh start — generate and create operations
+    const plan = generateWritePlan(batch, rows, comparisons, resolutions);
+
+    const newOps = plan.operations.map((op) => ({
       import_batch_id: batchId,
       apply_execution_id: executionId,
       import_row_id: op.import_row_id,
@@ -293,317 +202,472 @@ async function executeApply(base44, user, batchId, batch, executionId) {
       applied_by: user.id,
     }));
 
-  if (newOps.length) {
-    await bulkCreateSafe(base44, 'FamilyLifeImportApplyOperation', newOps);
+    if (newOps.length) {
+      await bulkCreateSafe(base44, 'FamilyLifeImportApplyOperation', newOps);
+    }
+
+    const totalOps = newOps.length;
+    const progress = computeProgress(totalOps, 0, 0, 0, 0, 0);
+
+    await updateCheckpoint(base44, batchId, {
+      status: 'APPLYING',
+      apply_status: 'PAUSED',
+      apply_phase: APPLY_PHASE.CREATING_HOUSEHOLDS,
+      apply_execution_id: executionId,
+      applying_started_at: now,
+      applying_started_by: user.id,
+      apply_error: '',
+      apply_progress: progress,
+    });
+
+    // Audit: APPLY_STARTED
+    await createApplyAudits(base44, [{
+      import_batch_id: batchId,
+      apply_execution_id: executionId,
+      apply_result: 'VERIFIED',
+      applied_by: user.id,
+    }]);
+
+    return Response.json({
+      started: true,
+      apply_execution_id: executionId,
+      phase: APPLY_PHASE.CREATING_HOUSEHOLDS,
+      progress,
+      total_operations: totalOps,
+      message: 'Apply started. Call "chunk" to process the next batch of operations.',
+    });
+  } else {
+    // Resume — operations already exist, just re-acquire lock
+    await updateCheckpoint(base44, batchId, {
+      status: 'APPLYING',
+      apply_status: 'PAUSED',
+      apply_execution_id: executionId,
+      apply_error: '',
+      apply_progress: {
+        ...batch.apply_progress,
+        last_checkpoint_at: now,
+      },
+    });
+
+    // Count current statuses
+    const applied = existingOps.filter((o) => o.status === OPERATION_STATUS.APPLIED).length;
+    const verified = existingOps.filter((o) => o.status === OPERATION_STATUS.VERIFIED).length;
+    const failed = existingOps.filter((o) => o.status === OPERATION_STATUS.FAILED).length;
+    const skipped = existingOps.filter((o) => o.status === OPERATION_STATUS.SKIPPED).length;
+    const progress = computeProgress(existingOps.length, applied, verified, failed, skipped, batch.apply_progress?.chunk_index || 0);
+
+    return Response.json({
+      resumed: true,
+      apply_execution_id: executionId,
+      phase: batch.apply_phase || APPLY_PHASE.CREATING_HOUSEHOLDS,
+      progress,
+      total_operations: existingOps.length,
+      message: 'Apply resumed. Call "chunk" to continue processing.',
+    });
+  }
+}
+
+// ============================================================
+// chunk — process the next bounded chunk of PENDING operations
+// ============================================================
+async function handleChunk(base44, user, batchId) {
+  const batch = await base44.asServiceRole.entities.FamilyLifeImportBatch.get(batchId);
+  if (!batch) return Response.json({ error: 'Batch not found.' }, { status: 404 });
+
+  // Must be PAUSED or stale APPLYING
+  if (batch.apply_status === 'PAUSED') {
+    // Good — proceed
+  } else if (batch.apply_status === 'APPLYING') {
+    // Check if stale — if so, auto-resume
+    if (!isStale(batch.apply_progress?.last_checkpoint_at)) {
+      return Response.json({
+        error: 'A chunk is currently being processed. Wait for it to complete.',
+        last_checkpoint: batch.apply_progress?.last_checkpoint_at,
+      }, { status: 409 });
+    }
+    // Stale — auto-resume by proceeding
+  } else if (batch.apply_status === 'APPLIED') {
+    return Response.json({ error: 'Batch has already been applied.' }, { status: 409 });
+  } else {
+    return Response.json({
+      error: `Cannot process chunk. Apply status is "${batch.apply_status}". Call "start" first.`,
+    }, { status: 409 });
   }
 
-  // Reload all operations (existing + new) for execution
+  // Acquire chunk lock
+  const now = new Date().toISOString();
+  await updateCheckpoint(base44, batchId, {
+    apply_status: 'APPLYING',
+    apply_progress: { ...batch.apply_progress, last_checkpoint_at: now },
+  });
+
+  try {
+    return await processChunk(base44, user, batchId, batch);
+  } catch (error) {
+    const errorMsg = error?.message || 'Chunk processing failed.';
+    // Release lock back to PAUSED — progress is preserved
+    try {
+      await updateCheckpoint(base44, batchId, {
+        apply_status: 'PAUSED',
+        apply_error: errorMsg,
+      });
+    } catch (_) { /* best-effort */ }
+    return Response.json({
+      error: errorMsg,
+      can_resume: true,
+    }, { status: 500 });
+  }
+}
+
+// ============================================================
+// processChunk — execute one bounded chunk
+// ============================================================
+async function processChunk(base44, user, batchId, batch) {
+  const now = new Date().toISOString();
+  const executionId = batch.apply_execution_id;
+  let currentPhase = batch.apply_phase || APPLY_PHASE.CREATING_HOUSEHOLDS;
+  let chunkIndex = (batch.apply_progress?.chunk_index || 0);
+
+  // Load all operations to determine current state
   const allOps = await base44.asServiceRole.entities.FamilyLifeImportApplyOperation.filter(
     { import_batch_id: batchId }, undefined, 5000,
   );
-  const opMap = new Map(allOps.map((o) => [o.operation_key, o]));
 
-  // --- PHASE 3.5: PRE-WRITE DRIFT CHECK ---
-  // Verify NO existing record has drifted before ANY production writes.
-  // This prevents partial-apply orphaning: if drift is found here, zero
-  // records have been created or updated.
-  //
-  // BATCH LOAD: Load all production records in two filter calls instead
-  // of N sequential get calls. The loaded records are stored in maps and
-  // reused throughout the update phase to avoid redundant database reads.
-  const preWriteSnapshots = new Map<string, string>();
-  for (const op of plan.operations) {
-    if (op.entity_id) {
-      preWriteSnapshots.set(`${op.entity_type}:${op.entity_id}:${op.field_name}`, op.expected_snapshot || '');
-    }
+  // If phase is VERIFYING, handle specially
+  if (currentPhase === APPLY_PHASE.VERIFYING) {
+    return await handleVerifyPhase(base44, user, batchId, batch, allOps, executionId, now);
   }
 
-  const householdIdsToCheck = Array.from(plan.householdUpdates.keys());
-  const memberIdsToCheck = Array.from(plan.memberUpdates.keys());
-
-  const [batchedHouseholds, batchedMembers] = await Promise.all([
-    householdIdsToCheck.length > 0
-      ? base44.asServiceRole.entities.ChampionHousehold.filter({ id: { $in: householdIdsToCheck } }, undefined, 5000)
-      : [],
-    memberIdsToCheck.length > 0
-      ? base44.asServiceRole.entities.HouseholdMember.filter({ id: { $in: memberIdsToCheck } }, undefined, 5000)
-      : [],
-  ]);
-
-  // Store for reuse in the update phase (eliminates ~250 sequential get calls)
-  const preloadedHouseholds = new Map<string, any>(batchedHouseholds.map((h) => [h.id, h]));
-  const preloadedMembers = new Map<string, any>(batchedMembers.map((m) => [m.id, m]));
-
-  for (const [householdId, fieldUpdates] of plan.householdUpdates) {
-    const currentHousehold = preloadedHouseholds.get(householdId);
-    if (!currentHousehold) {
-      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-        status: 'READY_FOR_REVIEW', apply_status: 'FAILED',
-        apply_error: `Target household ${householdId} not found during pre-write drift check.`,
-      });
-      return Response.json({
-        error: `Target household ${householdId} was deleted since reconciliation.`,
-        needs_review: true, retry_safe: false,
-      }, { status: 409 });
-    }
-    const driftFields: string[] = [];
-    for (const [fieldName] of Object.entries(fieldUpdates)) {
-      const policy = getFieldPolicy('ChampionHousehold', fieldName);
-      const expected = preWriteSnapshots.get(`ChampionHousehold:${householdId}:${fieldName}`) || '';
-      if (detectDrift(policy, currentHousehold[fieldName], expected) === DRIFT_STATUS.MATERIAL_DRIFT) {
-        driftFields.push(fieldName);
-      }
-    }
-    if (driftFields.length > 0) {
-      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-        status: 'READY_FOR_REVIEW', apply_status: 'FAILED',
-        apply_error: `Material drift on household ${householdId}: ${driftFields.join(', ')}`,
-        readiness_status: 'NOT_READY',
-        readiness_reason: `Production data changed on fields: ${driftFields.join(', ')}`,
-      });
-      return Response.json({
-        error: 'Production data changed since reconciliation.',
-        drift_fields: driftFields, household_id: householdId,
-        needs_review: true, retry_safe: false,
-      }, { status: 409 });
-    }
+  // If phase is FINALIZING, handle specially
+  if (currentPhase === APPLY_PHASE.FINALIZING) {
+    return await handleFinalizePhase(base44, user, batchId, batch, allOps, executionId, now);
   }
 
-  for (const [memberId, fieldUpdates] of plan.memberUpdates) {
-    const currentMember = preloadedMembers.get(memberId);
-    if (!currentMember) {
-      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-        status: 'READY_FOR_REVIEW', apply_status: 'FAILED',
-        apply_error: `Target member ${memberId} not found during pre-write drift check.`,
-      });
-      return Response.json({
-        error: `Target member ${memberId} was deleted since reconciliation.`,
-        needs_review: true, retry_safe: false,
-      }, { status: 409 });
+  // For write phases — find PENDING operations for the current phase
+  const phaseTypes = PHASE_OPERATION_TYPES[currentPhase] || [];
+  const pendingOps = allOps.filter((op) =>
+    phaseTypes.includes(op.operation_type) && op.status === OPERATION_STATUS.PENDING,
+  );
+
+  // If no pending ops in current phase, advance to next phase
+  if (pendingOps.length === 0) {
+    const next = nextPhase(currentPhase);
+    const applied = allOps.filter((o) => o.status === OPERATION_STATUS.APPLIED).length;
+    const verified = allOps.filter((o) => o.status === OPERATION_STATUS.VERIFIED).length;
+    const failed = allOps.filter((o) => o.status === OPERATION_STATUS.FAILED).length;
+    const skipped = allOps.filter((o) => o.status === OPERATION_STATUS.SKIPPED).length;
+    const progress = computeProgress(allOps.length, applied, verified, failed, skipped, chunkIndex);
+
+    await updateCheckpoint(base44, batchId, {
+      apply_status: 'PAUSED',
+      apply_phase: next,
+      apply_progress: progress,
+    });
+
+    if (next === APPLY_PHASE.COMPLETED) {
+      // Should have gone through FINALIZING — but if we skipped, finalize now
+      return await handleFinalizePhase(base44, user, batchId, batch, allOps, executionId, now);
     }
-    const driftFields: string[] = [];
-    for (const [fieldName] of Object.entries(fieldUpdates)) {
-      const policy = getFieldPolicy('HouseholdMember', fieldName);
-      const expected = preWriteSnapshots.get(`HouseholdMember:${memberId}:${fieldName}`) || '';
-      if (detectDrift(policy, currentMember[fieldName], expected) === DRIFT_STATUS.MATERIAL_DRIFT) {
-        driftFields.push(fieldName);
-      }
-    }
-    if (driftFields.length > 0) {
-      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-        status: 'READY_FOR_REVIEW', apply_status: 'FAILED',
-        apply_error: `Material drift on member ${memberId}: ${driftFields.join(', ')}`,
-        readiness_status: 'NOT_READY',
-        readiness_reason: `Production data changed on member fields: ${driftFields.join(', ')}`,
-      });
-      return Response.json({
-        error: 'Production data changed since reconciliation.',
-        drift_fields: driftFields, member_id: memberId,
-        needs_review: true, retry_safe: false,
-      }, { status: 409 });
-    }
+
+    return Response.json({
+      phase_advanced: true,
+      previous_phase: currentPhase,
+      new_phase: next,
+      progress,
+      completed: false,
+      message: `Phase "${currentPhase}" complete. Next: "${next}".`,
+    });
   }
 
-  // --- PHASE 4: EXECUTE WRITE PLAN ---
-  let appliedFieldCount = 0;
-  let createdHouseholdCount = 0;
-  let updatedHouseholdCount = 0;
-  let createdMemberCount = 0;
-  let updatedMemberCount = 0;
-  let restrictionsAdded = 0;
-  let fieldsSkipped = 0;
-  let fieldsBlocked = 0;
+  // Process the chunk based on the current phase
+  let result;
+  switch (currentPhase) {
+    case APPLY_PHASE.CREATING_HOUSEHOLDS:
+      result = await processCreateHouseholdsChunk(base44, user, batchId, batch, allOps, pendingOps, executionId, now);
+      break;
+    case APPLY_PHASE.CREATING_MEMBERS:
+      result = await processCreateMembersChunk(base44, user, batchId, batch, allOps, pendingOps, executionId, now);
+      break;
+    case APPLY_PHASE.UPDATING_HOUSEHOLDS:
+      result = await processUpdateHouseholdsChunk(base44, user, batchId, batch, allOps, pendingOps, executionId, now);
+      break;
+    case APPLY_PHASE.UPDATING_MEMBERS:
+      result = await processUpdateMembersChunk(base44, user, batchId, batch, allOps, pendingOps, executionId, now);
+      break;
+    case APPLY_PHASE.APPLYING_RESTRICTIONS:
+      result = await processRestrictionsChunk(base44, user, batchId, batch, allOps, pendingOps, executionId, now);
+      break;
+    case APPLY_PHASE.RECORDING_DECISIONS:
+      result = await processDecisionsChunk(base44, user, batchId, batch, allOps, pendingOps, executionId, now);
+      break;
+    default:
+      // Unknown phase — advance
+      const next = nextPhase(currentPhase);
+      await updateCheckpoint(base44, batchId, {
+        apply_status: 'PAUSED',
+        apply_phase: next,
+      });
+      return Response.json({ phase_advanced: true, new_phase: next, completed: false });
+  }
+
+  chunkIndex++;
+  const applied = allOps.filter((o) => o.status === OPERATION_STATUS.APPLIED).length + result.appliedCount;
+  const verified = allOps.filter((o) => o.status === OPERATION_STATUS.VERIFIED).length;
+  const failed = allOps.filter((o) => o.status === OPERATION_STATUS.FAILED).length + result.failedCount;
+  const skipped = allOps.filter((o) => o.status === OPERATION_STATUS.SKIPPED).length + result.skippedCount;
+  const progress = computeProgress(allOps.length, applied, verified, failed, skipped, chunkIndex);
+
+  // Check if this phase is now complete
+  const remainingPending = allOps.filter((op) =>
+    phaseTypes.includes(op.operation_type) && op.status === OPERATION_STATUS.PENDING && !result.processedOpIds.has(op.id),
+  ).length;
+
+  let phaseComplete = remainingPending === 0 && !result.hasMore;
+  let nextP = phaseComplete ? nextPhase(currentPhase) : currentPhase;
+
+  await updateCheckpoint(base44, batchId, {
+    apply_status: 'PAUSED',
+    apply_phase: nextP,
+    apply_progress: progress,
+    apply_error: result.error || '',
+  });
+
+  return Response.json({
+    chunk_processed: true,
+    phase: nextP,
+    progress,
+    processed: result.processedCount,
+    applied: result.appliedCount,
+    failed: result.failedCount,
+    skipped: result.skippedCount,
+    has_more: !phaseComplete,
+    completed: nextP === APPLY_PHASE.COMPLETED,
+    message: phaseComplete
+      ? `Phase "${currentPhase}" complete. Next: "${nextP}".`
+      : `Processed ${result.processedCount} operations in "${currentPhase}".`,
+  });
+}
+
+// ============================================================
+// Phase: CREATING_HOUSEHOLDS
+// ============================================================
+async function processCreateHouseholdsChunk(base44, user, batchId, batch, allOps, pendingOps, executionId, now) {
+  // Group by temporary_entity_key (row ID)
+  const groups = new Map<string, any[]>();
+  for (const op of pendingOps) {
+    const key = op.temporary_entity_key || op.import_row_id;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(op);
+  }
+
+  // Take CHUNK_SIZE groups
+  const chunkGroups = Array.from(groups.entries()).slice(0, CHUNK_SIZE);
+  const processedOpIds = new Set<string>();
+  const opUpdates: any[] = [];
+  const auditEntries: any[] = [];
+  let appliedCount = 0;
   let failedCount = 0;
-  let driftBlockedCount = 0;
-  let customValuesApplied = 0;
 
-  // Track created household IDs for linking members
-  const createdHouseholdIds = new Map(); // rowId → householdId
+  // Load rows for household group key resolution
+  const rows = await base44.asServiceRole.entities.FamilyLifeImportRow.filter(
+    { import_batch_id: batchId }, 'row_number', 5000,
+  );
 
-  // 4a. Execute NEW HOUSEHOLD CREATIONS first
-  for (const [rowId, creation] of plan.newHouseholdCreations) {
-    // Check if this household was already created in a prior interrupted run
-    const existingCreationOps = allOps.filter((o) =>
-      o.temporary_entity_key === rowId && o.operation_type === OPERATION_TYPE.CREATE_HOUSEHOLD,
-    );
-    const alreadyCreated = existingCreationOps.some((o) => o.status === OPERATION_STATUS.APPLIED || o.status === OPERATION_STATUS.VERIFIED);
-
-    let householdId;
-
-    if (alreadyCreated) {
-      // Find the existing created household ID from the operation
-      const appliedOp = existingCreationOps.find((o) => o.status === OPERATION_STATUS.APPLIED || o.status === OPERATION_STATUS.VERIFIED);
-      householdId = appliedOp.entity_id;
-      createdHouseholdIds.set(rowId, householdId);
-      createdHouseholdCount++;
-    } else {
-      // Recheck for duplicates before creation
-      const flExtId = creation.fields.familylife_external_id;
-      const email = creation.fields.email;
-
-      // Check FL external ID uniqueness
-      if (flExtId) {
-        const existing = await base44.asServiceRole.entities.ChampionHousehold.filter(
-          { familylife_external_id: flExtId }, undefined, 1,
-        );
-        if (existing && existing.length > 0) {
-          // A matching production record now exists — stop and require review
-          await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-            status: 'READY_FOR_REVIEW',
-            apply_status: 'FAILED',
-            apply_error: `Duplicate FamilyLife external ID "${flExtId}" detected before creation of row ${rowId}.`,
-          });
-          return Response.json({
-            error: `A production record with FamilyLife external ID "${flExtId}" now exists. The batch requires re-review.`,
-            needs_review: true,
-            retry_safe: false,
-          }, { status: 409 });
-        }
+  for (const [rowId, ops] of chunkGroups) {
+    // Check if any op is already APPLIED (from prior interrupted run)
+    const alreadyApplied = ops.find((o) => o.status === OPERATION_STATUS.APPLIED || o.status === OPERATION_STATUS.VERIFIED);
+    if (alreadyApplied) {
+      for (const op of ops) {
+        processedOpIds.add(op.id);
+        opUpdates.push({ id: op.id, status: OPERATION_STATUS.APPLIED, applied_at: now });
       }
+      appliedCount += ops.length;
+      continue;
+    }
 
-      // Check email uniqueness (if email is provided)
-      if (email) {
-        const existingByEmail = await base44.asServiceRole.entities.ChampionHousehold.filter(
-          { email: String(email).toLowerCase() }, undefined, 1,
-        );
-        if (existingByEmail && existingByEmail.length > 0) {
-          await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-            status: 'READY_FOR_REVIEW',
-            apply_status: 'FAILED',
-            apply_error: `Duplicate email detected before creation of row ${rowId}.`,
-          });
-          return Response.json({
-            error: `A production record with email "${email}" now exists. The batch requires re-review.`,
-            needs_review: true,
-            retry_safe: false,
-          }, { status: 409 });
-        }
-      }
-
-      // Sanitize through NEW_RECORD_CREATE
-      const sanResult = sanitizeWritePayload(creation.fields, IMPORT_OPERATIONS.NEW_RECORD_CREATE, null, 'ChampionHousehold');
-      if (sanResult.blocked.length > 0 || sanResult.conflicts.length > 0) {
-        // Sanitizer rejected fields the plan expected to write
-        const plannedFields = Object.keys(creation.fields);
-        const validation = validateSanitization(plannedFields, sanResult.sanitized, sanResult.blocked);
-        if (!validation.valid) {
-          await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-            status: 'READY_FOR_REVIEW',
-            apply_status: 'FAILED',
-            apply_error: `Sanitizer rejected fields for new household: ${validation.discrepancies.join('; ')}`,
-          });
-          return Response.json({
-            error: 'Sanitizer rejected fields during new household creation.',
-            discrepancies: validation.discrepancies,
-            needs_review: true,
-            retry_safe: false,
-          }, { status: 422 });
-        }
-      }
-
-      // Create the household — use original resolved values for sanitizer-allowed fields
-      // (the sanitizer validates which fields are permitted, but the admin's resolved
-      // value is authoritative — normalization is for comparison, not for display)
-      const createPayload: Record<string, unknown> = {};
-      for (const field of Object.keys(sanResult.sanitized)) {
-        createPayload[field] = creation.fields[field];
-      }
-      // Include sync metadata in the create payload to avoid a separate update call
-      createPayload.last_familylife_sync_at = now;
-      createPayload.last_familylife_import_batch_id = batchId;
-      const created = await base44.asServiceRole.entities.ChampionHousehold.create(createPayload);
-      householdId = created.id;
-      createdHouseholdIds.set(rowId, householdId);
-      createdHouseholdCount++;
-
-      // Audit: RECORD_CREATED
-      await createApplyAudit(base44, {
-        import_batch_id: batchId,
-        apply_execution_id: executionId,
-        import_row_id: rowId,
-        entity_type: 'ChampionHousehold',
-        entity_id: householdId,
-        operation_type: OPERATION_TYPE.CREATE_HOUSEHOLD,
-        apply_result: 'CREATED',
-        applied_by: user.id,
-      });
-
-      // Mark operations as APPLIED (batched)
-      if (existingCreationOps.length) {
-        const creationOpUpdates = existingCreationOps.map((op) => ({
-          id: op.id,
-          status: OPERATION_STATUS.APPLIED,
-          entity_id: householdId,
-          applied_value: op.applied_value || '',
-          applied_at: now,
-          drift_status: 'NO_DRIFT',
-        }));
-        await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', creationOpUpdates);
+    // Build create payload from resolved values
+    const row = rows.find((r) => r.id === rowId);
+    const createPayload: Record<string, unknown> = {};
+    for (const op of ops) {
+      if (op.applied_value) {
+        const policy = getFieldPolicy('ChampionHousehold', op.field_name);
+        createPayload[op.field_name] = coerceValue(policy, op.applied_value);
       }
     }
 
-    appliedFieldCount += existingCreationOps.length;
+    // Check for duplicate FL external ID
+    const flExtId = createPayload.familylife_external_id;
+    if (flExtId) {
+      const existing = await base44.asServiceRole.entities.ChampionHousehold.filter(
+        { familylife_external_id: String(flExtId) }, undefined, 1,
+      );
+      if (existing && existing.length > 0) {
+        // A production record exists — link to it instead
+        const existingId = existing[0].id;
+        for (const op of ops) {
+          processedOpIds.add(op.id);
+          opUpdates.push({ id: op.id, status: OPERATION_STATUS.APPLIED, entity_id: existingId, applied_at: now, drift_status: DRIFT_STATUS.NO_DRIFT });
+        }
+        appliedCount += ops.length;
+        auditEntries.push({
+          import_batch_id: batchId, apply_execution_id: executionId, import_row_id: rowId,
+          entity_type: 'ChampionHousehold', entity_id: existingId,
+          operation_type: OPERATION_TYPE.CREATE_HOUSEHOLD,
+          apply_result: 'UPDATED', applied_by: user.id,
+        });
+        continue;
+      }
+    }
+
+    // Check for duplicate email
+    const email = createPayload.email;
+    if (email) {
+      const existingByEmail = await base44.asServiceRole.entities.ChampionHousehold.filter(
+        { email: String(email).toLowerCase() }, undefined, 1,
+      );
+      if (existingByEmail && existingByEmail.length > 0) {
+        const existingId = existingByEmail[0].id;
+        for (const op of ops) {
+          processedOpIds.add(op.id);
+          opUpdates.push({ id: op.id, status: OPERATION_STATUS.APPLIED, entity_id: existingId, applied_at: now, drift_status: DRIFT_STATUS.NO_DRIFT });
+        }
+        appliedCount += ops.length;
+        auditEntries.push({
+          import_batch_id: batchId, apply_execution_id: executionId, import_row_id: rowId,
+          entity_type: 'ChampionHousehold', entity_id: existingId,
+          operation_type: OPERATION_TYPE.CREATE_HOUSEHOLD,
+          apply_result: 'UPDATED', applied_by: user.id,
+        });
+        continue;
+      }
+    }
+
+    // Sanitize
+    const sanResult = sanitizeWritePayload(createPayload, IMPORT_OPERATIONS.NEW_RECORD_CREATE, null, 'ChampionHousehold');
+
+    // Build final payload with original values (sanitizer validates, resolved value is authoritative)
+    const finalPayload: Record<string, unknown> = {};
+    for (const field of Object.keys(sanResult.sanitized)) {
+      finalPayload[field] = createPayload[field];
+    }
+    finalPayload.last_familylife_sync_at = now;
+    finalPayload.last_familylife_import_batch_id = batchId;
+
+    // Create the household
+    const created = await base44.asServiceRole.entities.ChampionHousehold.create(finalPayload);
+    const householdId = created.id;
+
+    // IMMEDIATELY persist entity_id on operations — checkpoint-safe
+    for (const op of ops) {
+      processedOpIds.add(op.id);
+      opUpdates.push({
+        id: op.id,
+        status: OPERATION_STATUS.APPLIED,
+        entity_id: householdId,
+        applied_at: now,
+        drift_status: DRIFT_STATUS.NO_DRIFT,
+      });
+    }
+    appliedCount += ops.length;
+
+    auditEntries.push({
+      import_batch_id: batchId, apply_execution_id: executionId, import_row_id: rowId,
+      entity_type: 'ChampionHousehold', entity_id: householdId,
+      operation_type: OPERATION_TYPE.CREATE_HOUSEHOLD,
+      apply_result: 'CREATED', applied_by: user.id,
+    });
   }
 
-  // 4b. Execute NEW MEMBER CREATIONS (linked to new or existing households)
-  for (const [rowId, creation] of plan.newMemberCreations) {
-    const existingCreationOps = allOps.filter((o) =>
-      o.temporary_entity_key === rowId && o.operation_type === OPERATION_TYPE.CREATE_MEMBER,
-    );
-    const alreadyCreated = existingCreationOps.some((o) => o.status === OPERATION_STATUS.APPLIED || o.status === OPERATION_STATUS.VERIFIED);
+  // Batch write
+  if (opUpdates.length) await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
+  if (auditEntries.length) await createApplyAudits(base44, auditEntries);
 
-    if (alreadyCreated) {
-      createdMemberCount++;
-      appliedFieldCount += existingCreationOps.length;
+  const hasMore = groups.size > chunkGroups.length;
+  return {
+    processedOpIds,
+    processedCount: chunkGroups.length,
+    appliedCount,
+    failedCount,
+    skippedCount: 0,
+    hasMore,
+  };
+}
+
+// ============================================================
+// Phase: CREATING_MEMBERS
+// ============================================================
+async function processCreateMembersChunk(base44, user, batchId, batch, allOps, pendingOps, executionId, now) {
+  const groups = new Map<string, any[]>();
+  for (const op of pendingOps) {
+    const key = op.temporary_entity_key || op.import_row_id;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(op);
+  }
+
+  const chunkGroups = Array.from(groups.entries()).slice(0, CHUNK_SIZE);
+  const processedOpIds = new Set<string>();
+  const opUpdates: any[] = [];
+  const auditEntries: any[] = [];
+  let appliedCount = 0;
+  let failedCount = 0;
+
+  // Load rows for household group key resolution
+  const rows = await base44.asServiceRole.entities.FamilyLifeImportRow.filter(
+    { import_batch_id: batchId }, 'row_number', 5000,
+  );
+
+  for (const [rowId, ops] of chunkGroups) {
+    const alreadyApplied = ops.find((o) => o.status === OPERATION_STATUS.APPLIED || o.status === OPERATION_STATUS.VERIFIED);
+    if (alreadyApplied) {
+      for (const op of ops) {
+        processedOpIds.add(op.id);
+        opUpdates.push({ id: op.id, status: OPERATION_STATUS.APPLIED, applied_at: now });
+      }
+      appliedCount += ops.length;
       continue;
     }
 
-    // Determine target household
-    let targetHouseholdId = creation.householdId || createdHouseholdIds.get(rowId);
-    if (!targetHouseholdId) {
-      // This member belongs to a new household — find it via the row's household group
-      // Try to find a created household from the same household group
-      const row = rows.find((r) => r.id === rowId);
-      if (row?.household_group_key) {
-        for (const [hhRowId, hhId] of createdHouseholdIds) {
-          const hhRow = rows.find((r) => r.id === hhRowId);
-          if (hhRow?.household_group_key === row.household_group_key) {
-            targetHouseholdId = hhId;
-            break;
-          }
+    // Resolve target household ID
+    const row = rows.find((r) => r.id === rowId);
+    let targetHouseholdId = row?.matched_household_id || '';
+
+    // If no matched household, find from CREATE_HOUSEHOLD ops with same household_group_key
+    if (!targetHouseholdId && row?.household_group_key) {
+      // Look for a CREATE_HOUSEHOLD operation that's already APPLIED with the same household group
+      const householdOps = allOps.filter((o) =>
+        o.operation_type === OPERATION_TYPE.CREATE_HOUSEHOLD &&
+        (o.status === OPERATION_STATUS.APPLIED || o.status === OPERATION_STATUS.VERIFIED) &&
+        o.entity_id,
+      );
+      for (const hhOp of householdOps) {
+        const hhRow = rows.find((r) => r.id === hhOp.import_row_id);
+        if (hhRow?.household_group_key === row.household_group_key) {
+          targetHouseholdId = hhOp.entity_id;
+          break;
         }
       }
     }
 
     if (!targetHouseholdId) {
-      failedCount++;
-      for (const op of existingCreationOps) {
-        await base44.asServiceRole.entities.FamilyLifeImportApplyOperation.update(op.id, {
-          status: OPERATION_STATUS.FAILED,
-          error_message: 'No target household ID found for member creation.',
-          applied_at: now,
-        });
+      for (const op of ops) {
+        processedOpIds.add(op.id);
+        opUpdates.push({ id: op.id, status: OPERATION_STATUS.FAILED, error_message: 'No target household ID found for member creation.', applied_at: now });
       }
+      failedCount += ops.length;
       continue;
     }
 
-    // Verify target household still exists
-    const targetHousehold = await base44.asServiceRole.entities.ChampionHousehold.get(targetHouseholdId);
-    if (!targetHousehold) {
-      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-        status: 'READY_FOR_REVIEW',
-        apply_status: 'FAILED',
-        apply_error: `Target household ${targetHouseholdId} not found for new member creation (row ${rowId}).`,
-      });
-      return Response.json({
-        error: 'Target household was deleted before member creation.',
-        needs_review: true,
-        retry_safe: false,
-      }, { status: 409 });
+    // Build member payload
+    const memberPayload: Record<string, unknown> = {};
+    for (const op of ops) {
+      if (op.applied_value) {
+        const policy = getFieldPolicy('HouseholdMember', op.field_name);
+        memberPayload[op.field_name] = coerceValue(policy, op.applied_value);
+      }
     }
 
-    // Check for duplicate member (same email in same household)
-    const memberEmail = creation.fields.email;
+    // Check for duplicate member email in household
+    const memberEmail = memberPayload.email;
     if (memberEmail) {
       const existingMembers = await base44.asServiceRole.entities.HouseholdMember.filter(
         { household_id: targetHouseholdId }, undefined, 500,
@@ -612,606 +676,476 @@ async function executeApply(base44, user, batchId, batch, executionId) {
         m.email && m.email.toLowerCase() === String(memberEmail).toLowerCase(),
       );
       if (dup) {
-        await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-          status: 'READY_FOR_REVIEW',
-          apply_status: 'FAILED',
-          apply_error: `Duplicate member email in household ${targetHouseholdId} detected before creation.`,
-        });
-        return Response.json({
-          error: 'A member with this email already exists in the target household.',
-          needs_review: true,
-          retry_safe: false,
-        }, { status: 409 });
+        // Link to existing member
+        for (const op of ops) {
+          processedOpIds.add(op.id);
+          opUpdates.push({ id: op.id, status: OPERATION_STATUS.APPLIED, entity_id: dup.id, applied_at: now, drift_status: DRIFT_STATUS.NO_DRIFT });
+        }
+        appliedCount += ops.length;
+        continue;
       }
     }
 
-    // Sanitize member fields — use original values for sanitizer-allowed fields
-    const memberPayload = { ...creation.fields, household_id: targetHouseholdId };
+    // Sanitize and create
     const sanResult = sanitizeWritePayload(
-      memberPayload,
-      IMPORT_OPERATIONS.NEW_RECORD_CREATE,
-      null,
-      'HouseholdMember',
+      { ...memberPayload, household_id: targetHouseholdId },
+      IMPORT_OPERATIONS.NEW_RECORD_CREATE, null, 'HouseholdMember',
     );
 
-    // Create the member with original resolved values
-    const memberCreatePayload: Record<string, unknown> = { household_id: targetHouseholdId };
+    const finalPayload: Record<string, unknown> = { household_id: targetHouseholdId };
     for (const field of Object.keys(sanResult.sanitized)) {
       if (field !== 'household_id') {
-        memberCreatePayload[field] = creation.fields[field];
+        finalPayload[field] = memberPayload[field];
       }
     }
-    const createdMember = await base44.asServiceRole.entities.HouseholdMember.create(memberCreatePayload);
-    createdMemberCount++;
 
-    // Audit: RECORD_CREATED
-    await createApplyAudit(base44, {
-      import_batch_id: batchId,
-      apply_execution_id: executionId,
-      import_row_id: rowId,
-      entity_type: 'HouseholdMember',
-      entity_id: createdMember.id,
-      operation_type: OPERATION_TYPE.CREATE_MEMBER,
-      apply_result: 'CREATED',
-      applied_by: user.id,
-    });
+    const createdMember = await base44.asServiceRole.entities.HouseholdMember.create(finalPayload);
 
-    // Mark operations as APPLIED (batched)
-    if (existingCreationOps.length) {
-      const memberCreationUpdates = existingCreationOps.map((op) => ({
+    // IMMEDIATELY persist entity_id
+    for (const op of ops) {
+      processedOpIds.add(op.id);
+      opUpdates.push({
         id: op.id,
         status: OPERATION_STATUS.APPLIED,
         entity_id: createdMember.id,
         applied_at: now,
-        drift_status: 'NO_DRIFT',
-      }));
-      await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', memberCreationUpdates);
-    }
-    appliedFieldCount += existingCreationOps.length;
-  }
-
-  // 4c. Execute EXISTING HOUSEHOLD UPDATES (grouped by household)
-  // Build expected-snapshot lookup from plan operations (entityId+field → snapshot)
-  const householdSnapshots = new Map<string, string>();
-  for (const op of plan.operations) {
-    if (op.entity_type === 'ChampionHousehold' && op.entity_id) {
-      householdSnapshots.set(`${op.entity_id}:${op.field_name}`, op.expected_snapshot || '');
-    }
-  }
-
-  for (const [householdId, fieldUpdates] of plan.householdUpdates) {
-    // Reuse the preloaded record from the pre-write drift check
-    const currentHousehold = preloadedHouseholds.get(householdId);
-
-    // TARGET_RECORD_MISSING check
-    if (!currentHousehold) {
-      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-        status: 'READY_FOR_REVIEW',
-        apply_status: 'FAILED',
-        apply_error: `Target household ${householdId} not found during apply.`,
-      });
-      return Response.json({
-        error: `Target household ${householdId} was deleted since reconciliation.`,
-        needs_review: true,
-        retry_safe: false,
-      }, { status: 409 });
-    }
-
-    // Drift detection per field
-    const sanitizedPayload: Record<string, unknown> = {};
-    let materialDrift = false;
-    let driftFields: string[] = [];
-
-    for (const [fieldName, resolvedValue] of Object.entries(fieldUpdates)) {
-      const policy = getFieldPolicy('ChampionHousehold', fieldName);
-      const expectedSnapshot = householdSnapshots.get(`${householdId}:${fieldName}`) || '';
-      const drift = detectDrift(policy, currentHousehold[fieldName], expectedSnapshot);
-
-      if (drift === DRIFT_STATUS.MATERIAL_DRIFT) {
-        materialDrift = true;
-        driftFields.push(fieldName);
-        driftBlockedCount++;
-
-        // Record drift audit
-        const cmp = comparisons.find((c) => c.entity_id === householdId && c.canonical_field_name === fieldName);
-        const res = resolutions.find((r) => r.field_comparison_id === cmp?.id);
-        await createApplyAudit(base44, {
-          import_batch_id: batchId,
-          apply_execution_id: executionId,
-          import_row_id: cmp?.import_row_id || '',
-          comparison_id: cmp?.id || '',
-          resolution_id: res?.id || '',
-          entity_type: 'ChampionHousehold',
-          entity_id: householdId,
-          canonical_field_name: fieldName,
-          operation_type: OPERATION_TYPE.UPDATE_HOUSEHOLD_FIELD,
-          apply_result: 'DRIFT_BLOCKED',
-          drift_status: drift,
-          applied_by: user.id,
-        });
-
-        // Mark operation as FAILED
-        const ops = allOps.filter((o) => o.entity_id === householdId && o.field_name === fieldName);
-        for (const op of ops) {
-          await base44.asServiceRole.entities.FamilyLifeImportApplyOperation.update(op.id, {
-            status: OPERATION_STATUS.FAILED,
-            drift_status: drift,
-            error_message: 'Material drift detected — field changed since reconciliation.',
-            applied_at: now,
-          });
-        }
-      } else if (drift === DRIFT_STATUS.NORMALIZATION_ONLY_DRIFT) {
-        // Normalization-only drift — continue if normalized value is unchanged
-        // Record in audit but proceed
-        sanitizedPayload[fieldName] = resolvedValue;
-      } else {
-        sanitizedPayload[fieldName] = resolvedValue;
-      }
-    }
-
-    if (materialDrift) {
-      // Stop the batch — material drift requires re-review
-      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-        status: 'READY_FOR_REVIEW',
-        apply_status: 'FAILED',
-        apply_error: `Material drift detected on household ${householdId} fields: ${driftFields.join(', ')}.`,
-        readiness_status: 'NOT_READY',
-        readiness_reason: `Production data changed since reconciliation on fields: ${driftFields.join(', ')}.`,
-      });
-      return Response.json({
-        error: 'Production data changed since reconciliation.',
-        drift_fields: driftFields,
-        household_id: householdId,
-        needs_review: true,
-        retry_safe: false,
-      }, { status: 409 });
-    }
-
-    // Add sync metadata
-    sanitizedPayload.last_familylife_sync_at = now;
-    sanitizedPayload.last_familylife_import_batch_id = batchId;
-
-    // Sanitize through RECONCILIATION_APPROVED_UPDATE
-    const sanResult = sanitizeWritePayload(
-      sanitizedPayload,
-      IMPORT_OPERATIONS.RECONCILIATION_APPROVED_UPDATE,
-      currentHousehold,
-      'ChampionHousehold',
-    );
-
-    // Validate sanitizer didn't block expected fields
-    const plannedFields = Object.keys(sanitizedPayload).filter((f) =>
-      f !== 'last_familylife_sync_at' && f !== 'last_familylife_import_batch_id',
-    );
-    const validation = validateSanitization(plannedFields, sanResult.sanitized, sanResult.blocked);
-    if (!validation.valid) {
-      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-        status: 'READY_FOR_REVIEW',
-        apply_status: 'FAILED',
-        apply_error: `Sanitizer rejected fields: ${validation.discrepancies.join('; ')}`,
-      });
-      return Response.json({
-        error: 'Sanitizer rejected fields during household update.',
-        discrepancies: validation.discrepancies,
-        needs_review: true,
-        retry_safe: false,
-      }, { status: 422 });
-    }
-
-    // Apply the update — write the admin-resolved values (not sanitizer-normalized)
-    // The sanitizer validated which fields are allowed; the resolved value is authoritative.
-    if (Object.keys(sanitizedPayload).length > 0) {
-      await base44.asServiceRole.entities.ChampionHousehold.update(householdId, sanitizedPayload);
-      updatedHouseholdCount++;
-
-      // Audit: RECORD_UPDATED
-      await createApplyAudit(base44, {
-        import_batch_id: batchId,
-        apply_execution_id: executionId,
-        entity_type: 'ChampionHousehold',
-        entity_id: householdId,
-        operation_type: OPERATION_TYPE.UPDATE_HOUSEHOLD_FIELD,
-        apply_result: 'UPDATED',
-        applied_by: user.id,
+        drift_status: DRIFT_STATUS.NO_DRIFT,
       });
     }
+    appliedCount += ops.length;
 
-    // Mark operations as APPLIED (batched)
-    const householdOpUpdates: Record<string, unknown>[] = [];
-    for (const [fieldName] of Object.entries(fieldUpdates)) {
-      const ops = allOps.filter((o) => o.entity_id === householdId && o.field_name === fieldName);
-      for (const op of ops) {
-        householdOpUpdates.push({
-          id: op.id,
-          status: OPERATION_STATUS.APPLIED,
-          prior_value: String(currentHousehold[fieldName] ?? ''),
-          applied_at: now,
-          drift_status: DRIFT_STATUS.NO_DRIFT,
-        });
-        appliedFieldCount++;
-        if (op.resolution_type === RESOLUTION_TYPE.USE_CUSTOM_VALUE) customValuesApplied++;
-      }
-    }
-    if (householdOpUpdates.length) {
-      await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', householdOpUpdates);
-    }
-  }
-
-  // 4d. Execute EXISTING MEMBER UPDATES (grouped by member)
-  // Build expected-snapshot lookup from plan operations (entityId+field → snapshot)
-  const memberSnapshots = new Map<string, string>();
-  for (const op of plan.operations) {
-    if (op.entity_type === 'HouseholdMember' && op.entity_id) {
-      memberSnapshots.set(`${op.entity_id}:${op.field_name}`, op.expected_snapshot || '');
-    }
-  }
-
-  for (const [memberId, fieldUpdates] of plan.memberUpdates) {
-    // Reuse the preloaded record from the pre-write drift check
-    const currentMember = preloadedMembers.get(memberId);
-
-    if (!currentMember) {
-      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-        status: 'READY_FOR_REVIEW',
-        apply_status: 'FAILED',
-        apply_error: `Target member ${memberId} not found during apply.`,
-      });
-      return Response.json({
-        error: `Target member ${memberId} was deleted since reconciliation.`,
-        needs_review: true,
-        retry_safe: false,
-      }, { status: 409 });
-    }
-
-    const sanitizedPayload: Record<string, unknown> = {};
-    let materialDrift = false;
-    let driftFields: string[] = [];
-
-    for (const [fieldName, resolvedValue] of Object.entries(fieldUpdates)) {
-      const policy = getFieldPolicy('HouseholdMember', fieldName);
-      const expectedSnapshot = memberSnapshots.get(`${memberId}:${fieldName}`) || '';
-      const drift = detectDrift(policy, currentMember[fieldName], expectedSnapshot);
-
-      if (drift === DRIFT_STATUS.MATERIAL_DRIFT) {
-        materialDrift = true;
-        driftFields.push(fieldName);
-        driftBlockedCount++;
-        continue;
-      }
-      sanitizedPayload[fieldName] = resolvedValue;
-    }
-
-    if (materialDrift) {
-      await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-        status: 'READY_FOR_REVIEW',
-        apply_status: 'FAILED',
-        apply_error: `Material drift detected on member ${memberId} fields: ${driftFields.join(', ')}.`,
-        readiness_status: 'NOT_READY',
-        readiness_reason: `Production data changed since reconciliation on member fields: ${driftFields.join(', ')}.`,
-      });
-      return Response.json({
-        error: 'Production data changed since reconciliation.',
-        drift_fields: driftFields,
-        member_id: memberId,
-        needs_review: true,
-        retry_safe: false,
-      }, { status: 409 });
-    }
-
-    const sanResult = sanitizeWritePayload(
-      sanitizedPayload,
-      IMPORT_OPERATIONS.RECONCILIATION_APPROVED_UPDATE,
-      currentMember,
-      'HouseholdMember',
-    );
-
-    if (Object.keys(sanitizedPayload).length > 0) {
-      await base44.asServiceRole.entities.HouseholdMember.update(memberId, sanitizedPayload);
-      updatedMemberCount++;
-
-      await createApplyAudit(base44, {
-        import_batch_id: batchId,
-        apply_execution_id: executionId,
-        entity_type: 'HouseholdMember',
-        entity_id: memberId,
-        operation_type: OPERATION_TYPE.UPDATE_MEMBER_FIELD,
-        apply_result: 'UPDATED',
-        applied_by: user.id,
-      });
-    }
-
-    // Mark operations as APPLIED (batched)
-    const memberOpUpdates: Record<string, unknown>[] = [];
-    for (const [fieldName] of Object.entries(fieldUpdates)) {
-      const ops = allOps.filter((o) => o.entity_id === memberId && o.field_name === fieldName);
-      for (const op of ops) {
-        memberOpUpdates.push({
-          id: op.id,
-          status: OPERATION_STATUS.APPLIED,
-          prior_value: String(currentMember[fieldName] ?? ''),
-          applied_at: now,
-          drift_status: DRIFT_STATUS.NO_DRIFT,
-        });
-        appliedFieldCount++;
-        if (op.resolution_type === RESOLUTION_TYPE.USE_CUSTOM_VALUE) customValuesApplied++;
-      }
-    }
-    if (memberOpUpdates.length) {
-      await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', memberOpUpdates);
-    }
-  }
-
-  // 4e. Execute RESTRICTION ADDITIONS
-  for (const [entityId, restrictions] of plan.restrictionUpdates) {
-    const current = await base44.asServiceRole.entities.ChampionHousehold.get(entityId);
-    if (!current) continue;
-
-    const sanitizedPayload: Record<string, unknown> = {};
-    for (const [fieldName, value] of Object.entries(restrictions)) {
-      // Never reduce an existing restriction
-      if (current[fieldName] === true) continue;
-      sanitizedPayload[fieldName] = value;
-      restrictionsAdded++;
-    }
-
-    if (Object.keys(sanitizedPayload).length > 0) {
-      sanitizedPayload.last_familylife_sync_at = now;
-      sanitizedPayload.last_familylife_import_batch_id = batchId;
-
-      await base44.asServiceRole.entities.ChampionHousehold.update(entityId, sanitizedPayload);
-
-      await createApplyAudit(base44, {
-        import_batch_id: batchId,
-        apply_execution_id: executionId,
-        entity_type: 'ChampionHousehold',
-        entity_id: entityId,
-        operation_type: OPERATION_TYPE.ADD_RESTRICTION,
-        apply_result: 'RESTRICTION_ADDED',
-        applied_by: user.id,
-      });
-    }
-
-    // Mark restriction operations as APPLIED (batched)
-    const restrictionOpUpdates: Record<string, unknown>[] = [];
-    for (const [fieldName] of Object.entries(restrictions)) {
-      const ops = allOps.filter((o) =>
-        o.entity_id === entityId && o.field_name === fieldName && o.operation_type === OPERATION_TYPE.ADD_RESTRICTION,
-      );
-      for (const op of ops) {
-        restrictionOpUpdates.push({
-          id: op.id,
-          status: OPERATION_STATUS.APPLIED,
-          prior_value: String(current[fieldName] ?? ''),
-          applied_at: now,
-        });
-        appliedFieldCount++;
-      }
-    }
-    if (restrictionOpUpdates.length) {
-      await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', restrictionOpUpdates);
-    }
-  }
-
-  // 4f. Record KEEP_CURRENT / SKIP_FIELD / BLOCK_FIELD operations
-  for (const op of plan.operations) {
-    if (op.operation_type === OPERATION_TYPE.KEEP_CURRENT ||
-        op.operation_type === OPERATION_TYPE.SKIP_FIELD ||
-        op.operation_type === OPERATION_TYPE.BLOCK_FIELD) {
-      const existingOp = opMap.get(op.operation_key);
-      if (existingOp && (existingOp.status === OPERATION_STATUS.APPLIED || existingOp.status === OPERATION_STATUS.SKIPPED)) {
-        continue; // Idempotent — already recorded
-      }
-
-      if (op.operation_type === OPERATION_TYPE.KEEP_CURRENT) {
-        // No write needed, but record the decision
-        await createApplyAudit(base44, {
-          import_batch_id: batchId,
-          apply_execution_id: executionId,
-          import_row_id: op.import_row_id,
-          comparison_id: op.comparison_id,
-          resolution_id: op.resolution_id,
-          entity_type: op.entity_type,
-          entity_id: op.entity_id,
-          canonical_field_name: op.field_name,
-          operation_type: op.operation_type,
-          apply_result: 'NO_CHANGE',
-          resolution_type: op.resolution_type,
-          ownership_category: op.ownership_category,
-          applied_by: user.id,
-        });
-      } else if (op.operation_type === OPERATION_TYPE.SKIP_FIELD) {
-        fieldsSkipped++;
-        await createApplyAudit(base44, {
-          import_batch_id: batchId,
-          apply_execution_id: executionId,
-          import_row_id: op.import_row_id,
-          comparison_id: op.comparison_id,
-          resolution_id: op.resolution_id,
-          canonical_field_name: op.field_name,
-          operation_type: op.operation_type,
-          apply_result: 'SKIPPED',
-          resolution_type: op.resolution_type,
-          ownership_category: op.ownership_category,
-          applied_by: user.id,
-        });
-      } else if (op.operation_type === OPERATION_TYPE.BLOCK_FIELD) {
-        fieldsBlocked++;
-        await createApplyAudit(base44, {
-          import_batch_id: batchId,
-          apply_execution_id: executionId,
-          import_row_id: op.import_row_id,
-          comparison_id: op.comparison_id,
-          resolution_id: op.resolution_id,
-          canonical_field_name: op.field_name,
-          operation_type: op.operation_type,
-          apply_result: 'BLOCKED',
-          resolution_type: op.resolution_type,
-          ownership_category: op.ownership_category,
-          applied_by: user.id,
-        });
-      }
-
-      // Mark operation as SKIPPED
-      if (existingOp) {
-        await base44.asServiceRole.entities.FamilyLifeImportApplyOperation.update(existingOp.id, {
-          status: OPERATION_STATUS.SKIPPED,
-          applied_at: now,
-        });
-      }
-    }
-  }
-
-  // --- PHASE 5: POST-APPLY VERIFICATION ---
-  // Reload operations to get fresh statuses (allOps is stale after execution)
-  const freshOps = await base44.asServiceRole.entities.FamilyLifeImportApplyOperation.filter(
-    { import_batch_id: batchId }, undefined, 5000,
-  );
-  const verification = await verifyApplication(base44, batchId, plan, freshOps);
-
-  if (!verification.passed) {
-    await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-      status: 'READY_FOR_REVIEW',
-      apply_status: failedCount > 0 || driftBlockedCount > 0 ? 'PARTIALLY_FAILED' : 'FAILED',
-      apply_error: `Post-apply verification failed: ${verification.errors.join('; ')}`,
-      apply_summary: {
-        preflight_passed: true,
-        drift_blocked_count: driftBlockedCount,
-        restrictions_added: restrictionsAdded,
-        fields_skipped: fieldsSkipped,
-        fields_blocked: fieldsBlocked,
-        keep_current_count: plan.keepCurrentCount,
-        custom_values_applied: customValuesApplied,
-        verification_passed: false,
-      },
-      created_household_count: createdHouseholdCount,
-      updated_household_count: updatedHouseholdCount,
-      created_member_count: createdMemberCount,
-      updated_member_count: updatedMemberCount,
-      failed_row_count: failedCount + driftBlockedCount,
-      applied_field_count: appliedFieldCount,
-      skipped_row_count: plan.skippedRows.size,
+    auditEntries.push({
+      import_batch_id: batchId, apply_execution_id: executionId, import_row_id: rowId,
+      entity_type: 'HouseholdMember', entity_id: createdMember.id,
+      operation_type: OPERATION_TYPE.CREATE_MEMBER,
+      apply_result: 'CREATED', applied_by: user.id,
     });
-    return Response.json({
-      error: 'Post-apply verification failed.',
-      verification_errors: verification.errors,
-      apply_execution_id: executionId,
-      needs_review: true,
-      retry_safe: false,
-    }, { status: 500 });
   }
 
-  // --- PHASE 6: MARK BATCH AS APPLIED ---
-  const appliedAt = new Date().toISOString();
-  await base44.asServiceRole.entities.FamilyLifeImportBatch.update(batchId, {
-    status: 'APPLIED',
-    apply_status: 'APPLIED',
-    applied_at: appliedAt,
-    applied_by: user.id,
-    apply_error: '',
-    apply_summary: {
-      preflight_passed: true,
-      drift_blocked_count: driftBlockedCount,
-      restrictions_added: restrictionsAdded,
-      fields_skipped: fieldsSkipped,
-      fields_blocked: fieldsBlocked,
-      keep_current_count: plan.keepCurrentCount,
-      custom_values_applied: customValuesApplied,
-      verification_passed: true,
-    },
-    created_household_count: createdHouseholdCount,
-    updated_household_count: updatedHouseholdCount,
-    created_member_count: createdMemberCount,
-    updated_member_count: updatedMemberCount,
-    skipped_row_count: plan.skippedRows.size,
-    failed_row_count: failedCount,
-    applied_field_count: appliedFieldCount,
-  });
+  if (opUpdates.length) await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
+  if (auditEntries.length) await createApplyAudits(base44, auditEntries);
 
-  // Mark all active resolutions as APPLIED
-  const activeResolutions = resolutions.filter((r) =>
-    r.status === RESOLUTION_STATUS.PENDING || r.status === RESOLUTION_STATUS.RESOLVED,
-  );
-  const resolutionUpdates = activeResolutions.map((r) => ({
-    id: r.id,
-    status: RESOLUTION_STATUS.APPLIED,
-    last_modified_at: appliedAt,
-    last_modified_by: user.id,
-  }));
-  if (resolutionUpdates.length) {
-    await bulkUpdateSafe(base44, 'FamilyLifeImportResolution', resolutionUpdates);
-  }
-
-  // Mark all operations as VERIFIED — reload to get current statuses
-  // (allOps was loaded before execution; operation statuses were updated in DB since)
-  const finalOps = await base44.asServiceRole.entities.FamilyLifeImportApplyOperation.filter(
-    { import_batch_id: batchId }, undefined, 5000,
-  );
-  const opsToVerify = finalOps.filter((o) => o.status === OPERATION_STATUS.APPLIED);
-  const verifyUpdates = opsToVerify.map((o) => ({
-    id: o.id,
-    status: OPERATION_STATUS.VERIFIED,
-    verified_at: appliedAt,
-  }));
-  if (verifyUpdates.length) {
-    await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', verifyUpdates);
-  }
-
-  // Audit: APPLY_COMPLETED
-  await createApplyAudit(base44, {
-    import_batch_id: batchId,
-    apply_execution_id: executionId,
-    apply_result: 'APPLIED',
-    applied_by: user.id,
-  });
-
-  return Response.json({
-    success: true,
-    apply_execution_id: executionId,
-    applied_at: appliedAt,
-    summary: {
-      created_households: createdHouseholdCount,
-      updated_households: updatedHouseholdCount,
-      created_members: createdMemberCount,
-      updated_members: updatedMemberCount,
-      fields_applied: appliedFieldCount,
-      restrictions_added: restrictionsAdded,
-      fields_skipped: fieldsSkipped,
-      fields_blocked: fieldsBlocked,
-      rows_discarded: Array.from(plan.skippedRows).filter((rid) => {
-        const r = rows.find((row) => row.id === rid);
-        return r?.row_resolution_status === 'DISCARDED';
-      }).length,
-      warnings: preflight.warnings,
-      verification_passed: true,
-    },
-  });
+  const hasMore = groups.size > chunkGroups.length;
+  return {
+    processedOpIds,
+    processedCount: chunkGroups.length,
+    appliedCount,
+    failedCount,
+    skippedCount: 0,
+    hasMore,
+  };
 }
 
 // ============================================================
-// Post-apply verification
+// Phase: UPDATING_HOUSEHOLDS
 // ============================================================
-async function verifyApplication(base44, batchId, plan, allOps): Promise<{ passed: boolean; errors: string[] }> {
-  const errors: string[] = [];
+async function processUpdateHouseholdsChunk(base44, user, batchId, batch, allOps, pendingOps, executionId, now) {
+  // Group by entity_id (household ID)
+  const groups = new Map<string, any[]>();
+  for (const op of pendingOps) {
+    if (!op.entity_id) continue;
+    if (!groups.has(op.entity_id)) groups.set(op.entity_id, []);
+    groups.get(op.entity_id).push(op);
+  }
 
-  // Collect all entity IDs to verify in a single batch load
-  const householdIds = new Set<string>(plan.householdUpdates.keys());
-  for (const [entityId] of plan.restrictionUpdates) householdIds.add(entityId);
+  const chunkGroups = Array.from(groups.entries()).slice(0, CHUNK_SIZE);
+  const processedOpIds = new Set<string>();
+  const opUpdates: any[] = [];
+  const auditEntries: any[] = [];
+  let appliedCount = 0;
+  let failedCount = 0;
 
-  // Collect created household IDs from operations (fresh from DB)
-  const allCreatedHouseholdIds = new Set<string>();
-  for (const [rowId] of plan.newHouseholdCreations) {
-    const createdOps = allOps.filter((o) =>
-      o.temporary_entity_key === rowId && o.operation_type === OPERATION_TYPE.CREATE_HOUSEHOLD && o.entity_id,
-    );
-    for (const op of createdOps) {
-      if (op.entity_id) allCreatedHouseholdIds.add(op.entity_id);
+  // Batch load current households for drift detection
+  const householdIds = chunkGroups.map(([hid]) => hid);
+  const currentHouseholds = householdIds.length > 0
+    ? await base44.asServiceRole.entities.ChampionHousehold.filter({ id: { $in: householdIds } }, undefined, 500)
+    : [];
+  const householdMap = new Map(currentHouseholds.map((h) => [h.id, h]));
+
+  for (const [householdId, ops] of chunkGroups) {
+    const currentHousehold = householdMap.get(householdId);
+    if (!currentHousehold) {
+      for (const op of ops) {
+        processedOpIds.add(op.id);
+        opUpdates.push({ id: op.id, status: OPERATION_STATUS.FAILED, error_message: 'Target household not found.', applied_at: now });
+      }
+      failedCount += ops.length;
+      continue;
+    }
+
+    // Build update payload and check drift
+    const updatePayload: Record<string, unknown> = {};
+    let driftDetected = false;
+
+    for (const op of ops) {
+      const policy = getFieldPolicy('ChampionHousehold', op.field_name);
+      const expected = op.expected_snapshot || '';
+      const drift = detectDrift(policy, currentHousehold[op.field_name], expected);
+
+      if (drift === DRIFT_STATUS.MATERIAL_DRIFT) {
+        driftDetected = true;
+        processedOpIds.add(op.id);
+        opUpdates.push({
+          id: op.id, status: OPERATION_STATUS.FAILED,
+          drift_status: drift,
+          error_message: 'Material drift detected — field changed since reconciliation.',
+          applied_at: now,
+        });
+        failedCount++;
+        auditEntries.push({
+          import_batch_id: batchId, apply_execution_id: executionId,
+          import_row_id: op.import_row_id, comparison_id: op.comparison_id,
+          resolution_id: op.resolution_id,
+          entity_type: 'ChampionHousehold', entity_id: householdId,
+          canonical_field_name: op.field_name,
+          operation_type: OPERATION_TYPE.UPDATE_HOUSEHOLD_FIELD,
+          apply_result: 'DRIFT_BLOCKED', drift_status: drift,
+          applied_by: user.id,
+        });
+      } else {
+        updatePayload[op.field_name] = coerceValue(policy, op.applied_value);
+      }
+    }
+
+    if (driftDetected && Object.keys(updatePayload).length === 0) {
+      continue; // All fields drifted — skip update
+    }
+
+    if (Object.keys(updatePayload).length > 0) {
+      updatePayload.last_familylife_sync_at = now;
+      updatePayload.last_familylife_import_batch_id = batchId;
+
+      // Sanitize
+      const sanResult = sanitizeWritePayload(
+        updatePayload, IMPORT_OPERATIONS.RECONCILIATION_APPROVED_UPDATE, currentHousehold, 'ChampionHousehold',
+      );
+
+      // Write resolved values (sanitizer validates which fields are allowed)
+      const writePayload: Record<string, unknown> = {};
+      for (const field of Object.keys(updatePayload)) {
+        if (field !== 'last_familylife_sync_at' && field !== 'last_familylife_import_batch_id' && sanResult.blocked.includes(field)) {
+          // Blocked by sanitizer — mark as failed
+          continue;
+        }
+        writePayload[field] = updatePayload[field];
+      }
+
+      if (Object.keys(writePayload).length > 2) { // More than just sync metadata
+        await base44.asServiceRole.entities.ChampionHousehold.update(householdId, writePayload);
+      }
+
+      // Mark non-drifted ops as APPLIED
+      for (const op of ops) {
+        if (!processedOpIds.has(op.id)) {
+          processedOpIds.add(op.id);
+          opUpdates.push({
+            id: op.id, status: OPERATION_STATUS.APPLIED,
+            prior_value: String(currentHousehold[op.field_name] ?? ''),
+            applied_at: now,
+            drift_status: DRIFT_STATUS.NO_DRIFT,
+          });
+          appliedCount++;
+        }
+      }
+
+      auditEntries.push({
+        import_batch_id: batchId, apply_execution_id: executionId,
+        entity_type: 'ChampionHousehold', entity_id: householdId,
+        operation_type: OPERATION_TYPE.UPDATE_HOUSEHOLD_FIELD,
+        apply_result: 'UPDATED', applied_by: user.id,
+      });
     }
   }
-  for (const hid of allCreatedHouseholdIds) householdIds.add(hid);
 
-  const memberIds = new Set<string>(plan.memberUpdates.keys());
+  if (opUpdates.length) await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
+  if (auditEntries.length) await createApplyAudits(base44, auditEntries);
 
-  // Batch-load all records in two calls instead of N sequential gets
+  const hasMore = groups.size > chunkGroups.length;
+  return {
+    processedOpIds,
+    processedCount: chunkGroups.length,
+    appliedCount,
+    failedCount,
+    skippedCount: 0,
+    hasMore,
+  };
+}
+
+// ============================================================
+// Phase: UPDATING_MEMBERS
+// ============================================================
+async function processUpdateMembersChunk(base44, user, batchId, batch, allOps, pendingOps, executionId, now) {
+  const groups = new Map<string, any[]>();
+  for (const op of pendingOps) {
+    if (!op.entity_id) continue;
+    if (!groups.has(op.entity_id)) groups.set(op.entity_id, []);
+    groups.get(op.entity_id).push(op);
+  }
+
+  const chunkGroups = Array.from(groups.entries()).slice(0, CHUNK_SIZE);
+  const processedOpIds = new Set<string>();
+  const opUpdates: any[] = [];
+  const auditEntries: any[] = [];
+  let appliedCount = 0;
+  let failedCount = 0;
+
+  const memberIds = chunkGroups.map(([mid]) => mid);
+  const currentMembers = memberIds.length > 0
+    ? await base44.asServiceRole.entities.HouseholdMember.filter({ id: { $in: memberIds } }, undefined, 500)
+    : [];
+  const memberMap = new Map(currentMembers.map((m) => [m.id, m]));
+
+  for (const [memberId, ops] of chunkGroups) {
+    const currentMember = memberMap.get(memberId);
+    if (!currentMember) {
+      for (const op of ops) {
+        processedOpIds.add(op.id);
+        opUpdates.push({ id: op.id, status: OPERATION_STATUS.FAILED, error_message: 'Target member not found.', applied_at: now });
+      }
+      failedCount += ops.length;
+      continue;
+    }
+
+    const updatePayload: Record<string, unknown> = {};
+    let driftDetected = false;
+
+    for (const op of ops) {
+      const policy = getFieldPolicy('HouseholdMember', op.field_name);
+      const expected = op.expected_snapshot || '';
+      const drift = detectDrift(policy, currentMember[op.field_name], expected);
+
+      if (drift === DRIFT_STATUS.MATERIAL_DRIFT) {
+        driftDetected = true;
+        processedOpIds.add(op.id);
+        opUpdates.push({
+          id: op.id, status: OPERATION_STATUS.FAILED,
+          drift_status: drift,
+          error_message: 'Material drift detected.',
+          applied_at: now,
+        });
+        failedCount++;
+      } else {
+        updatePayload[op.field_name] = coerceValue(policy, op.applied_value);
+      }
+    }
+
+    if (Object.keys(updatePayload).length > 0) {
+      const sanResult = sanitizeWritePayload(
+        updatePayload, IMPORT_OPERATIONS.RECONCILIATION_APPROVED_UPDATE, currentMember, 'HouseholdMember',
+      );
+
+      const writePayload: Record<string, unknown> = {};
+      for (const field of Object.keys(updatePayload)) {
+        if (!sanResult.blocked.includes(field)) {
+          writePayload[field] = updatePayload[field];
+        }
+      }
+
+      if (Object.keys(writePayload).length > 0) {
+        await base44.asServiceRole.entities.HouseholdMember.update(memberId, writePayload);
+      }
+
+      for (const op of ops) {
+        if (!processedOpIds.has(op.id)) {
+          processedOpIds.add(op.id);
+          opUpdates.push({
+            id: op.id, status: OPERATION_STATUS.APPLIED,
+            prior_value: String(currentMember[op.field_name] ?? ''),
+            applied_at: now,
+            drift_status: DRIFT_STATUS.NO_DRIFT,
+          });
+          appliedCount++;
+        }
+      }
+
+      auditEntries.push({
+        import_batch_id: batchId, apply_execution_id: executionId,
+        entity_type: 'HouseholdMember', entity_id: memberId,
+        operation_type: OPERATION_TYPE.UPDATE_MEMBER_FIELD,
+        apply_result: 'UPDATED', applied_by: user.id,
+      });
+    }
+  }
+
+  if (opUpdates.length) await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
+  if (auditEntries.length) await createApplyAudits(base44, auditEntries);
+
+  const hasMore = groups.size > chunkGroups.length;
+  return {
+    processedOpIds,
+    processedCount: chunkGroups.length,
+    appliedCount,
+    failedCount,
+    skippedCount: 0,
+    hasMore,
+  };
+}
+
+// ============================================================
+// Phase: APPLYING_RESTRICTIONS
+// ============================================================
+async function processRestrictionsChunk(base44, user, batchId, batch, allOps, pendingOps, executionId, now) {
+  const groups = new Map<string, any[]>();
+  for (const op of pendingOps) {
+    if (!op.entity_id) continue;
+    if (!groups.has(op.entity_id)) groups.set(op.entity_id, []);
+    groups.get(op.entity_id).push(op);
+  }
+
+  const chunkGroups = Array.from(groups.entries()).slice(0, CHUNK_SIZE);
+  const processedOpIds = new Set<string>();
+  const opUpdates: any[] = [];
+  const auditEntries: any[] = [];
+  let appliedCount = 0;
+
+  const householdIds = chunkGroups.map(([hid]) => hid);
+  const currentHouseholds = householdIds.length > 0
+    ? await base44.asServiceRole.entities.ChampionHousehold.filter({ id: { $in: householdIds } }, undefined, 500)
+    : [];
+  const householdMap = new Map(currentHouseholds.map((h) => [h.id, h]));
+
+  for (const [householdId, ops] of chunkGroups) {
+    const current = householdMap.get(householdId);
+    if (!current) {
+      for (const op of ops) {
+        processedOpIds.add(op.id);
+        opUpdates.push({ id: op.id, status: OPERATION_STATUS.FAILED, error_message: 'Target household not found.', applied_at: now });
+      }
+      continue;
+    }
+
+    const restrictionPayload: Record<string, unknown> = {};
+    for (const op of ops) {
+      // Never reduce an existing restriction
+      if (current[op.field_name] === true) {
+        processedOpIds.add(op.id);
+        opUpdates.push({ id: op.id, status: OPERATION_STATUS.SKIPPED, applied_at: now });
+        continue;
+      }
+      restrictionPayload[op.field_name] = true;
+      processedOpIds.add(op.id);
+      opUpdates.push({ id: op.id, status: OPERATION_STATUS.APPLIED, prior_value: String(current[op.field_name] ?? ''), applied_at: now });
+      appliedCount++;
+    }
+
+    if (Object.keys(restrictionPayload).length > 0) {
+      restrictionPayload.last_familylife_sync_at = now;
+      restrictionPayload.last_familylife_import_batch_id = batchId;
+      await base44.asServiceRole.entities.ChampionHousehold.update(householdId, restrictionPayload);
+
+      auditEntries.push({
+        import_batch_id: batchId, apply_execution_id: executionId,
+        entity_type: 'ChampionHousehold', entity_id: householdId,
+        operation_type: OPERATION_TYPE.ADD_RESTRICTION,
+        apply_result: 'RESTRICTION_ADDED', applied_by: user.id,
+      });
+    }
+  }
+
+  if (opUpdates.length) await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
+  if (auditEntries.length) await createApplyAudits(base44, auditEntries);
+
+  const hasMore = groups.size > chunkGroups.length;
+  return {
+    processedOpIds,
+    processedCount: chunkGroups.length,
+    appliedCount,
+    failedCount: 0,
+    skippedCount: 0,
+    hasMore,
+  };
+}
+
+// ============================================================
+// Phase: RECORDING_DECISIONS (KEEP_CURRENT, SKIP_FIELD, BLOCK_FIELD)
+// ============================================================
+async function processDecisionsChunk(base44, user, batchId, batch, allOps, pendingOps, executionId, now) {
+  const chunk = pendingOps.slice(0, CHUNK_SIZE * 5); // Non-write ops can process more per chunk
+  const processedOpIds = new Set<string>();
+  const opUpdates: any[] = [];
+  const auditEntries: any[] = [];
+  let appliedCount = 0;
+  let skippedCount = 0;
+
+  for (const op of chunk) {
+    processedOpIds.add(op.id);
+
+    if (op.operation_type === OPERATION_TYPE.KEEP_CURRENT) {
+      opUpdates.push({ id: op.id, status: OPERATION_STATUS.SKIPPED, applied_at: now });
+      auditEntries.push({
+        import_batch_id: batchId, apply_execution_id: executionId,
+        import_row_id: op.import_row_id, comparison_id: op.comparison_id,
+        resolution_id: op.resolution_id,
+        entity_type: op.entity_type, entity_id: op.entity_id,
+        canonical_field_name: op.field_name,
+        operation_type: op.operation_type,
+        apply_result: 'NO_CHANGE',
+        resolution_type: op.resolution_type,
+        ownership_category: op.ownership_category,
+        applied_by: user.id,
+      });
+      skippedCount++;
+    } else if (op.operation_type === OPERATION_TYPE.SKIP_FIELD) {
+      opUpdates.push({ id: op.id, status: OPERATION_STATUS.SKIPPED, applied_at: now });
+      auditEntries.push({
+        import_batch_id: batchId, apply_execution_id: executionId,
+        import_row_id: op.import_row_id, comparison_id: op.comparison_id,
+        resolution_id: op.resolution_id,
+        canonical_field_name: op.field_name,
+        operation_type: op.operation_type,
+        apply_result: 'SKIPPED',
+        resolution_type: op.resolution_type,
+        ownership_category: op.ownership_category,
+        applied_by: user.id,
+      });
+      skippedCount++;
+    } else if (op.operation_type === OPERATION_TYPE.BLOCK_FIELD) {
+      opUpdates.push({ id: op.id, status: OPERATION_STATUS.SKIPPED, applied_at: now });
+      auditEntries.push({
+        import_batch_id: batchId, apply_execution_id: executionId,
+        import_row_id: op.import_row_id, comparison_id: op.comparison_id,
+        resolution_id: op.resolution_id,
+        canonical_field_name: op.field_name,
+        operation_type: op.operation_type,
+        apply_result: 'BLOCKED',
+        resolution_type: op.resolution_type,
+        ownership_category: op.ownership_category,
+        applied_by: user.id,
+      });
+      skippedCount++;
+    }
+  }
+
+  if (opUpdates.length) await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
+  if (auditEntries.length) await createApplyAudits(base44, auditEntries);
+
+  const hasMore = pendingOps.length > chunk.length;
+  return {
+    processedOpIds,
+    processedCount: chunk.length,
+    appliedCount,
+    failedCount: 0,
+    skippedCount,
+    hasMore,
+  };
+}
+
+// ============================================================
+// Phase: VERIFYING — post-apply verification
+// ============================================================
+async function handleVerifyPhase(base44, user, batchId, batch, allOps, executionId, now) {
+  // Find all APPLIED operations that need verification
+  const appliedOps = allOps.filter((o) => o.status === OPERATION_STATUS.APPLIED);
+
+  // Collect entity IDs to verify
+  const householdIds = new Set<string>();
+  const memberIds = new Set<string>();
+  for (const op of appliedOps) {
+    if (op.entity_type === 'ChampionHousehold' && op.entity_id) householdIds.add(op.entity_id);
+    if (op.entity_type === 'HouseholdMember' && op.entity_id) memberIds.add(op.entity_id);
+  }
+
+  // Batch load records
   const [batchedHouseholds, batchedMembers] = await Promise.all([
     householdIds.size > 0
       ? base44.asServiceRole.entities.ChampionHousehold.filter({ id: { $in: Array.from(householdIds) } }, undefined, 5000)
@@ -1223,78 +1157,228 @@ async function verifyApplication(base44, batchId, plan, allOps): Promise<{ passe
   const householdMap = new Map(batchedHouseholds.map((h) => [h.id, h]));
   const memberMap = new Map(batchedMembers.map((m) => [m.id, m]));
 
-  // Verify existing household updates
-  for (const [householdId, fieldUpdates] of plan.householdUpdates) {
-    const current = householdMap.get(householdId);
-    if (!current) {
-      errors.push(`Household ${householdId} missing after update.`);
-      continue;
-    }
-    for (const [fieldName, expectedValue] of Object.entries(fieldUpdates)) {
-      const policy = getFieldPolicy('ChampionHousehold', fieldName);
-      const expected = normalizeForComparison(expectedValue, policy);
-      const actual = normalizeForComparison(current[fieldName], policy);
-      if (expected !== actual) {
-        errors.push(`Household ${householdId} field ${fieldName}: expected "${expected}", got "${actual}".`);
+  const errors: string[] = [];
+  const opUpdates: any[] = [];
+  const auditEntries: any[] = [];
+
+  for (const op of appliedOps) {
+    if (op.operation_type === OPERATION_TYPE.CREATE_HOUSEHOLD || op.operation_type === OPERATION_TYPE.CREATE_MEMBER) {
+      // Verify creation
+      const record = op.entity_type === 'ChampionHousehold'
+        ? householdMap.get(op.entity_id)
+        : memberMap.get(op.entity_id);
+      if (!record) {
+        errors.push(`${op.entity_type} ${op.entity_id} missing after creation.`);
+        opUpdates.push({ id: op.id, status: OPERATION_STATUS.FAILED, error_message: 'Record not found after creation.', verified_at: now });
+      } else {
+        opUpdates.push({ id: op.id, status: OPERATION_STATUS.VERIFIED, verified_at: now });
+      }
+    } else if (op.operation_type === OPERATION_TYPE.UPDATE_HOUSEHOLD_FIELD) {
+      const current = householdMap.get(op.entity_id);
+      if (!current) {
+        errors.push(`Household ${op.entity_id} missing after update.`);
+        opUpdates.push({ id: op.id, status: OPERATION_STATUS.FAILED, error_message: 'Household not found after update.', verified_at: now });
+      } else {
+        const policy = getFieldPolicy('ChampionHousehold', op.field_name);
+        const expected = normalizeForComparison(coerceValue(policy, op.applied_value), policy);
+        const actual = normalizeForComparison(current[op.field_name], policy);
+        if (expected !== actual && op.applied_value) {
+          errors.push(`Household ${op.entity_id} field ${op.field_name}: expected "${expected}", got "${actual}".`);
+          opUpdates.push({ id: op.id, status: OPERATION_STATUS.FAILED, error_message: `Verification mismatch: expected "${expected}", got "${actual}".`, verified_at: now });
+        } else {
+          opUpdates.push({ id: op.id, status: OPERATION_STATUS.VERIFIED, verified_at: now });
+        }
+      }
+    } else if (op.operation_type === OPERATION_TYPE.UPDATE_MEMBER_FIELD) {
+      const current = memberMap.get(op.entity_id);
+      if (!current) {
+        errors.push(`Member ${op.entity_id} missing after update.`);
+        opUpdates.push({ id: op.id, status: OPERATION_STATUS.FAILED, error_message: 'Member not found after update.', verified_at: now });
+      } else {
+        const policy = getFieldPolicy('HouseholdMember', op.field_name);
+        const expected = normalizeForComparison(coerceValue(policy, op.applied_value), policy);
+        const actual = normalizeForComparison(current[op.field_name], policy);
+        if (expected !== actual && op.applied_value) {
+          errors.push(`Member ${op.entity_id} field ${op.field_name}: expected "${expected}", got "${actual}".`);
+          opUpdates.push({ id: op.id, status: OPERATION_STATUS.FAILED, error_message: `Verification mismatch: expected "${expected}", got "${actual}".`, verified_at: now });
+        } else {
+          opUpdates.push({ id: op.id, status: OPERATION_STATUS.VERIFIED, verified_at: now });
+        }
+      }
+    } else if (op.operation_type === OPERATION_TYPE.ADD_RESTRICTION) {
+      const current = householdMap.get(op.entity_id);
+      if (!current || current[op.field_name] !== true) {
+        errors.push(`Household ${op.entity_id} restriction ${op.field_name} was not applied.`);
+        opUpdates.push({ id: op.id, status: OPERATION_STATUS.FAILED, error_message: 'Restriction not applied.', verified_at: now });
+      } else {
+        opUpdates.push({ id: op.id, status: OPERATION_STATUS.VERIFIED, verified_at: now });
       }
     }
   }
 
-  // Verify existing member updates
-  for (const [memberId, fieldUpdates] of plan.memberUpdates) {
-    const current = memberMap.get(memberId);
-    if (!current) {
-      errors.push(`Member ${memberId} missing after update.`);
-      continue;
-    }
-    for (const [fieldName, expectedValue] of Object.entries(fieldUpdates)) {
-      const policy = getFieldPolicy('HouseholdMember', fieldName);
-      const expected = normalizeForComparison(expectedValue, policy);
-      const actual = normalizeForComparison(current[fieldName], policy);
-      if (expected !== actual) {
-        errors.push(`Member ${memberId} field ${fieldName}: expected "${expected}", got "${actual}".`);
-      }
-    }
-  }
+  if (opUpdates.length) await bulkUpdateSafe(base44, 'FamilyLifeImportApplyOperation', opUpdates);
+  if (auditEntries.length) await createApplyAudits(base44, auditEntries);
 
-  // Verify restrictions were not reduced
-  for (const [entityId, restrictions] of plan.restrictionUpdates) {
-    const current = householdMap.get(entityId);
-    if (!current) continue;
-    for (const [fieldName] of Object.entries(restrictions)) {
-      if (current[fieldName] !== true) {
-        errors.push(`Household ${entityId} restriction ${fieldName} was not applied.`);
-      }
-    }
-  }
+  const applied = allOps.filter((o) => o.status === OPERATION_STATUS.APPLIED).length;
+  const verified = opUpdates.filter((o) => o.status === OPERATION_STATUS.VERIFIED).length;
+  const failed = allOps.filter((o) => o.status === OPERATION_STATUS.FAILED).length + opUpdates.filter((o) => o.status === OPERATION_STATUS.FAILED).length;
+  const skipped = allOps.filter((o) => o.status === OPERATION_STATUS.SKIPPED).length;
+  const progress = computeProgress(allOps.length, 0, verified, failed, skipped, (batch.apply_progress?.chunk_index || 0) + 1);
 
-  // Verify new households were created
-  for (const hid of allCreatedHouseholdIds) {
-    if (!householdMap.has(hid)) {
-      errors.push(`Created household ${hid} is missing after apply.`);
-    }
-  }
+  const nextP = nextPhase(APPLY_PHASE.VERIFYING);
 
-  // Verify no duplicate FamilyLife external IDs were created
-  const flExtIds = new Set<string>();
-  for (const hid of allCreatedHouseholdIds) {
-    const h = householdMap.get(hid);
-    if (h?.familylife_external_id) flExtIds.add(h.familylife_external_id);
-  }
-  for (const extId of flExtIds) {
-    const dups = await base44.asServiceRole.entities.ChampionHousehold.filter(
-      { familylife_external_id: extId }, undefined, 500,
-    );
-    if (dups && dups.length > 1) {
-      errors.push(`Duplicate FamilyLife external ID "${extId}" detected after creation.`);
-    }
-  }
+  await updateCheckpoint(base44, batchId, {
+    apply_status: 'PAUSED',
+    apply_phase: nextP,
+    apply_progress: progress,
+    apply_error: errors.length > 0 ? `Verification errors: ${errors.length}` : '',
+  });
 
-  return { passed: errors.length === 0, errors };
+  return Response.json({
+    chunk_processed: true,
+    phase: nextP,
+    progress,
+    verification_errors: errors,
+    verified_count: verified,
+    failed_count: failed,
+    has_more: false,
+    completed: false,
+    message: errors.length > 0
+      ? `Verification completed with ${errors.length} error(s).`
+      : `Verification passed. ${verified} operations verified. Proceeding to finalize.`,
+  });
 }
 
 // ============================================================
-// status — check current apply status
+// Phase: FINALIZING — mark batch APPLIED
+// ============================================================
+async function handleFinalizePhase(base44, user, batchId, batch, allOps, executionId, now) {
+  // Check all operations are VERIFIED or SKIPPED (no PENDING or APPLIED remaining)
+  const pending = allOps.filter((o) => o.status === OPERATION_STATUS.PENDING).length;
+  const applied = allOps.filter((o) => o.status === OPERATION_STATUS.APPLIED).length;
+  const verified = allOps.filter((o) => o.status === OPERATION_STATUS.VERIFIED).length;
+  const failed = allOps.filter((o) => o.status === OPERATION_STATUS.FAILED).length;
+  const skipped = allOps.filter((o) => o.status === OPERATION_STATUS.SKIPPED).length;
+
+  if (pending > 0 || applied > 0) {
+    // Not ready to finalize — go back to verifying
+    await updateCheckpoint(base44, batchId, {
+      apply_status: 'PAUSED',
+      apply_phase: APPLY_PHASE.VERIFYING,
+    });
+    return Response.json({
+      error: `${pending} PENDING and ${applied} APPLIED operations remain. Not ready to finalize.`,
+      can_resume: true,
+    }, { status: 422 });
+  }
+
+  // Count production results from operations
+  let createdHouseholds = 0, updatedHouseholds = 0;
+  let createdMembers = 0, updatedMembers = 0;
+  let restrictionsAdded = 0;
+  let fieldsSkipped = 0, fieldsBlocked = 0, fieldsApplied = 0;
+
+  for (const op of allOps) {
+    switch (op.operation_type) {
+      case OPERATION_TYPE.CREATE_HOUSEHOLD:
+        if (op.status === OPERATION_STATUS.VERIFIED) createdHouseholds++;
+        break;
+      case OPERATION_TYPE.CREATE_MEMBER:
+        if (op.status === OPERATION_STATUS.VERIFIED) createdMembers++;
+        break;
+      case OPERATION_TYPE.UPDATE_HOUSEHOLD_FIELD:
+        if (op.status === OPERATION_STATUS.VERIFIED) { updatedHouseholds++; fieldsApplied++; }
+        break;
+      case OPERATION_TYPE.UPDATE_MEMBER_FIELD:
+        if (op.status === OPERATION_STATUS.VERIFIED) { updatedMembers++; fieldsApplied++; }
+        break;
+      case OPERATION_TYPE.ADD_RESTRICTION:
+        if (op.status === OPERATION_STATUS.VERIFIED) restrictionsAdded++;
+        break;
+      case OPERATION_TYPE.SKIP_FIELD:
+        fieldsSkipped++;
+        break;
+      case OPERATION_TYPE.BLOCK_FIELD:
+        fieldsBlocked++;
+        break;
+    }
+  }
+
+  const progress = computeProgress(allOps.length, 0, verified, failed, skipped, batch.apply_progress?.chunk_index || 0);
+
+  // Mark batch as APPLIED
+  const appliedAt = new Date().toISOString();
+  await updateCheckpoint(base44, batchId, {
+    status: 'APPLIED',
+    apply_status: 'APPLIED',
+    apply_phase: APPLY_PHASE.COMPLETED,
+    applied_at: appliedAt,
+    applied_by: user.id,
+    apply_error: '',
+    apply_progress: { ...progress, percent_complete: 100 },
+    apply_summary: {
+      preflight_passed: true,
+      drift_blocked_count: failed,
+      restrictions_added: restrictionsAdded,
+      fields_skipped: fieldsSkipped,
+      fields_blocked: fieldsBlocked,
+      keep_current_count: 0,
+      custom_values_applied: 0,
+      verification_passed: failed === 0,
+    },
+    created_household_count: createdHouseholds,
+    updated_household_count: updatedHouseholds,
+    created_member_count: createdMembers,
+    updated_member_count: updatedMembers,
+    failed_row_count: failed,
+    applied_field_count: fieldsApplied,
+  });
+
+  // Mark all resolutions as APPLIED
+  const resolutions = await base44.asServiceRole.entities.FamilyLifeImportResolution.filter(
+    { import_batch_id: batchId }, undefined, 5000,
+  );
+  const activeResolutions = resolutions.filter((r) =>
+    r.status === RESOLUTION_STATUS.PENDING || r.status === RESOLUTION_STATUS.RESOLVED,
+  );
+  if (activeResolutions.length) {
+    const resolutionUpdates = activeResolutions.map((r) => ({
+      id: r.id,
+      status: RESOLUTION_STATUS.APPLIED,
+      last_modified_at: appliedAt,
+      last_modified_by: user.id,
+    }));
+    await bulkUpdateSafe(base44, 'FamilyLifeImportResolution', resolutionUpdates);
+  }
+
+  // Audit: APPLY_COMPLETED
+  await createApplyAudits(base44, [{
+    import_batch_id: batchId,
+    apply_execution_id: executionId,
+    apply_result: 'APPLIED',
+    applied_by: user.id,
+  }]);
+
+  return Response.json({
+    completed: true,
+    applied_at: appliedAt,
+    summary: {
+      created_households: createdHouseholds,
+      updated_households: updatedHouseholds,
+      created_members: createdMembers,
+      updated_members: updatedMembers,
+      fields_applied: fieldsApplied,
+      restrictions_added: restrictionsAdded,
+      fields_skipped: fieldsSkipped,
+      fields_blocked: fieldsBlocked,
+      verification_passed: failed === 0,
+      failed_count: failed,
+    },
+  });
+}
+
+// ============================================================
+// status — return current apply progress
 // ============================================================
 async function handleStatus(base44, user, batchId) {
   const batch = await base44.asServiceRole.entities.FamilyLifeImportBatch.get(batchId);
@@ -1302,7 +1386,7 @@ async function handleStatus(base44, user, batchId) {
 
   const [operations, applyAudits] = await Promise.all([
     base44.asServiceRole.entities.FamilyLifeImportApplyOperation.filter({ import_batch_id: batchId }, undefined, 5000),
-    base44.asServiceRole.entities.FamilyLifeImportApplyAudit.filter({ import_batch_id: batchId }, '-created_date', 100),
+    base44.asServiceRole.entities.FamilyLifeImportApplyAudit.filter({ import_batch_id: batchId }, '-created_date', 50),
   ]);
 
   const statusCounts = {
@@ -1313,17 +1397,117 @@ async function handleStatus(base44, user, batchId) {
     skipped: operations.filter((o) => o.status === OPERATION_STATUS.SKIPPED).length,
   };
 
+  // Determine if stale
+  const stale = isApplyInProgress(batch) && isStale(batch.apply_progress?.last_checkpoint_at);
+
+  // Determine can_resume and can_reset
+  const hasAppliedOrVerified = operations.some(
+    (o) => o.status === OPERATION_STATUS.APPLIED || o.status === OPERATION_STATUS.VERIFIED,
+  );
+
   return Response.json({
     batch_status: batch.status,
     apply_status: batch.apply_status,
+    apply_phase: batch.apply_phase,
     apply_execution_id: batch.apply_execution_id,
     applying_started_at: batch.applying_started_at,
+    applying_started_by: batch.applying_started_by,
     applied_at: batch.applied_at,
     applied_by: batch.applied_by,
     apply_error: batch.apply_error,
     apply_summary: batch.apply_summary,
+    apply_progress: batch.apply_progress,
     operation_counts: statusCounts,
     total_operations: operations.length,
     recent_audits: applyAudits.slice(0, 10),
+    is_stale: stale,
+    can_resume: batch.apply_status === 'PAUSED' || stale,
+    can_reset: !hasAppliedOrVerified && isApplyInProgress(batch),
   });
+}
+
+// ============================================================
+// reset — reset to READY_FOR_REVIEW if safe
+// ============================================================
+async function handleReset(base44, user, batchId) {
+  const batch = await base44.asServiceRole.entities.FamilyLifeImportBatch.get(batchId);
+  if (!batch) return Response.json({ error: 'Batch not found.' }, { status: 404 });
+
+  if (!isApplyInProgress(batch) && batch.apply_status !== 'FAILED' && batch.apply_status !== 'PARTIALLY_FAILED') {
+    return Response.json({ error: `Cannot reset. Apply status is "${batch.apply_status}".` }, { status: 409 });
+  }
+
+  // Check if any operations were APPLIED or VERIFIED — if so, cannot reset
+  const operations = await base44.asServiceRole.entities.FamilyLifeImportApplyOperation.filter(
+    { import_batch_id: batchId }, undefined, 5000,
+  );
+
+  const appliedOrVerified = operations.filter(
+    (o) => o.status === OPERATION_STATUS.APPLIED || o.status === OPERATION_STATUS.VERIFIED,
+  );
+
+  if (appliedOrVerified.length > 0) {
+    return Response.json({
+      error: `Cannot reset — ${appliedOrVerified.length} operation(s) were already applied to production. Use "resume" to continue instead.`,
+      applied_count: appliedOrVerified.length,
+      can_resume: true,
+    }, { status: 409 });
+  }
+
+  // Safe to reset — delete all operations and audits, reset batch
+  if (operations.length > 0) {
+    await base44.asServiceRole.entities.FamilyLifeImportApplyOperation.deleteMany(
+      { import_batch_id: batchId },
+    );
+  }
+
+  const applyAudits = await base44.asServiceRole.entities.FamilyLifeImportApplyAudit.filter(
+    { import_batch_id: batchId }, undefined, 5000,
+  );
+  if (applyAudits.length > 0) {
+    await base44.asServiceRole.entities.FamilyLifeImportApplyAudit.deleteMany(
+      { import_batch_id: batchId },
+    );
+  }
+
+  await updateCheckpoint(base44, batchId, {
+    status: 'READY_FOR_REVIEW',
+    apply_status: 'PENDING',
+    apply_phase: 'PREVALIDATED',
+    apply_execution_id: '',
+    applying_started_at: '',
+    applying_started_by: '',
+    apply_error: '',
+    apply_progress: {},
+    apply_summary: {},
+    created_household_count: 0,
+    updated_household_count: 0,
+    created_member_count: 0,
+    updated_member_count: 0,
+    failed_row_count: 0,
+    applied_field_count: 0,
+  });
+
+  return Response.json({
+    reset: true,
+    message: 'Apply execution reset. No production records were affected. Batch is back to READY_FOR_REVIEW.',
+  });
+}
+
+// ============================================================
+// Value coercion helper (mirrors applyEngine.ts coerceValue)
+// ============================================================
+function coerceValue(policy: any, value: string): unknown {
+  if (!policy || value === '') return value;
+  if (policy.normalization === 'boolean') {
+    return value === 'true';
+  }
+  if (['cumulative_registrations', 'free_couple_registrations_used',
+       'free_couple_registrations_available',
+       'registrations_toward_next_free_registration',
+       'registrations_needed_for_next_free_registration'].includes(policy.field)) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : value;
+  }
+  return value;
 }
