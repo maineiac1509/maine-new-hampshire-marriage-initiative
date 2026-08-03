@@ -27,6 +27,7 @@ import {
   generateDefaults, saveResolution, bulkResolve, manualMatch,
   discardNewRecord, skipRow, blockRow, checkReadiness,
 } from '@/lib/resolutionApi';
+import { computeComparisonSummary } from '@/lib/comparisonClassification';
 
 const TABS = [
   { key: 'comparisons', label: 'Comparisons' },
@@ -90,6 +91,12 @@ export default function FamilyLifeImportDetail() {
   }, [id]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  // Compute comparison classification summary for the dashboard cards
+  const comparisonSummary = useMemo(
+    () => computeComparisonSummary(comparisons, resolutions),
+    [comparisons, resolutions]
+  );
 
   // Auto-generate defaults on first load if no resolutions exist yet
   useEffect(() => {
@@ -371,6 +378,7 @@ export default function FamilyLifeImportDetail() {
         <div className="rounded-lg border p-4">
           <ResolutionSummary
             summary={batch.resolution_summary}
+            comparisonSummary={comparisonSummary}
             readinessStatus={batch.readiness_status}
             readinessReason={batch.readiness_reason}
           />

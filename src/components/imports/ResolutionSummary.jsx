@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, AlertTriangle, Users, FileX, Ban, Layers, Clock } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Users, FileX, Ban, Layers, Clock, EyeOff, Settings } from 'lucide-react';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { READINESS_STATUS_LABEL, READINESS_STATUS_VARIANT } from '@/lib/importLabels';
 
@@ -22,9 +22,10 @@ function ProgressStat({ icon: Icon, label, value, tone = 'muted' }) {
   );
 }
 
-export default function ResolutionSummary({ summary, readinessStatus, readinessReason }) {
+export default function ResolutionSummary({ summary, comparisonSummary, readinessStatus, readinessReason }) {
   const pct = Math.round(summary?.completion_percentage || 0);
   const ready = readinessStatus === 'READY_TO_APPLY';
+  const cs = comparisonSummary || { total: 0, auto_resolved: 0, hidden: 0, needs_review: 0, admin_resolved: 0 };
 
   return (
     <div className="space-y-3">
@@ -55,11 +56,17 @@ export default function ResolutionSummary({ summary, readinessStatus, readinessR
         </div>
       )}
 
+      {/* Field comparison overview */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        <ProgressStat icon={Layers} label="Actionable Fields" value={summary?.total_actionable} tone="muted" />
-        <ProgressStat icon={CheckCircle2} label="Auto-Resolved" value={summary?.auto_resolved} tone="emerald" />
-        <ProgressStat icon={CheckCircle2} label="Manually Resolved" value={summary?.manually_resolved} tone="blue" />
-        <ProgressStat icon={AlertTriangle} label="Pending Conflicts" value={summary?.pending_conflicts} tone={summary?.pending_conflicts ? 'amber' : 'muted'} />
+        <ProgressStat icon={Layers} label="Total Fields Compared" value={cs.total} tone="muted" />
+        <ProgressStat icon={Settings} label="Automatically Resolved" value={cs.auto_resolved} tone="emerald" />
+        <ProgressStat icon={EyeOff} label="Hidden (No Action)" value={cs.hidden} tone="muted" />
+        <ProgressStat icon={AlertTriangle} label="Requires Review" value={cs.needs_review} tone={cs.needs_review ? 'amber' : 'muted'} />
+        <ProgressStat icon={CheckCircle2} label="Resolved by Admin" value={cs.admin_resolved} tone="blue" />
+      </div>
+
+      {/* Row-level resolution progress */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         <ProgressStat icon={Users} label="Unresolved Matches" value={summary?.unresolved_matches} tone={summary?.unresolved_matches ? 'amber' : 'muted'} />
         <ProgressStat icon={Ban} label="Blocking Issues" value={summary?.blocking_issues} tone={summary?.blocking_issues ? 'red' : 'muted'} />
         <ProgressStat icon={Users} label="Proposed New Records" value={summary?.proposed_new_records} tone={summary?.proposed_new_records ? 'blue' : 'muted'} />
